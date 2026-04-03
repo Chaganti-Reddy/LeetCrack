@@ -1,0 +1,9 @@
+[build]
+  publish = "."
+  command = "node generate-manifest.js && sed -i \"s|REPLACE_GITHUB_CLIENT_ID|$GITHUB_CLIENT_ID|g\" index.html"
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/api/github-oauth"
+  to = "/.netlify/functions/github-oauth"
+  status = 200
