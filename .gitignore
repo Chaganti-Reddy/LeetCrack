@@ -1,0 +1,6 @@
+.env
+node_modules/
+index.html.bak
+
+# Local Netlify folder
+.netlify
