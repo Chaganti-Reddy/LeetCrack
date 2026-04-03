@@ -5,6 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LeetTrack — Company-wise Problem Tracker</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="style.css">
   <script>window.GITHUB_CLIENT_ID = "REPLACE_GITHUB_CLIENT_ID";</script>
 </head>
@@ -101,6 +102,23 @@
               </div>
             </div>
 
+            <div class="company-filter-wrap" id="pattern-filter-wrap" style="display:none">
+              <button class="filter-dropdown-btn" id="pattern-filter-btn" onclick="togglePatternDropdown()">
+                Patterns <span id="pattern-filter-count" class="filter-count" style="display:none">0</span><span
+                  class="dropdown-arrow">▾</span>
+              </button>
+              <div class="company-dropdown" id="pattern-dropdown" style="display:none">
+                <div class="company-dropdown-search">
+                  <input type="text" id="pattern-search-input" placeholder="Search patterns…"
+                    oninput="filterPatternList(this.value)" autocomplete="off">
+                </div>
+                <div class="company-checkbox-list" id="pattern-checkbox-list"></div>
+                <div class="company-dropdown-footer">
+                  <button class="dropdown-clear-btn" onclick="clearPatternFilters()">Clear</button>
+                </div>
+              </div>
+            </div>
+
             <div class="status-filter-wrap" id="status-filter-wrap">
               <button class="filter-dropdown-btn" id="status-filter-btn" onclick="toggleStatusDropdown()">
                 <span class="status-filter-label">All Status</span><span class="dropdown-arrow">▾</span>
@@ -144,8 +162,6 @@
             <thead>
               <tr>
                 <th class="col-check">✓</th>
-                <th class="col-star">★</th>
-                <th class="col-id" data-sort="id">#</th>
                 <th class="col-title" data-sort="title">Question</th>
                 <th class="col-diff" data-sort="difficulty">Difficulty</th>
                 <th class="col-accept" data-sort="acceptance">Accept %</th>
@@ -239,6 +255,11 @@
           </div>
         </div>
 
+        <div class="section-block readiness-section" style="position:relative;padding-top:44px">
+          <div class="section-title" style="position:absolute;top:22px;left:24px">Interview Readiness Score</div>
+          <div id="readiness-gauge" style="margin-top:8px"></div>
+        </div>
+
         <div class="profile-grid">
           <div class="section-block">
             <div class="section-title">Progress by Difficulty</div>
@@ -270,6 +291,10 @@
           <div class="section-title">Recently Solved</div>
           <div id="recent-solves" class="recent-list"></div>
         </div>
+<div class="section-block">
+  <div class="section-title">Notes Search</div>
+  <div id="profile-notes-search"></div>
+</div>
       </div>
     </div>
   </div>
@@ -335,6 +360,28 @@
           </div>
           <div id="insights-next" class="insights-hot-list"></div>
         </div>
+        <div class="insights-card insights-card-wide">
+          <div class="insights-card-header">
+            <span class="insights-card-icon">📈</span>
+            <div>
+              <div class="insights-card-title">Weekly Solve Progression</div>
+              <div class="insights-card-sub">Problems solved per week (last 12 weeks)</div>
+            </div>
+          </div>
+          <div id="insights-weekly"></div>
+        </div>
+
+        <div class="insights-card insights-card-wide">
+          <div class="insights-card-header">
+            <span class="insights-card-icon">🧩</span>
+            <div>
+              <div class="insights-card-title">Pattern Coverage</div>
+              <div class="insights-card-sub">Click a row to filter by that pattern · requires data/leetcode-meta.json</div>
+            </div>
+          </div>
+          <div id="insights-patterns" class="insights-hot-list"></div>
+        </div>
+
         <div class="insights-card insights-card-wide">
           <div class="insights-card-header"><span class="insights-card-icon">⏱</span>
             <div>
@@ -435,34 +482,41 @@
         <div class="onboarding-step">
           <div class="onboarding-step-icon">⏱</div>
           <div>
-            <div class="onboarding-step-title">Log your time & notes</div>
-            <div class="onboarding-step-desc">After solving, a prompt will appear to log your time and approach notes.
+            <div class="onboarding-step-title">Quick-log your time instantly</div>
+            <div class="onboarding-step-desc">When you solve a problem, a toast pops up with an inline time input — no modal needed.
+              Type your minutes and hit OK.</div>
             </div>
+            </div>
+        <div class="onboarding-step">
+          <div class="onboarding-step-icon">↺</div>
+          <div>
+            <div class="onboarding-step-title">SM2 Spaced Repetition</div>
+            <div class="onboarding-step-desc">Problems are scheduled for review at 1, 3, 7, 14, 30, and 90 day intervals. Hit the 🔁
+              Review filter to see what's due today.</div>
           </div>
         </div>
         <div class="onboarding-step">
           <div class="onboarding-step-icon">🏢</div>
           <div>
-            <div class="onboarding-step-title">Filter by company</div>
-            <div class="onboarding-step-desc">Use the Companies dropdown to focus on problems asked by your target
-              company.</div>
+            <div class="onboarding-step-title">Filter by company &amp; pattern</div>
+            <div class="onboarding-step-desc">Use the Companies dropdown to target your dream company. The Patterns dropdown filters
+              by algorithm category (e.g. DP, Sliding Window).</div>
           </div>
         </div>
         <div class="onboarding-step">
-          <div class="onboarding-step-icon">🎲</div>
+          <div class="onboarding-step-icon">🎯</div>
           <div>
-            <div class="onboarding-step-title">Pick a random problem</div>
-            <div class="onboarding-step-desc">Press <kbd>R</kbd> or click 🎲 in the nav for a random unsolved problem.
-              Good for daily practice!</div>
+            <div class="onboarding-step-title">Interview Readiness Score</div>
+            <div class="onboarding-step-desc">Your Profile page shows a 0–100 readiness gauge based on top-company coverage, solve
+              volume, difficulty balance, and streak consistency.</div>
           </div>
         </div>
         <div class="onboarding-step">
           <div class="onboarding-step-icon">⚡</div>
           <div>
             <div class="onboarding-step-title">Keyboard shortcuts</div>
-            <div class="onboarding-step-desc"><kbd>/</kbd> to search · <kbd>R</kbd> random ·
-              <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> switch pages · <kbd>Esc</kbd> close modals
-            </div>
+            <div class="onboarding-step-desc"><kbd>/</kbd> to search · <kbd>R</kbd> random · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd>
+              switch pages · <kbd>Esc</kbd> close modals</div>
           </div>
         </div>
       </div>

@@ -7,56 +7,39 @@ const ITEMS_PER_PAGE = 20;
 const CACHE_KEY = "leet_csv_cache_v4";
 
 const PRIORITY_RANK = {
-  google: 1,
-  amazon: 2,
-  microsoft: 3,
-  meta: 4,
-  apple: 5,
-  netflix: 6,
-  uber: 7,
-  linkedin: 8,
-  twitter: 9,
-  airbnb: 10,
-  bloomberg: 11,
-  salesforce: 12,
-  adobe: 13,
-  oracle: 14,
-  nvidia: 15,
-  tesla: 16,
-  stripe: 17,
-  snapchat: 18,
-  tiktok: 19,
-  bytedance: 20,
-  goldman_sachs: 21,
-  morgan_stanley: 22,
-  atlassian: 23,
-  shopify: 24,
-  dropbox: 25,
-  lyft: 26,
-  pinterest: 27,
-  doordash: 28,
-  coinbase: 29,
-  robinhood: 30,
+  google: 1, amazon: 2, microsoft: 3, meta: 4, apple: 5,
+  netflix: 6, uber: 7, linkedin: 8, twitter: 9, airbnb: 10,
+  bloomberg: 11, salesforce: 12, adobe: 13, oracle: 14, nvidia: 15,
+  tesla: 16, stripe: 17, snapchat: 18, tiktok: 19, bytedance: 20,
+  goldman_sachs: 21, morgan_stanley: 22, atlassian: 23, shopify: 24,
+  dropbox: 25, lyft: 26, pinterest: 27, doordash: 28, coinbase: 29, robinhood: 30,
 };
+
+// ─── SM2 Intervals (days) ──────────────────────────────────────────────────────
+const SM2_INTERVALS = [1, 3, 7, 14, 30, 90];
 
 // ─── State ─────────────────────────────────────────────────────────────────────
 const state = {
   questions: [],
   filtered: [],
-  solved: {},
-  activity: {},
-  bookmarks: {},
-  notes: {},
-  timeLogs: {},
+  solved: {},        // id -> dateStr
+  activity: {},      // dateStr -> count
+  bookmarks: {},     // id -> true
+  notes: {},         // id -> string
+  timeLogs: {},      // id -> minutes
+  reviewData: {},    // id -> { interval, nextReviewDate, reps }
   user: null,
   token: null,
   gistId: null,
   page: 1,
   companies: [],
+  allTags: [],       // from leetcode-meta.json
+  metaMap: {},       // id -> { tags, ... }
   filters: {
     search: "",
     difficulties: [],
     companies: [],
+    patterns: [],
     status: "all",
     starred: false,
     review: false,
@@ -72,12 +55,8 @@ const state = {
 // ─── Hash Routing ──────────────────────────────────────────────────────────────
 const PAGES = ["tracker", "profile", "insights"];
 function showPage(name) {
-  document
-    .querySelectorAll(".page")
-    .forEach((p) => p.classList.remove("active"));
-  document
-    .querySelectorAll(".nav-btn")
-    .forEach((b) => b.classList.remove("active"));
+  document.querySelectorAll(".page").forEach((p) => p.classList.remove("active"));
+  document.querySelectorAll(".nav-btn").forEach((b) => b.classList.remove("active"));
   document.getElementById(`page-${name}`).classList.add("active");
   document.getElementById(`nav-${name}`).classList.add("active");
   window.location.hash = name;
@@ -88,12 +67,8 @@ function showPage(name) {
 function initRouting() {
   const hash = window.location.hash.replace("#", "") || "tracker";
   const page = PAGES.includes(hash) ? hash : "tracker";
-  document
-    .querySelectorAll(".page")
-    .forEach((p) => p.classList.remove("active"));
-  document
-    .querySelectorAll(".nav-btn")
-    .forEach((b) => b.classList.remove("active"));
+  document.querySelectorAll(".page").forEach((p) => p.classList.remove("active"));
+  document.querySelectorAll(".nav-btn").forEach((b) => b.classList.remove("active"));
   document.getElementById(`page-${page}`).classList.add("active");
   document.getElementById(`nav-${page}`).classList.add("active");
   if (page === "profile") renderProfilePage();
@@ -101,12 +76,8 @@ function initRouting() {
   window.addEventListener("hashchange", () => {
     const h = window.location.hash.replace("#", "");
     if (PAGES.includes(h)) {
-      document
-        .querySelectorAll(".page")
-        .forEach((p) => p.classList.remove("active"));
-      document
-        .querySelectorAll(".nav-btn")
-        .forEach((b) => b.classList.remove("active"));
+      document.querySelectorAll(".page").forEach((p) => p.classList.remove("active"));
+      document.querySelectorAll(".nav-btn").forEach((b) => b.classList.remove("active"));
       document.getElementById(`page-${h}`).classList.add("active");
       document.getElementById(`nav-${h}`).classList.add("active");
       if (h === "profile") renderProfilePage();
@@ -133,9 +104,7 @@ function toggleTheme() {
 
 // ─── Auth ──────────────────────────────────────────────────────────────────────
 function loginWithGitHub() {
-  const redirectUri = encodeURIComponent(
-    `${window.location.origin}/api/github-oauth`,
-  );
+  const redirectUri = encodeURIComponent(`${window.location.origin}/api/github-oauth`);
   window.location.href = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&scope=gist&redirect_uri=${redirectUri}`;
 }
 function logout() {
@@ -163,6 +132,7 @@ function serializeProgress() {
     bookmarks: state.bookmarks,
     notes: state.notes,
     timeLogs: state.timeLogs,
+    reviewData: state.reviewData,
   });
 }
 function deserializeProgress(content) {
@@ -178,6 +148,7 @@ function deserializeProgress(content) {
     state.bookmarks = data.bookmarks || {};
     state.notes = data.notes || {};
     state.timeLogs = data.timeLogs || {};
+    state.reviewData = data.reviewData || {};
   } catch (_) { }
 }
 async function loadProgressFromGist() {
@@ -200,8 +171,7 @@ async function loadProgressFromGist() {
     headers: { Authorization: `token ${state.token}` },
   });
   const gists = await res.json();
-  const found =
-    Array.isArray(gists) && gists.find((g) => g.files[GIST_FILENAME]);
+  const found = Array.isArray(gists) && gists.find((g) => g.files[GIST_FILENAME]);
   if (found) {
     state.gistId = found.id;
     localStorage.setItem("gh_gist_id", found.id);
@@ -218,21 +188,14 @@ async function saveProgressToGist() {
     public: false,
     files: { [GIST_FILENAME]: { content: serializeProgress() } },
   };
-  const headers = {
-    Authorization: `token ${state.token}`,
-    "Content-Type": "application/json",
-  };
+  const headers = { Authorization: `token ${state.token}`, "Content-Type": "application/json" };
   if (state.gistId) {
     await fetch(`https://api.github.com/gists/${state.gistId}`, {
-      method: "PATCH",
-      headers,
-      body: JSON.stringify(body),
+      method: "PATCH", headers, body: JSON.stringify(body),
     });
   } else {
     const res = await fetch("https://api.github.com/gists", {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
+      method: "POST", headers, body: JSON.stringify(body),
     });
     const gist = await res.json();
     state.gistId = gist.id;
@@ -256,10 +219,9 @@ function exportProgress() {
     bookmarks: state.bookmarks,
     notes: state.notes,
     timeLogs: state.timeLogs,
+    reviewData: state.reviewData,
   };
-  const blob = new Blob([JSON.stringify(data, null, 2)], {
-    type: "application/json",
-  });
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -279,26 +241,18 @@ function handleImportFile(e) {
   reader.onload = async (ev) => {
     try {
       const data = JSON.parse(ev.target.result);
-      if (!data.solved && !data.activity) {
-        showToast("❌ Invalid backup file", "error");
-        return;
-      }
+      if (!data.solved && !data.activity) { showToast("❌ Invalid backup file", "error"); return; }
       state.solved = data.solved || {};
       state.activity = data.activity || {};
       state.bookmarks = data.bookmarks || {};
       state.notes = data.notes || {};
       state.timeLogs = data.timeLogs || {};
+      state.reviewData = data.reviewData || {};
       saveLocalProgress();
       if (state.token) saveProgressToGist();
-      renderTable();
-      renderStats();
-      refreshDataDependentPages();
-      showToast(
-        `✅ Imported ${Object.keys(state.solved).length} solved problems`,
-      );
-    } catch (_) {
-      showToast("❌ Failed to parse backup file", "error");
-    }
+      renderTable(); renderStats(); refreshDataDependentPages();
+      showToast(`✅ Imported ${Object.keys(state.solved).length} solved problems`);
+    } catch (_) { showToast("❌ Failed to parse backup file", "error"); }
   };
   reader.readAsText(file);
   e.target.value = "";
@@ -316,42 +270,63 @@ function showToast(msg, type = "success") {
   toast.textContent = msg;
   toast.className = `toast toast-${type} toast-show`;
   if (_toastTimer) clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(() => {
-    toast.classList.remove("toast-show");
-  }, 3000);
+  _toastTimer = setTimeout(() => { toast.classList.remove("toast-show"); }, 3000);
 }
 
 // ─── Streak Calculation ────────────────────────────────────────────────────────
 function calcStreaks() {
-  const days = Object.keys(state.activity)
-    .filter((d) => state.activity[d] > 0)
-    .sort();
+  const days = Object.keys(state.activity).filter((d) => state.activity[d] > 0).sort();
   if (days.length === 0) return { current: 0, longest: 0, totalDays: 0 };
   const today = dateStr(new Date());
   const yesterday = dateStr(new Date(Date.now() - 86400000));
   const daySet = new Set(days);
-  let longest = 0,
-    run = 1;
+  let longest = 0, run = 1;
   for (let i = 1; i < days.length; i++) {
     const diff = (new Date(days[i]) - new Date(days[i - 1])) / 86400000;
-    if (diff === 1) {
-      run++;
-      longest = Math.max(longest, run);
-    } else run = 1;
+    if (diff === 1) { run++; longest = Math.max(longest, run); } else run = 1;
   }
   longest = Math.max(longest, 1);
   let current = 0;
   if (daySet.has(today) || daySet.has(yesterday)) {
     let d = daySet.has(today) ? new Date(today) : new Date(yesterday);
-    while (daySet.has(dateStr(d))) {
-      current++;
-      d = new Date(d.getTime() - 86400000);
-    }
+    while (daySet.has(dateStr(d))) { current++; d = new Date(d.getTime() - 86400000); }
   }
   return { current, longest, totalDays: days.length };
 }
-function dateStr(d) {
-  return d.toISOString().slice(0, 10);
+function dateStr(d) { return d.toISOString().slice(0, 10); }
+
+// ─── SM2 Spaced Repetition ─────────────────────────────────────────────────────
+function getNextReviewDate(id) {
+  const rd = state.reviewData[id];
+  if (!rd) return null;
+  return rd.nextReviewDate;
+}
+function isReviewDue(id) {
+  const nd = getNextReviewDate(id);
+  if (!nd) return false;
+  return nd <= dateStr(new Date());
+}
+function advanceSM2(id) {
+  const rd = state.reviewData[id] || { intervalIdx: 0, reps: 0 };
+  const nextIdx = Math.min((rd.intervalIdx || 0) + 1, SM2_INTERVALS.length - 1);
+  const days = SM2_INTERVALS[nextIdx];
+  const nextDate = new Date(Date.now() + days * 86400000);
+  state.reviewData[id] = {
+    intervalIdx: nextIdx,
+    reps: (rd.reps || 0) + 1,
+    nextReviewDate: dateStr(nextDate),
+    lastReviewed: dateStr(new Date()),
+  };
+}
+function initSM2OnSolve(id) {
+  const days = SM2_INTERVALS[0];
+  const nextDate = new Date(Date.now() + days * 86400000);
+  state.reviewData[id] = {
+    intervalIdx: 0,
+    reps: 0,
+    nextReviewDate: dateStr(nextDate),
+    lastReviewed: dateStr(new Date()),
+  };
 }
 
 // ─── Unsolve Modal ─────────────────────────────────────────────────────────────
@@ -374,13 +349,12 @@ async function confirmUnsolve() {
   delete state.solved[id];
   delete state.notes[id];
   delete state.timeLogs[id];
+  delete state.reviewData[id];
   if (state.activity[solvedDate]) {
     state.activity[solvedDate] = Math.max(0, state.activity[solvedDate] - 1);
     if (state.activity[solvedDate] === 0) delete state.activity[solvedDate];
   }
-  renderStats();
-  renderTable();
-  refreshDataDependentPages();
+  renderStats(); renderTable(); refreshDataDependentPages();
   saveLocalProgress();
   if (state.token) saveProgressToGist();
 }
@@ -388,25 +362,22 @@ async function confirmUnsolve() {
 // ─── Toggle Solved ─────────────────────────────────────────────────────────────
 async function toggleSolved(id) {
   const today = dateStr(new Date());
-  if (state.solved[id]) {
-    openUnsolveModal(id);
-    return;
-  }
+  if (state.solved[id]) { openUnsolveModal(id); return; }
   state.solved[id] = today;
   state.activity[today] = (state.activity[today] || 0) + 1;
+  initSM2OnSolve(id);
   const cb = document.querySelector(`input[data-id="${id}"]`);
   const row = cb?.closest("tr");
   if (cb) cb.checked = true;
   if (row) row.classList.add("solved");
-  renderStats();
-  renderTable();
+  renderStats(); renderTable();
   saveLocalProgress();
   if (state.token) saveProgressToGist();
-  // Show toast with "Add notes?" action instead of auto-opening modal
-  showSolvedToast(id);
+  showSolvedToastQuickLog(id);
 }
 
-function showSolvedToast(id) {
+// ─── Feature 4: Quick-Log Solved Toast ────────────────────────────────────────
+function showSolvedToastQuickLog(id) {
   const q = state.questions.find((x) => x.id === id);
   let toast = document.getElementById("solved-toast");
   if (!toast) {
@@ -415,13 +386,34 @@ function showSolvedToast(id) {
     document.body.appendChild(toast);
   }
   toast.innerHTML = `
-    <span>🎉 Solved: <strong>${q?.title || "Problem"}</strong></span>
-    <button onclick="openNoteModal(${id}); hideSolvedToast()" class="solved-toast-btn">Add Notes & Time</button>
+    <span class="solved-toast-emoji">🎉</span>
+    <div class="solved-toast-info">
+      <div class="solved-toast-title">${q?.title || "Problem"}</div>
+      <div class="solved-toast-sub">Log your solve time:</div>
+    </div>
+    <div class="solved-toast-quicklog">
+      <input type="number" id="quick-time-input" class="quick-time-input" placeholder="min" min="1" max="999" autofocus>
+      <button class="quick-log-ok" onclick="submitQuickLog(${id})">OK</button>
+    </div>
+    <button class="solved-toast-notes" onclick="openNoteModal(${id}); hideSolvedToast()" title="Add notes">📝</button>
     <button onclick="hideSolvedToast()" class="solved-toast-dismiss">✕</button>
   `;
   toast.classList.add("solved-toast-show");
   if (toast._timer) clearTimeout(toast._timer);
-  toast._timer = setTimeout(() => hideSolvedToast(), 6000);
+  toast._timer = setTimeout(() => hideSolvedToast(), 12000);
+  setTimeout(() => { document.getElementById("quick-time-input")?.focus(); }, 100);
+}
+function submitQuickLog(id) {
+  const input = document.getElementById("quick-time-input");
+  const mins = parseInt(input?.value);
+  if (!isNaN(mins) && mins > 0) {
+    state.timeLogs[id] = mins;
+    saveLocalProgress();
+    if (state.token) saveProgressToGist();
+    showToast(`⏱ ${mins}m logged!`);
+  }
+  hideSolvedToast();
+  renderTable();
 }
 function hideSolvedToast() {
   const toast = document.getElementById("solved-toast");
@@ -455,8 +447,7 @@ function openNoteModal(id) {
   const q = state.questions.find((x) => x.id === id);
   const note = state.notes[id] || "";
   const time = state.timeLogs[id] || "";
-  document.getElementById("note-modal-title").textContent =
-    q?.title || "Problem";
+  document.getElementById("note-modal-title").textContent = q?.title || "Problem";
   document.getElementById("note-textarea").value = note;
   document.getElementById("note-time-input").value = time;
   document.getElementById("note-modal-id").value = id;
@@ -466,14 +457,12 @@ function openNoteModal(id) {
 function closeNoteModal() {
   document.getElementById("note-modal-overlay").style.display = "none";
 }
-
 function refreshDataDependentPages() {
   const activePage = document.querySelector(".page.active")?.id;
   if (activePage === "page-insights") renderInsightsPage();
   if (activePage === "page-profile") renderProfilePage();
   renderStats();
 }
-
 async function saveNote() {
   const id = parseInt(document.getElementById("note-modal-id").value);
   const text = document.getElementById("note-textarea").value.trim();
@@ -484,9 +473,8 @@ async function saveNote() {
   if (isNaN(mins) || mins <= 0) delete state.timeLogs[id];
   else state.timeLogs[id] = mins;
   closeNoteModal();
-  // Remove the entire old DOM-patching block — renderTable handles it
   refreshDataDependentPages();
-  renderTable(); // ← add this
+  renderTable();
   saveLocalProgress();
   if (state.token) saveProgressToGist();
 }
@@ -501,9 +489,13 @@ function pickRandom() {
   const pool = state.filtered.length > 0 ? state.filtered : state.questions;
   const unsolved = pool.filter((q) => !state.solved[q.id]);
   const source = unsolved.length > 0 ? unsolved : pool;
-  if (!source.length) { document.getElementById("random-problem-content").innerHTML = `<div class="random-empty">No problems available!</div>`; return; }
+  if (!source.length) {
+    document.getElementById("random-problem-content").innerHTML = `<div class="random-empty">No problems available!</div>`;
+    return;
+  }
   const q = source[Math.floor(Math.random() * source.length)];
   const diffCls = q.difficulty.toLowerCase();
+  const tags = (state.metaMap[q.id]?.tags || []).slice(0, 3);
   document.getElementById("random-problem-content").innerHTML = `
     <div class="random-problem-card">
       <div class="random-problem-meta">
@@ -512,6 +504,7 @@ function pickRandom() {
         ${state.solved[q.id] ? '<span class="random-solved-badge">✓ Solved</span>' : ""}
       </div>
       <div class="random-problem-title">${q.title}</div>
+      ${tags.length ? `<div class="random-problem-tags">${tags.map((t) => `<span class="pattern-tag">${t}</span>`).join("")}</div>` : ""}
       <div class="random-problem-companies">${q.companies.slice(0, 4).map((c) => `<span class="company-tag">${formatCompany(c)}</span>`).join("")}</div>
       <a href="${q.link}" target="_blank" class="btn-primary random-open-btn">Open Problem →</a>
     </div>
@@ -521,58 +514,44 @@ function pickRandom() {
 // ─── Study Plan Modal ──────────────────────────────────────────────────────────
 function openStudyPlan(company) {
   state.studyPlanCompany = company;
-  const qs = state.questions
-    .filter((q) => q.companies.includes(company))
-    .sort((a, b) => {
-      const order = { Easy: 0, Medium: 1, Hard: 2 };
-      if (order[a.difficulty] !== order[b.difficulty])
-        return order[a.difficulty] - order[b.difficulty];
-      return b.companies.length - a.companies.length;
-    });
+  const qs = state.questions.filter((q) => q.companies.includes(company)).sort((a, b) => {
+    const order = { Easy: 0, Medium: 1, Hard: 2 };
+    if (order[a.difficulty] !== order[b.difficulty]) return order[a.difficulty] - order[b.difficulty];
+    return b.companies.length - a.companies.length;
+  });
   const solved = qs.filter((q) => state.solved[q.id]).length;
   const pct = qs.length ? Math.round((solved / qs.length) * 100) : 0;
   const byDiff = (d) => qs.filter((q) => q.difficulty === d);
-  const easy = byDiff("Easy"),
-    medium = byDiff("Medium"),
-    hard = byDiff("Hard");
-  document.getElementById("study-plan-title").textContent =
-    `${formatCompany(company)} Study Plan`;
-  document.getElementById("study-plan-meta").textContent =
-    `${qs.length} problems · ${solved} solved · ${pct}% done`;
+  const easy = byDiff("Easy"), medium = byDiff("Medium"), hard = byDiff("Hard");
+  document.getElementById("study-plan-title").textContent = `${formatCompany(company)} Study Plan`;
+  document.getElementById("study-plan-meta").textContent = `${qs.length} problems · ${solved} solved · ${pct}% done`;
   document.getElementById("study-plan-body").innerHTML = [
     { label: "Easy", cls: "easy", list: easy },
     { label: "Medium", cls: "medium", list: medium },
     { label: "Hard", cls: "hard", list: hard },
-  ]
-    .map(({ label, cls, list }) => {
-      if (!list.length) return "";
-      return `<div class="sp-section">
+  ].map(({ label, cls, list }) => {
+    if (!list.length) return "";
+    return `<div class="sp-section">
       <div class="sp-section-title ${cls}-text">${label} <span class="sp-count">${list.filter((q) => state.solved[q.id]).length}/${list.length}</span></div>
-      ${list
-          .map((q, i) => {
-            const done = !!state.solved[q.id];
-            const starred = !!state.bookmarks[q.id];
-            return `<div class="sp-row ${done ? "sp-done" : ""}">
+      ${list.map((q, i) => {
+      const done = !!state.solved[q.id];
+      const starred = !!state.bookmarks[q.id];
+      const due = isReviewDue(q.id);
+      return `<div class="sp-row ${done ? "sp-done" : ""}">
           <span class="sp-num">${i + 1}</span>
           <label class="checkbox-wrap sp-check"><input type="checkbox" ${done ? "checked" : ""} onchange="toggleSolved(${q.id}); rerenderStudyPlan()"><span class="checkmark"></span></label>
           <a href="${q.link}" target="_blank" class="sp-title">${q.title}</a>
+          ${due ? '<span class="review-due-pill">↺</span>' : ""}
           <span class="sp-freq">${q.companies.length} co.</span>
           <button class="star-btn ${starred ? "starred" : ""}" data-id="${q.id}" onclick="toggleBookmark(${q.id}); this.classList.toggle('starred'); this.textContent=state.bookmarks[${q.id}]?'★':'☆'">${starred ? "★" : "☆"}</button>
         </div>`;
-          })
-          .join("")}
+    }).join("")}
     </div>`;
-    })
-    .join("");
+  }).join("");
   document.getElementById("study-plan-overlay").style.display = "flex";
 }
-function rerenderStudyPlan() {
-  if (state.studyPlanCompany) openStudyPlan(state.studyPlanCompany);
-}
-function closeStudyPlan() {
-  document.getElementById("study-plan-overlay").style.display = "none";
-  state.studyPlanCompany = null;
-}
+function rerenderStudyPlan() { if (state.studyPlanCompany) openStudyPlan(state.studyPlanCompany); }
+function closeStudyPlan() { document.getElementById("study-plan-overlay").style.display = "none"; state.studyPlanCompany = null; }
 
 // ─── Expandable company tags ───────────────────────────────────────────────────
 function toggleRowExpand(id) {
@@ -586,25 +565,40 @@ function buildCompanyTags(q) {
   const expanded = state.expandedRows.has(q.id);
   const limit = 5;
   const shown = expanded ? q.companies : q.companies.slice(0, limit);
-  const tags = shown
-    .map(
-      (c) =>
-        `<span class="company-tag" onclick="addCompanyFilter('${c}')" title="Filter by ${formatCompany(c)}">${formatCompany(c)}</span>`,
-    )
-    .join("");
+  const tags = shown.map((c) =>
+    `<span class="company-tag" onclick="addCompanyFilter('${c}')" title="Filter by ${formatCompany(c)}">${formatCompany(c)}</span>`
+  ).join("");
   const overflow = q.companies.length - limit;
-  const btn =
-    !expanded && overflow > 0
-      ? `<span class="company-tag more" onclick="toggleRowExpand(${q.id})">+${overflow} more ▾</span>`
-      : expanded && q.companies.length > limit
-        ? `<span class="company-tag more collapse" onclick="toggleRowExpand(${q.id})">show less ▴</span>`
-        : "";
+  const btn = !expanded && overflow > 0
+    ? `<span class="company-tag more" onclick="toggleRowExpand(${q.id})">+${overflow} more ▾</span>`
+    : expanded && q.companies.length > limit
+      ? `<span class="company-tag more collapse" onclick="toggleRowExpand(${q.id})">show less ▴</span>`
+      : "";
   return tags + btn;
+}
+
+// ─── Feature 1: Load Metadata (Tags) ──────────────────────────────────────────
+async function loadMetadata() {
+  try {
+    const res = await fetch("data/leetcode-meta.json");
+    if (!res.ok) return;
+    const meta = await res.json();
+    const tagSet = new Set();
+    for (const id in meta) {
+      state.metaMap[id] = meta[id];
+      (meta[id].tags || []).forEach((t) => tagSet.add(t));
+    }
+    state.allTags = [...tagSet].sort();
+    renderPatternDropdown();
+  } catch (_) {
+    // Metadata is optional — app works fine without it
+  }
 }
 
 // ─── CSV Parsing ───────────────────────────────────────────────────────────────
 async function loadAllCSVs() {
   try {
+    await loadMetadata(); 
     const cached = sessionStorage.getItem(CACHE_KEY);
     if (cached) {
       const { questions, companies } = JSON.parse(cached);
@@ -620,65 +614,56 @@ async function loadAllCSVs() {
     if (!res.ok) throw new Error();
     csvFiles = await res.json();
   } catch (_) {
-    showError(
-      "Could not load <code>data/manifest.json</code>. Run <code>node generate-manifest.js</code> first.",
-    );
+    showError("Could not load <code>data/manifest.json</code>. Run <code>node generate-manifest.js</code> first.");
     return;
   }
   const map = {};
-  await Promise.all(
-    csvFiles.map(async (filename) => {
-      const company = filename
-        .replace(/\.csv$/, "")
-        .replace(/_([0-9]+year|[0-9]+months|alltime|all_time|recent)$/i, "");
-      try {
-        const res = await fetch(`data/${filename}`);
-        const text = await res.text();
-        for (const row of parseCSV(text)) {
-          const id = parseInt(row["ID"]);
-          if (!id || !row["Title"]) continue;
-          if (!map[id]) {
-            map[id] = {
-              id,
-              title: row["Title"].trim(),
-              difficulty: row["Difficulty"]?.trim() || "Unknown",
-              acceptance: row["Acceptance"]?.trim() || "-",
-              link:
-                (row["Leetcode Question Link"] || "").trim() ||
-                "https://leetcode.com/problems/",
-              companies: new Set(),
-            };
-          }
-          map[id].companies.add(company);
+  await Promise.all(csvFiles.map(async (filename) => {
+    const company = filename.replace(/\.csv$/, "").replace(/_([0-9]+year|[0-9]+months|alltime|all_time|recent)$/i, "");
+    try {
+      const res = await fetch(`data/${filename}`);
+      const text = await res.text();
+      for (const row of parseCSV(text)) {
+        const id = parseInt(row["ID"]);
+        if (!id) continue;
+        const meta = state.metaMap[id];
+        if (!map[id]) {
+          map[id] = {
+            id,
+            title: meta?.title || row["Title"]?.trim() || "Unknown Title",
+            difficulty: meta?.difficulty || row["Difficulty"]?.trim() || "Unknown",
+            acceptance: meta?.acceptance || row["Acceptance"]?.trim() || "-",
+            link: meta?.slug 
+                  ? `https://leetcode.com/problems/${meta.slug}/` 
+                  : (row["Leetcode Question Link"] || `https://leetcode.com/problems/`).trim(),
+            companies: new Set(),
+            tags: meta?.tags || [] 
+          };
         }
-      } catch (_) {
-        console.warn(`Skipped ${filename}`);
+        map[id].companies.add(company);
       }
+    } catch (err) { 
+      console.warn(`Skipped ${filename}`, err); 
+    }
+  }));
+  state.questions = Object.values(map).map((q) => ({
+    ...q,
+    companies: [...q.companies].sort((a, b) => {
+      const aRank = PRIORITY_RANK[a] ?? 999;
+      const bRank = PRIORITY_RANK[b] ?? 999;
+      if (aRank !== 999 && bRank !== 999) return Math.random() - 0.5;
+      if (aRank !== bRank) return aRank - bRank;
+      return a.localeCompare(b);
     }),
-  );
-  state.questions = Object.values(map)
-    .map((q) => ({
-      ...q,
-      companies: [...q.companies].sort((a, b) => {
-        const aRank = PRIORITY_RANK[a] ?? 999;
-        const bRank = PRIORITY_RANK[b] ?? 999;
-        if (aRank !== 999 && bRank !== 999) return Math.random() - 0.5;
-        if (aRank !== bRank) return aRank - bRank;
-        return a.localeCompare(b);
-      }),
-    }))
-    .sort((a, b) => a.id - b.id);
+  })).sort((a, b) => a.id - b.id);
   const cs = new Set();
   state.questions.forEach((q) => q.companies.forEach((c) => cs.add(c)));
   state.companies = [...cs].sort();
   try {
-    sessionStorage.setItem(
-      CACHE_KEY,
-      JSON.stringify({
-        questions: state.questions,
-        companies: state.companies,
-      }),
-    );
+    sessionStorage.setItem(CACHE_KEY, JSON.stringify({ 
+      questions: state.questions, 
+      companies: state.companies 
+    }));
   } catch (_) { }
   renderFilterUI();
 }
@@ -695,14 +680,11 @@ function parseCSV(text) {
 }
 function csvSplit(line) {
   const out = [];
-  let cur = "",
-    inQ = false;
+  let cur = "", inQ = false;
   for (const ch of line) {
     if (ch === '"') inQ = !inQ;
-    else if (ch === "," && !inQ) {
-      out.push(cur);
-      cur = "";
-    } else cur += ch;
+    else if (ch === "," && !inQ) { out.push(cur); cur = ""; }
+    else cur += ch;
   }
   out.push(cur);
   return out;
@@ -712,24 +694,20 @@ function csvSplit(line) {
 function renderFilterUI() {
   renderDiffPills();
   renderCompanyDropdown();
+  renderPatternDropdown();
 }
 function renderDiffPills() {
   const wrap = document.getElementById("filter-difficulty-pills");
   ["Easy", "Medium", "Hard"].forEach((d) => {
     const btn = wrap.querySelector(`[data-diff="${d.toLowerCase()}"]`);
-    if (btn)
-      btn.classList.toggle(
-        "active",
-        state.filters.difficulties.includes(d.toLowerCase()),
-      );
+    if (btn) btn.classList.toggle("active", state.filters.difficulties.includes(d.toLowerCase()));
   });
 }
 function toggleDiffFilter(diff) {
   const idx = state.filters.difficulties.indexOf(diff);
   if (idx === -1) state.filters.difficulties.push(diff);
   else state.filters.difficulties.splice(idx, 1);
-  renderDiffPills();
-  applyFilters();
+  renderDiffPills(); applyFilters();
 }
 function toggleStarredFilter() {
   state.filters.starred = !state.filters.starred;
@@ -743,19 +721,97 @@ function toggleReviewFilter() {
   if (btn) btn.classList.toggle("active", state.filters.review);
   applyFilters();
 }
+
+// ─── Feature 1: Pattern Dropdown ──────────────────────────────────────────────
+let patternDropdownOpen = false;
+function renderPatternDropdown() {
+  const wrap = document.getElementById("pattern-filter-wrap");
+  if (!wrap) return;
+  if (!state.allTags.length) { wrap.style.display = "none"; return; }
+  wrap.style.display = "";
+  renderPatternCheckboxList("");
+}
+function togglePatternDropdown() {
+  const dd = document.getElementById("pattern-dropdown");
+  const btn = document.getElementById("pattern-filter-btn");
+  const isOpen = patternDropdownOpen;
+  closeAllDropdowns();
+  if (!isOpen) {
+    patternDropdownOpen = true;
+    dd.style.display = "block";
+    btn.classList.add("active");
+    document.getElementById("pattern-search-input").value = "";
+    renderPatternCheckboxList("");
+    setTimeout(() => document.addEventListener("click", closePatternDropdownOutside, { once: true }), 0);
+  }
+}
+function closePatternDropdownOutside(e) {
+  const wrap = document.getElementById("pattern-filter-wrap");
+  if (wrap && !wrap.contains(e.target)) {
+    patternDropdownOpen = false;
+    const dd = document.getElementById("pattern-dropdown");
+    if (dd) dd.style.display = "none";
+    const btn = document.getElementById("pattern-filter-btn");
+    if (btn) btn.classList.remove("active");
+  } else if (patternDropdownOpen) {
+    setTimeout(() => document.addEventListener("click", closePatternDropdownOutside, { once: true }), 0);
+  }
+}
+function renderPatternCheckboxList(search) {
+  const list = document.getElementById("pattern-checkbox-list");
+  if (!list) return;
+  const q = search.toLowerCase();
+  const filtered = state.allTags.filter((t) => !q || t.toLowerCase().includes(q));
+  list.innerHTML = filtered.map((t) => {
+    const checked = state.filters.patterns.includes(t);
+    return `<label class="company-checkbox-item ${checked ? "checked" : ""}"><input type="checkbox" ${checked ? "checked" : ""} onchange="togglePatternFilter('${t.replace(/'/g, "\\'")}')" onclick="event.stopPropagation()"><span>${t}</span></label>`;
+  }).join("");
+}
+function filterPatternList(val) { renderPatternCheckboxList(val); }
+function togglePatternFilter(tag) {
+  const idx = state.filters.patterns.indexOf(tag);
+  if (idx === -1) state.filters.patterns.push(tag);
+  else state.filters.patterns.splice(idx, 1);
+  updatePatternFilterCount();
+  renderPatternCheckboxList(document.getElementById("pattern-search-input")?.value || "");
+  applyFilters();
+}
+function clearPatternFilters() {
+  state.filters.patterns = [];
+  updatePatternFilterCount();
+  renderPatternCheckboxList(document.getElementById("pattern-search-input")?.value || "");
+  applyFilters();
+}
+function updatePatternFilterCount() {
+  const count = state.filters.patterns.length;
+  const el = document.getElementById("pattern-filter-count");
+  if (!el) return;
+  el.textContent = count;
+  el.style.display = count ? "inline-flex" : "none";
+}
+
 function closeAllDropdowns() {
   const cdd = document.getElementById("company-dropdown");
   const cbtn = document.getElementById("company-filter-btn");
   if (cdd) cdd.style.display = "none";
   if (cbtn) cbtn.classList.remove("active");
   companyDropdownOpen = false;
+
+  const pdd = document.getElementById("pattern-dropdown");
+  const pbtn = document.getElementById("pattern-filter-btn");
+  if (pdd) pdd.style.display = "none";
+  if (pbtn) pbtn.classList.remove("active");
+  patternDropdownOpen = false;
+
   const sdd = document.getElementById("status-dropdown");
   const sbtn = document.getElementById("status-filter-btn");
   if (sdd) sdd.style.display = "none";
   if (sbtn) sbtn.classList.toggle("active", state.filters.status !== "all");
+
   const sortdd = document.getElementById("sort-dropdown");
   if (sortdd) sortdd.style.display = "none";
 }
+
 let companyDropdownOpen = false;
 function toggleCompanyDropdown() {
   const dd = document.getElementById("company-dropdown");
@@ -768,13 +824,7 @@ function toggleCompanyDropdown() {
     btn.classList.add("active");
     document.getElementById("company-search-input").value = "";
     renderCompanyCheckboxList("");
-    setTimeout(
-      () =>
-        document.addEventListener("click", closeCompanyDropdownOutside, {
-          once: true,
-        }),
-      0,
-    );
+    setTimeout(() => document.addEventListener("click", closeCompanyDropdownOutside, { once: true }), 0);
   }
 }
 function closeCompanyDropdownOutside(e) {
@@ -784,53 +834,36 @@ function closeCompanyDropdownOutside(e) {
     document.getElementById("company-dropdown").style.display = "none";
     document.getElementById("company-filter-btn").classList.remove("active");
   } else if (companyDropdownOpen) {
-    setTimeout(
-      () =>
-        document.addEventListener("click", closeCompanyDropdownOutside, {
-          once: true,
-        }),
-      0,
-    );
+    setTimeout(() => document.addEventListener("click", closeCompanyDropdownOutside, { once: true }), 0);
   }
 }
 function renderCompanyCheckboxList(search) {
   const list = document.getElementById("company-checkbox-list");
   const q = search.toLowerCase();
-  const filtered = state.companies.filter(
-    (c) => !q || c.includes(q) || formatCompany(c).toLowerCase().includes(q),
-  );
-  list.innerHTML = filtered
-    .map((c) => {
-      const checked = state.filters.companies.includes(c);
-      return `<label class="company-checkbox-item ${checked ? "checked" : ""}"><input type="checkbox" ${checked ? "checked" : ""} onchange="toggleCompanyFilter('${c}')" onclick="event.stopPropagation()"><span>${formatCompany(c)}</span></label>`;
-    })
-    .join("");
+  const filtered = state.companies.filter((c) => !q || c.includes(q) || formatCompany(c).toLowerCase().includes(q));
+  list.innerHTML = filtered.map((c) => {
+    const checked = state.filters.companies.includes(c);
+    return `<label class="company-checkbox-item ${checked ? "checked" : ""}"><input type="checkbox" ${checked ? "checked" : ""} onchange="toggleCompanyFilter('${c}')" onclick="event.stopPropagation()"><span>${formatCompany(c)}</span></label>`;
+  }).join("");
 }
-function filterCompanyList(val) {
-  renderCompanyCheckboxList(val);
-}
+function filterCompanyList(val) { renderCompanyCheckboxList(val); }
 function toggleCompanyFilter(company) {
   const idx = state.filters.companies.indexOf(company);
   if (idx === -1) state.filters.companies.push(company);
   else state.filters.companies.splice(idx, 1);
   updateCompanyFilterCount();
-  renderCompanyCheckboxList(
-    document.getElementById("company-search-input").value,
-  );
+  renderCompanyCheckboxList(document.getElementById("company-search-input").value);
   applyFilters();
 }
 function addCompanyFilter(company) {
   if (!company || state.filters.companies.includes(company)) return;
   state.filters.companies.push(company);
-  updateCompanyFilterCount();
-  applyFilters();
+  updateCompanyFilterCount(); applyFilters();
 }
 function clearCompanyFilters() {
   state.filters.companies = [];
   updateCompanyFilterCount();
-  renderCompanyCheckboxList(
-    document.getElementById("company-search-input")?.value || "",
-  );
+  renderCompanyCheckboxList(document.getElementById("company-search-input")?.value || "");
   applyFilters();
 }
 function updateCompanyFilterCount() {
@@ -840,57 +873,39 @@ function updateCompanyFilterCount() {
   el.textContent = count;
   el.style.display = count ? "inline-flex" : "none";
 }
-function renderCompanyDropdown() {
-  renderCompanyCheckboxList("");
-}
+function renderCompanyDropdown() { renderCompanyCheckboxList(""); }
 
 function applyFilters() {
-  const { search, difficulties, companies, status, starred, review } =
-    state.filters;
+  const { search, difficulties, companies, patterns, status, starred, review } = state.filters;
   const q = search.toLowerCase();
-  const reviewCutoff = dateStr(new Date(Date.now() - 7 * 86400000));
+  const today = dateStr(new Date());
   state.filtered = state.questions.filter((item) => {
-    if (
-      difficulties.length &&
-      !difficulties.includes(item.difficulty.toLowerCase())
-    )
-      return false;
-    if (companies.length && !companies.some((c) => item.companies.includes(c)))
-      return false;
+    if (difficulties.length && !difficulties.includes(item.difficulty.toLowerCase())) return false;
+    if (companies.length && !companies.some((c) => item.companies.includes(c))) return false;
     if (status === "solved" && !state.solved[item.id]) return false;
     if (status === "unsolved" && state.solved[item.id]) return false;
     if (starred && !state.bookmarks[item.id]) return false;
-    if (
-      review &&
-      (!state.solved[item.id] || state.solved[item.id] > reviewCutoff)
-    )
-      return false;
-    if (
-      q &&
-      !item.title.toLowerCase().includes(q) &&
-      !item.companies.some((c) => c.includes(q))
-    )
-      return false;
+    // SM2 review filter: show only problems where nextReviewDate <= today
+    if (review) {
+      if (!state.solved[item.id]) return false;
+      if (!isReviewDue(item.id)) return false;
+    }
+    // Pattern filter via metaMap
+    if (patterns.length) {
+      const itemTags = state.metaMap[item.id]?.tags || [];
+      if (!patterns.some((p) => itemTags.includes(p))) return false;
+    }
+    if (q && !item.title.toLowerCase().includes(q) && !item.companies.some((c) => c.includes(q))) return false;
     return true;
   });
   applySort();
   state.page = 1;
-  renderTable();
-  renderStats();
-  updateClearButton();
-  updateStatusDropdown();
-  updateSortBtn();
+  renderTable(); renderStats();
+  updateClearButton(); updateStatusDropdown(); updateSortBtn();
 }
 function updateClearButton() {
-  const { search, difficulties, companies, status, starred, review } =
-    state.filters;
-  const hasFilters =
-    search ||
-    difficulties.length ||
-    companies.length ||
-    status !== "all" ||
-    starred ||
-    review;
+  const { search, difficulties, companies, patterns, status, starred, review } = state.filters;
+  const hasFilters = search || difficulties.length || companies.length || patterns.length || status !== "all" || starred || review;
   const btn = document.getElementById("clear-filters");
   if (btn) btn.style.display = hasFilters ? "" : "none";
 }
@@ -910,13 +925,7 @@ function toggleStatusDropdown() {
   if (!isOpen) {
     dd.style.display = "block";
     document.getElementById("status-filter-btn").classList.add("active");
-    setTimeout(
-      () =>
-        document.addEventListener("click", closeStatusDropdownOutside, {
-          once: true,
-        }),
-      0,
-    );
+    setTimeout(() => document.addEventListener("click", closeStatusDropdownOutside, { once: true }), 0);
   }
 }
 function closeStatusDropdownOutside(e) {
@@ -926,13 +935,7 @@ function closeStatusDropdownOutside(e) {
     const btn = document.getElementById("status-filter-btn");
     if (btn) btn.classList.toggle("active", state.filters.status !== "all");
   } else {
-    setTimeout(
-      () =>
-        document.addEventListener("click", closeStatusDropdownOutside, {
-          once: true,
-        }),
-      0,
-    );
+    setTimeout(() => document.addEventListener("click", closeStatusDropdownOutside, { once: true }), 0);
   }
 }
 function setStatusFilter(value) {
@@ -949,54 +952,25 @@ function applySort() {
   state.filtered.sort((a, b) => {
     let av, bv;
     if (sortCol === "solveDate") {
-      av = state.solved[a.id] || "";
-      bv = state.solved[b.id] || "";
+      av = state.solved[a.id] || ""; bv = state.solved[b.id] || "";
       if (!av && !bv) return 0;
-      if (!av) return 1;
-      if (!bv) return -1;
-    } else if (sortCol === "id") {
-      av = +a.id;
-      bv = +b.id;
-    } else if (sortCol === "acceptance") {
-      av = parseFloat(a.acceptance) || 0;
-      bv = parseFloat(b.acceptance) || 0;
-    } else {
-      av = String(a[sortCol] || "").toLowerCase();
-      bv = String(b[sortCol] || "").toLowerCase();
-    }
-    return av < bv
-      ? sortDir === "asc"
-        ? -1
-        : 1
-      : av > bv
-        ? sortDir === "asc"
-          ? 1
-          : -1
-        : 0;
+      if (!av) return 1; if (!bv) return -1;
+    } else if (sortCol === "id") { av = +a.id; bv = +b.id; }
+    else if (sortCol === "acceptance") { av = parseFloat(a.acceptance) || 0; bv = parseFloat(b.acceptance) || 0; }
+    else { av = String(a[sortCol] || "").toLowerCase(); bv = String(b[sortCol] || "").toLowerCase(); }
+    return av < bv ? (sortDir === "asc" ? -1 : 1) : av > bv ? (sortDir === "asc" ? 1 : -1) : 0;
   });
 }
 function setSort(col) {
-  state.sortDir =
-    state.sortCol === col && state.sortDir === "asc" ? "desc" : "asc";
+  state.sortDir = state.sortCol === col && state.sortDir === "asc" ? "desc" : "asc";
   state.sortCol = col;
-  applySort();
-  state.page = 1;
-  renderTable();
-  updateSortHeaders();
-  updateSortBtn();
+  applySort(); state.page = 1; renderTable(); updateSortHeaders(); updateSortBtn();
 }
 function updateSortBtn() {
   const btn = document.getElementById("sort-btn");
   if (!btn) return;
-  const labels = {
-    id: "# ID",
-    title: "Title",
-    difficulty: "Difficulty",
-    acceptance: "Accept %",
-    solveDate: "Solve Date",
-  };
-  btn.querySelector(".sort-btn-label").textContent =
-    labels[state.sortCol] || "Sort";
+  const labels = { id: "# ID", title: "Title", difficulty: "Difficulty", acceptance: "Accept %", solveDate: "Solve Date" };
+  btn.querySelector(".sort-btn-label").textContent = labels[state.sortCol] || "Sort";
   btn.classList.toggle("active", state.sortCol !== "id");
 }
 function toggleSortDropdown() {
@@ -1005,90 +979,79 @@ function toggleSortDropdown() {
   closeAllDropdowns();
   if (!isOpen) {
     dd.style.display = "block";
-    setTimeout(
-      () =>
-        document.addEventListener("click", closeSortDropdownOutside, {
-          once: true,
-        }),
-      0,
-    );
+    setTimeout(() => document.addEventListener("click", closeSortDropdownOutside, { once: true }), 0);
   }
 }
 function closeSortDropdownOutside(e) {
   const wrap = document.getElementById("sort-wrap");
-  if (wrap && !wrap.contains(e.target)) {
-    document.getElementById("sort-dropdown").style.display = "none";
-  } else {
-    setTimeout(
-      () =>
-        document.addEventListener("click", closeSortDropdownOutside, {
-          once: true,
-        }),
-      0,
-    );
-  }
+  if (wrap && !wrap.contains(e.target)) { document.getElementById("sort-dropdown").style.display = "none"; }
+  else { setTimeout(() => document.addEventListener("click", closeSortDropdownOutside, { once: true }), 0); }
 }
 function setSortFromDropdown(col, dir) {
-  state.sortCol = col;
-  state.sortDir = dir;
+  state.sortCol = col; state.sortDir = dir;
   document.getElementById("sort-dropdown").style.display = "none";
-  applySort();
-  state.page = 1;
-  renderTable();
-  updateSortHeaders();
-  updateSortBtn();
+  applySort(); state.page = 1; renderTable(); updateSortHeaders(); updateSortBtn();
 }
 
+// ─── Render: Table ─────────────────────────────────────────────────────────────
 // ─── Render: Table ─────────────────────────────────────────────────────────────
 function renderTable() {
   const tbody = document.getElementById("questions-tbody");
   const start = (state.page - 1) * ITEMS_PER_PAGE;
   const items = state.filtered.slice(start, start + ITEMS_PER_PAGE);
+  
   if (!items.length) {
     let emptyMsg = "No questions match your filters.";
     if (state.filters.review) {
       const totalSolved = Object.keys(state.solved).length;
-      emptyMsg =
-        totalSolved === 0
-          ? "🌱 You haven't solved any problems yet. Start solving and come back in 7 days to review!"
-          : "✅ You're all caught up! No problems are due for review yet. Check back in a few days.";
+      emptyMsg = totalSolved === 0
+        ? "🌱 You haven't solved any problems yet. Start solving and come back to review!"
+        : "✅ All caught up! No problems are due for SM2 review yet.";
     }
-    tbody.innerHTML = `<tr><td colspan="7" class="empty-state">${emptyMsg}</td></tr>`;
-    renderPagination();
-    return;
+    tbody.innerHTML = `<tr><td colspan="5" class="empty-state">${emptyMsg}</td></tr>`;
+    renderPagination(); return;
   }
-  tbody.innerHTML = items
-    .map((q) => {
-      const solved = !!state.solved[q.id];
-      const starred = !!state.bookmarks[q.id];
-      const hasNote = !!state.notes[q.id];
-      const timeLog = state.timeLogs[q.id];
-      const diffClass = q.difficulty.toLowerCase();
-      return `<tr class="${solved ? "solved" : ""}">
-      <td class="col-check"><label class="checkbox-wrap"><input type="checkbox" data-id="${q.id}" ${solved ? "checked" : ""} onchange="toggleSolved(${q.id})"><span class="checkmark"></span></label></td>
-      <td class="col-star"><button class="star-btn ${starred ? "starred" : ""}" data-id="${q.id}" onclick="toggleBookmark(${q.id})" title="Bookmark">${starred ? "★" : "☆"}</button></td>
-      <td class="col-id">${q.id}</td>
-      <td class="col-title">
-  <a href="${q.link}" target="_blank" rel="noopener">${q.title}</a>
-  ${solved ? `<button class="note-btn-inline ${hasNote ? "has-note" : ""}" data-id="${q.id}" onclick="openNoteModal(${q.id})" title="${hasNote ? "Edit note" : "Add note"}">${hasNote ? "📝" : "✎"}</button>` : ""}
-  ${solved && !timeLog ? `<span class="time-badge" style="opacity:.4">N/A</span>` : timeLog ? `<span class="time-badge">${timeLog}m</span>` : ""}
-</td>
-      <td class="col-diff"><span class="diff-badge ${diffClass}">${q.difficulty}</span></td>
-      <td class="col-accept">${q.acceptance}</td>
-      <td class="col-companies" data-cid="${q.id}">${buildCompanyTags(q)}</td>
-    </tr>`;
-    })
-    .join("");
+
+  tbody.innerHTML = items.map((q) => {
+    const solved = !!state.solved[q.id];
+    const starred = !!state.bookmarks[q.id];
+    const hasNote = !!state.notes[q.id];
+    const timeLog = state.timeLogs[q.id];
+    const diffClass = q.difficulty.toLowerCase();
+    const reviewDue = solved && isReviewDue(q.id);
+    const tags = (state.metaMap[q.id]?.tags || []).slice(0, 2);
+
+    return `<tr class="${solved ? "solved" : ""}">
+  <td class="col-check">
+    <label class="checkbox-wrap">
+      <input type="checkbox" data-id="${q.id}" ${solved ? "checked" : ""} onchange="toggleSolved(${q.id})">
+      <span class="checkmark"></span>
+    </label>
+  </td>
+  <td class="col-title">
+    <div class="title-cell-content">
+      <button class="star-btn inline-star ${starred ? "starred" : ""}" 
+              data-id="${q.id}" onclick="toggleBookmark(${q.id})" 
+              title="Bookmark">${starred ? "★" : "☆"}</button>
+      <a href="${q.link}" target="_blank" rel="noopener">${q.title}</a>
+      ${reviewDue ? '<span class="review-badge-inline" title="Due for SM2 review">↺</span>' : ""}
+      ${solved ? `<button class="note-btn-inline ${hasNote ? "has-note" : ""}" data-id="${q.id}" onclick="openNoteModal(${q.id})" title="${hasNote ? "Edit note" : "Add note"}">${hasNote ? "📝" : "✎"}</button>` : ""}
+      ${solved && !timeLog ? `<span class="time-badge" style="opacity:.4">N/A</span>` : timeLog ? `<span class="time-badge">${timeLog}m</span>` : ""}
+      ${tags.length ? `<span class="row-tags">${tags.map((t) => `<span class="pattern-tag-sm">${t}</span>`).join("")}</span>` : ""}
+    </div>
+  </td>
+  <td class="col-diff"><span class="diff-badge ${diffClass}">${q.difficulty}</span></td>
+  <td class="col-accept">${q.acceptance}</td>
+  <td class="col-companies" data-cid="${q.id}">${buildCompanyTags(q)}</td>
+</tr>`;
+  }).join("");
   renderPagination();
 }
 
 function renderPagination() {
   const total = Math.ceil(state.filtered.length / ITEMS_PER_PAGE);
   const el = document.getElementById("pagination");
-  if (total <= 1) {
-    el.innerHTML = "";
-    return;
-  }
+  if (total <= 1) { el.innerHTML = ""; return; }
   const s = (state.page - 1) * ITEMS_PER_PAGE + 1;
   const e = Math.min(state.page * ITEMS_PER_PAGE, state.filtered.length);
   el.innerHTML = `
@@ -1100,8 +1063,7 @@ function renderPagination() {
 function goPage(p) {
   const total = Math.ceil(state.filtered.length / ITEMS_PER_PAGE);
   if (p < 1 || p > total) return;
-  state.page = p;
-  renderTable();
+  state.page = p; renderTable();
 }
 
 // ─── Render: Stats bar ─────────────────────────────────────────────────────────
@@ -1110,15 +1072,9 @@ function renderStats() {
   const solved = Object.keys(state.solved).length;
   const pct = all.length ? Math.round((solved / all.length) * 100) : 0;
   document.getElementById("stat-total").textContent = all.length;
-  document.getElementById("stat-easy").textContent = all.filter(
-    (q) => q.difficulty === "Easy",
-  ).length;
-  document.getElementById("stat-medium").textContent = all.filter(
-    (q) => q.difficulty === "Medium",
-  ).length;
-  document.getElementById("stat-hard").textContent = all.filter(
-    (q) => q.difficulty === "Hard",
-  ).length;
+  document.getElementById("stat-easy").textContent = all.filter((q) => q.difficulty === "Easy").length;
+  document.getElementById("stat-medium").textContent = all.filter((q) => q.difficulty === "Medium").length;
+  document.getElementById("stat-hard").textContent = all.filter((q) => q.difficulty === "Hard").length;
   document.getElementById("stat-solved").textContent = solved;
   document.getElementById("stat-pct").textContent = pct + "%";
   document.getElementById("progress-bar-fill").style.width = pct + "%";
@@ -1137,11 +1093,7 @@ function renderAuthArea() {
 // ─── Onboarding ────────────────────────────────────────────────────────────────
 function checkOnboarding() {
   const done = localStorage.getItem("onboarding_done");
-  if (
-    !done &&
-    state.questions.length > 0 &&
-    Object.keys(state.solved).length === 0
-  ) {
+  if (!done && state.questions.length > 0 && Object.keys(state.solved).length === 0) {
     document.getElementById("onboarding-overlay").style.display = "flex";
   }
 }
@@ -1154,38 +1106,211 @@ function closeOnboarding() {
 function initKeyboardShortcuts() {
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
-      closeNoteModal();
-      closeStudyPlan();
-      closeModal();
-      closeUnsolveModal();
-      closeRandomPicker();
-      closeOnboarding();
+      closeNoteModal(); closeStudyPlan(); closeModal();
+      closeUnsolveModal(); closeRandomPicker(); closeOnboarding();
       return;
     }
     const tag = document.activeElement?.tagName;
     if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-    if (e.key === "r" || e.key === "R") {
-      e.preventDefault();
-      openRandomPicker();
-    }
-    if (e.key === "/") {
-      e.preventDefault();
-      document.getElementById("search-input")?.focus();
-    }
-    if (e.key === "1") {
-      e.preventDefault();
-      showPage("tracker");
-    }
-    if (e.key === "2") {
-      e.preventDefault();
-      showPage("profile");
-    }
-    if (e.key === "3") {
-      e.preventDefault();
-      showPage("insights");
-    }
+    if (e.key === "r" || e.key === "R") { e.preventDefault(); openRandomPicker(); }
+    if (e.key === "/") { e.preventDefault(); document.getElementById("search-input")?.focus(); }
+    if (e.key === "1") { e.preventDefault(); showPage("tracker"); }
+    if (e.key === "2") { e.preventDefault(); showPage("profile"); }
+    if (e.key === "3") { e.preventDefault(); showPage("insights"); }
   });
 }
+
+// ─── Feature 3: Interview Readiness Score ─────────────────────────────────────
+function calcReadinessScore() {
+  const solvedIds = new Set(Object.keys(state.solved).map(Number));
+  const totalSolved = solvedIds.size;
+
+  // Component 1: Top-5 company coverage (40 pts)
+  const top5 = ["google", "amazon", "meta", "microsoft", "apple"];
+  let top5Score = 0;
+  for (const company of top5) {
+    const qs = state.questions.filter((q) => q.companies.includes(company));
+    const s = qs.filter((q) => solvedIds.has(q.id)).length;
+    const pct = qs.length ? s / qs.length : 0;
+    top5Score += pct * 8; // 8pts per company, max 40
+  }
+
+  // Component 2: Solve volume (35 pts) — goal: 400 problems
+  const VOLUME_GOAL = 400;
+  const volumeScore = Math.min(35, (totalSolved / VOLUME_GOAL) * 35);
+
+  // Component 3: Difficulty balance (15 pts)
+  const easy = [...solvedIds].filter((id) => state.questions.find((q) => q.id === id)?.difficulty === "Easy").length;
+  const medium = [...solvedIds].filter((id) => state.questions.find((q) => q.id === id)?.difficulty === "Medium").length;
+  const hard = [...solvedIds].filter((id) => state.questions.find((q) => q.id === id)?.difficulty === "Hard").length;
+  const hasBalance = easy > 10 && medium > 20 && hard > 5;
+  const balanceScore = hasBalance ? 15 : Math.min(15, (easy * 0.3 + medium * 0.5 + hard * 1.5));
+
+  // Component 4: Consistency (10 pts)
+  const { current, totalDays } = calcStreaks();
+  const consistencyScore = Math.min(10, (current * 0.5) + (totalDays * 0.1));
+
+  const total = Math.min(100, Math.round(top5Score + volumeScore + balanceScore + consistencyScore));
+  return {
+    total,
+    breakdown: {
+      top5: Math.round(top5Score),
+      volume: Math.round(volumeScore),
+      balance: Math.round(balanceScore),
+      consistency: Math.round(consistencyScore),
+    },
+  };
+}
+
+function renderReadinessGauge(score) {
+  const el = document.getElementById("readiness-gauge");
+  if (!el) return;
+  const { total, breakdown } = score;
+  const color = total >= 75 ? "var(--green)" : total >= 50 ? "var(--yellow)" : total >= 25 ? "var(--accent)" : "var(--red)";
+  const label = total >= 80 ? "Interview Ready! 🚀" : total >= 60 ? "Getting There 💪" : total >= 40 ? "Keep Grinding 📚" : "Just Starting 🌱";
+
+  // SVG gauge
+  const r = 54, circ = 2 * Math.PI * r;
+  const fill = (total / 100) * circ;
+
+  el.innerHTML = `
+    <div class="readiness-gauge-wrap">
+      <svg class="readiness-svg" viewBox="0 0 130 130">
+        <circle cx="65" cy="65" r="${r}" fill="none" stroke="var(--bg-4)" stroke-width="10"/>
+        <circle cx="65" cy="65" r="${r}" fill="none" stroke="${color}" stroke-width="10"
+          stroke-dasharray="${fill.toFixed(1)} ${circ.toFixed(1)}"
+          stroke-dashoffset="${(circ * 0.25).toFixed(1)}"
+          stroke-linecap="round"
+          style="transition: stroke-dasharray 1s ease"/>
+        <text x="65" y="60" text-anchor="middle" class="gauge-score-text" fill="${color}" font-size="28" font-weight="700" font-family="Syne,sans-serif">${total}</text>
+        <text x="65" y="76" text-anchor="middle" fill="var(--text-muted)" font-size="9" font-family="JetBrains Mono,monospace">/100</text>
+      </svg>
+      <div class="readiness-label">${label}</div>
+    </div>
+    <div class="readiness-breakdown">
+      ${[
+      { label: "Top 5 Co.", val: breakdown.top5, max: 40, color: "var(--blue)" },
+      { label: "Volume", val: breakdown.volume, max: 35, color: "var(--accent)" },
+      { label: "Balance", val: breakdown.balance, max: 15, color: "var(--green)" },
+      { label: "Streak", val: breakdown.consistency, max: 10, color: "var(--yellow)" },
+    ].map((r) => `
+        <div class="readiness-row">
+          <span class="readiness-row-label">${r.label}</span>
+          <div class="readiness-row-bar-bg">
+            <div class="readiness-row-bar" style="width:${Math.round((r.val / r.max) * 100)}%;background:${r.color}"></div>
+          </div>
+          <span class="readiness-row-score">${r.val}/${r.max}</span>
+        </div>`).join("")}
+    </div>
+  `;
+}
+
+// ─── Feature 6: Weekly Solve Progression Chart ────────────────────────────────
+function renderWeeklyChart() {
+  const el = document.getElementById("insights-weekly");
+  if (!el) return;
+
+  const NUM_WEEKS = 12;
+  const weeks = [];
+  const today = new Date();
+
+  for (let w = NUM_WEEKS - 1; w >= 0; w--) {
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - today.getDay() - w * 7);
+    weekStart.setHours(0, 0, 0, 0);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+
+    let easy = 0, medium = 0, hard = 0;
+    for (const [id, date] of Object.entries(state.solved)) {
+      const d = new Date(date);
+      if (d >= weekStart && d <= weekEnd) {
+        const q = state.questions.find((x) => x.id === +id);
+        if (!q) continue;
+        if (q.difficulty === "Easy") easy++;
+        else if (q.difficulty === "Medium") medium++;
+        else if (q.difficulty === "Hard") hard++;
+      }
+    }
+    const label = weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    weeks.push({ label, easy, medium, hard, total: easy + medium + hard });
+  }
+
+  const maxTotal = Math.max(...weeks.map((w) => w.total), 1);
+
+  el.innerHTML = `
+    <div class="weekly-chart-wrap">
+      <div class="weekly-bars">
+        ${weeks.map((w) => {
+    const eH = Math.round((w.easy / maxTotal) * 100);
+    const mH = Math.round((w.medium / maxTotal) * 100);
+    const hH = Math.round((w.hard / maxTotal) * 100);
+    return `<div class="weekly-col">
+            <div class="weekly-count">${w.total || ""}</div>
+            <div class="weekly-bar-wrap">
+              ${hH ? `<div style="height:${hH}%;background:var(--red);min-height:2px;border-radius:2px 2px 0 0"></div>` : ""}
+              ${mH ? `<div style="height:${mH}%;background:var(--yellow);min-height:2px"></div>` : ""}
+              ${eH ? `<div style="height:${eH}%;background:var(--green);min-height:2px;border-radius:${hH || mH ? "0" : "2px 2px"} 0 0"></div>` : ""}
+            </div>
+            <div class="weekly-label">${w.label}</div>
+          </div>`;
+  }).join("")}
+      </div>
+      <div class="weekly-legend">
+        <span><span style="color:var(--green)">■</span> Easy</span>
+        <span><span style="color:var(--yellow)">■</span> Medium</span>
+        <span><span style="color:var(--red)">■</span> Hard</span>
+      </div>
+    </div>
+  `;
+}
+
+// ─── Feature 5: Global Notes Search ───────────────────────────────────────────
+function renderNotesSearch() {
+  const el = document.getElementById("profile-notes-search");
+  if (!el) return;
+  const notesCount = Object.keys(state.notes).length;
+  if (!notesCount) {
+    el.innerHTML = `<div class="notes-search-empty">No notes yet. Solve problems and add notes via the ✎ button.</div>`;
+    return;
+  }
+  el.innerHTML = `
+    <div class="notes-search-wrap">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" id="notes-search-input" class="notes-search-input" placeholder="Search your notes… (e.g. 'backtracking', 'O(n)')" oninput="filterNotes(this.value)" autocomplete="off">
+    </div>
+    <div id="notes-results" class="notes-results"></div>
+  `;
+  filterNotes("");
+}
+function filterNotes(query) {
+  const el = document.getElementById("notes-results");
+  if (!el) return;
+  const q = query.toLowerCase().trim();
+  const results = Object.entries(state.notes)
+    .map(([id, note]) => ({ id: +id, note, q: state.questions.find((x) => x.id === +id) }))
+    .filter((x) => x.q && (!q || x.note.toLowerCase().includes(q) || x.q.title.toLowerCase().includes(q)))
+    .slice(0, 20);
+  if (!results.length) {
+    el.innerHTML = `<div class="notes-no-results">No notes match "${query}"</div>`;
+    return;
+  }
+  el.innerHTML = results.map(({ id, note, q }) => {
+    const diffCls = q.difficulty.toLowerCase();
+    const highlighted = query ? note.replace(new RegExp(`(${escapeRegex(query)})`, "gi"), "<mark>$1</mark>") : note;
+    const preview = highlighted.length > 200 ? highlighted.slice(0, 200) + "…" : highlighted;
+    return `<div class="note-result-item" onclick="openNoteModal(${id})">
+      <div class="note-result-header">
+        <span class="diff-badge ${diffCls} sm">${q.difficulty[0]}</span>
+        <a href="${q.link}" target="_blank" class="note-result-title" onclick="event.stopPropagation()">${q.title}</a>
+        ${state.timeLogs[id] ? `<span class="time-badge">${state.timeLogs[id]}m</span>` : ""}
+      </div>
+      <div class="note-result-body">${preview}</div>
+    </div>`;
+  }).join("");
+}
+function escapeRegex(str) { return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
 
 // ─── Render: Profile Page ──────────────────────────────────────────────────────
 function renderProfilePage() {
@@ -1197,119 +1322,89 @@ function renderProfilePage() {
   document.getElementById("profile-guest").style.display = "none";
   document.getElementById("profile-content").style.display = "block";
   document.getElementById("profile-avatar").src = state.user.avatar_url;
-  document.getElementById("profile-name").textContent =
-    state.user.name || state.user.login;
-  document.getElementById("profile-handle").textContent =
-    "@" + state.user.login;
+  document.getElementById("profile-name").textContent = state.user.name || state.user.login;
+  document.getElementById("profile-handle").textContent = "@" + state.user.login;
+
   const { current, longest, totalDays } = calcStreaks();
   animateNumber("streak-number", current);
   animateNumber("longest-streak", longest);
   animateNumber("total-days", totalDays);
   animateNumber("total-solved-profile", Object.keys(state.solved).length);
+
   const streakCard = document.getElementById("streak-card");
   const flame = document.getElementById("streak-flame");
   const sub = document.getElementById("streak-sub");
-  streakCard.classList.remove(
-    "streak-cold",
-    "streak-warm",
-    "streak-hot",
-    "streak-fire",
-  );
-  if (current === 0) {
-    streakCard.classList.add("streak-cold");
-    flame.textContent = "💤";
-    sub.textContent = "Solve a problem today to start your streak!";
-  } else if (current < 3) {
-    streakCard.classList.add("streak-warm");
-    flame.textContent = "🔥";
-    sub.textContent = "Keep going! You're building momentum.";
-  } else if (current < 7) {
-    streakCard.classList.add("streak-hot");
-    flame.textContent = "🔥";
-    sub.textContent = `${current} days strong! Don't break the chain.`;
-  } else {
-    streakCard.classList.add("streak-fire");
-    flame.textContent = "🔥";
-    sub.textContent = `${current} day streak! You're on fire! 🚀`;
-  }
+  streakCard.classList.remove("streak-cold", "streak-warm", "streak-hot", "streak-fire");
+  if (current === 0) { streakCard.classList.add("streak-cold"); flame.textContent = "💤"; sub.textContent = "Solve a problem today to start your streak!"; }
+  else if (current < 3) { streakCard.classList.add("streak-warm"); flame.textContent = "🔥"; sub.textContent = "Keep going! You're building momentum."; }
+  else if (current < 7) { streakCard.classList.add("streak-hot"); flame.textContent = "🔥"; sub.textContent = `${current} days strong! Don't break the chain.`; }
+  else { streakCard.classList.add("streak-fire"); flame.textContent = "🔥"; sub.textContent = `${current} day streak! You're on fire! 🚀`; }
+
   renderHeatmap();
+
   const solvedIds = new Set(Object.keys(state.solved).map(Number));
   const solved = state.questions.filter((q) => solvedIds.has(q.id));
-  const byDiff = (d) => ({
-    s: solved.filter((q) => q.difficulty === d).length,
-    t: state.questions.filter((q) => q.difficulty === d).length,
-  });
-  const easy = byDiff("Easy"),
-    medium = byDiff("Medium"),
-    hard = byDiff("Hard");
+  const byDiff = (d) => ({ s: solved.filter((q) => q.difficulty === d).length, t: state.questions.filter((q) => q.difficulty === d).length });
+  const easy = byDiff("Easy"), medium = byDiff("Medium"), hard = byDiff("Hard");
   setDiffBar("bar-easy", "count-easy", easy.s, easy.t);
   setDiffBar("bar-medium", "count-medium", medium.s, medium.t);
   setDiffBar("bar-hard", "count-hard", hard.s, hard.t);
+
+  // Feature 3: Readiness Score
+  const score = calcReadinessScore();
+  renderReadinessGauge(score);
+
   renderCompanyCoverage(solvedIds);
-  const timeLogs = Object.entries(state.timeLogs)
-    .map(([id, m]) => ({
-      id: +id,
-      m,
-      q: state.questions.find((x) => x.id === +id),
-    }))
-    .filter((x) => x.q);
-  const avgTime = timeLogs.length
-    ? Math.round(timeLogs.reduce((s, x) => s + x.m, 0) / timeLogs.length)
-    : null;
+
+  const timeLogs = Object.entries(state.timeLogs).map(([id, m]) => ({ id: +id, m, q: state.questions.find((x) => x.id === +id) })).filter((x) => x.q);
+  const avgTime = timeLogs.length ? Math.round(timeLogs.reduce((s, x) => s + x.m, 0) / timeLogs.length) : null;
   const timeEl = document.getElementById("profile-avg-time");
   if (timeEl) timeEl.textContent = avgTime ? `~${avgTime}m avg solve time` : "";
-  const recent = Object.entries(state.solved)
-    .map(([id, date]) => ({ id: +id, date }))
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 10);
+
+  const recent = Object.entries(state.solved).map(([id, date]) => ({ id: +id, date })).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 10);
   const recentEl = document.getElementById("recent-solves");
   if (!recent.length) {
     recentEl.innerHTML = `<div class="empty-recent">No solves yet. Go crush some problems! 💪</div>`;
   } else {
-    recentEl.innerHTML = recent
-      .map(({ id, date }) => {
-        const q = state.questions.find((x) => x.id === id);
-        if (!q) return "";
-        const t = state.timeLogs[id];
-        return `<div class="recent-item">
-  <span class="recent-diff ${q.difficulty.toLowerCase()}"></span>
-  <div class="recent-title-wrap">
-    <a href="${q.link}" target="_blank" class="recent-title">${q.title}</a>
-  </div>
-  ${state.notes[id] ? `<span class="recent-note-icon" onclick="openNoteModal(${id}); event.preventDefault()" title="View note">📝</span>` : ""}
-  ${t ? `<span class="time-badge">${t}m</span>` : ""}
-  <span class="recent-date">${formatDate(date)}</span>
-  <span class="diff-badge ${q.difficulty.toLowerCase()} sm">${q.difficulty}</span>
-</div>`;
-      })
-      .join("");
+    recentEl.innerHTML = recent.map(({ id, date }) => {
+      const q = state.questions.find((x) => x.id === id);
+      if (!q) return "";
+      const t = state.timeLogs[id];
+      const reviewDue = isReviewDue(id);
+      return `<div class="recent-item">
+        <span class="recent-diff ${q.difficulty.toLowerCase()}"></span>
+        <div class="recent-title-wrap">
+          <a href="${q.link}" target="_blank" class="recent-title">${q.title}</a>
+          ${reviewDue ? '<span class="review-due-pill">↺ Review</span>' : ""}
+        </div>
+        ${state.notes[id] ? `<span class="recent-note-icon" onclick="openNoteModal(${id}); event.preventDefault()" title="View note">📝</span>` : ""}
+        ${t ? `<span class="time-badge">${t}m</span>` : ""}
+        <span class="recent-date">${formatDate(date)}</span>
+        <span class="diff-badge ${q.difficulty.toLowerCase()} sm">${q.difficulty}</span>
+      </div>`;
+    }).join("");
   }
+
+  // Feature 5: Notes Search
+  renderNotesSearch();
 }
 
 // ─── Company Coverage ──────────────────────────────────────────────────────────
 function renderCompanyCoverage(solvedIds) {
   const coverage = document.getElementById("company-coverage");
-  const companyData = state.companies
-    .map((c) => {
-      const qfc = state.questions.filter((q) => q.companies.includes(c));
-      const sfc = qfc.filter((q) => solvedIds.has(q.id));
-      return { company: c, solved: sfc.length, total: qfc.length };
-    })
-    .sort((a, b) => b.solved / b.total - a.solved / a.total);
+  const companyData = state.companies.map((c) => {
+    const qfc = state.questions.filter((q) => q.companies.includes(c));
+    const sfc = qfc.filter((q) => solvedIds.has(q.id));
+    return { company: c, solved: sfc.length, total: qfc.length };
+  }).sort((a, b) => b.solved / b.total - a.solved / a.total);
   const limit = 8;
   const showAll = state.coverageExpanded;
   const toShow = showAll ? companyData : companyData.slice(0, limit);
   const hasMore = companyData.length > limit;
-  coverage.innerHTML =
-    toShow
-      .map(({ company, solved, total }) => {
-        const pct = total ? Math.round((solved / total) * 100) : 0;
-        return `<div class="company-row"><span class="company-row-name">${formatCompany(company)}</span><div class="company-row-bar-wrap"><div class="company-row-bar" style="width:${pct}%"></div></div><span class="company-row-count">${solved}/${total}</span></div>`;
-      })
-      .join("") +
-    (hasMore
-      ? `<button class="coverage-toggle" onclick="toggleCoverageExpand()">${showAll ? "▲ Show less" : `▼ Show all ${companyData.length} companies`}</button>`
-      : "");
+  coverage.innerHTML = toShow.map(({ company, solved, total }) => {
+    const pct = total ? Math.round((solved / total) * 100) : 0;
+    return `<div class="company-row"><span class="company-row-name">${formatCompany(company)}</span><div class="company-row-bar-wrap"><div class="company-row-bar" style="width:${pct}%"></div></div><span class="company-row-count">${solved}/${total}</span></div>`;
+  }).join("") + (hasMore ? `<button class="coverage-toggle" onclick="toggleCoverageExpand()">${showAll ? "▲ Show less" : `▼ Show all ${companyData.length} companies`}</button>` : "");
 }
 function toggleCoverageExpand() {
   state.coverageExpanded = !state.coverageExpanded;
@@ -1333,18 +1428,11 @@ function animateNumber(id, target) {
   const tick = setInterval(() => {
     i++;
     el.textContent = Math.round(start + diff * (i / steps));
-    if (i >= steps) {
-      el.textContent = target;
-      clearInterval(tick);
-    }
+    if (i >= steps) { el.textContent = target; clearInterval(tick); }
   }, 16);
 }
 function formatDate(str) {
-  return new Date(str).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  return new Date(str).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
 // ─── Heatmap ───────────────────────────────────────────────────────────────────
@@ -1373,43 +1461,28 @@ function renderHeatmap() {
 }
 
 // ─── Modals ────────────────────────────────────────────────────────────────────
-function confirmClearData() {
-  document.getElementById("modal-overlay").style.display = "flex";
-}
-function closeModal() {
-  document.getElementById("modal-overlay").style.display = "none";
-}
+function confirmClearData() { document.getElementById("modal-overlay").style.display = "flex"; }
+function closeModal() { document.getElementById("modal-overlay").style.display = "none"; }
 async function clearAllData() {
-  state.solved = {};
-  state.activity = {};
-  state.bookmarks = {};
-  state.notes = {};
-  state.timeLogs = {};
+  state.solved = {}; state.activity = {}; state.bookmarks = {};
+  state.notes = {}; state.timeLogs = {}; state.reviewData = {};
   saveLocalProgress();
   if (state.token) await saveProgressToGist();
-  closeModal();
-  renderProfilePage();
-  renderStats();
-  renderTable();
+  closeModal(); renderProfilePage(); renderStats(); renderTable();
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 function formatCompany(name) {
-  return name
-    .split(/[-_]/)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
+  return name.split(/[-_]/).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 }
 function updateSortHeaders() {
   document.querySelectorAll("th[data-sort]").forEach((th) => {
     th.classList.remove("sort-asc", "sort-desc");
-    if (th.dataset.sort === state.sortCol)
-      th.classList.add(state.sortDir === "asc" ? "sort-asc" : "sort-desc");
+    if (th.dataset.sort === state.sortCol) th.classList.add(state.sortDir === "asc" ? "sort-asc" : "sort-desc");
   });
 }
 function showError(msg) {
-  document.getElementById("loading").innerHTML =
-    `<div class="error-state">⚠️ ${msg}</div>`;
+  document.getElementById("loading").innerHTML = `<div class="error-state">⚠️ ${msg}</div>`;
 }
 
 // ─── Init ──────────────────────────────────────────────────────────────────────
@@ -1419,11 +1492,7 @@ async function init() {
   const oauthToken = params.get("token");
   if (oauthToken) {
     localStorage.setItem("gh_token", oauthToken);
-    window.history.replaceState(
-      {},
-      "",
-      window.location.pathname + window.location.hash,
-    );
+    window.history.replaceState({}, "", window.location.pathname + window.location.hash);
   }
   state.token = oauthToken || localStorage.getItem("gh_token");
   if (state.token) {
@@ -1438,60 +1507,41 @@ async function init() {
     loadLocalProgress();
   }
   renderAuthArea();
-  try {
-    await loadAllCSVs();
-  } catch (e) {
-    showError("Failed to load question data. " + e.message);
-    return;
-  }
+
+  // Load metadata (tags) in parallel with CSVs
+  await Promise.all([loadAllCSVs(), loadMetadata()]);
+
   document.getElementById("loading").style.display = "none";
   document.getElementById("main-content").style.display = "block";
-  document
-    .querySelectorAll(".pill-diff")
-    .forEach((btn) =>
-      btn.addEventListener("click", () => toggleDiffFilter(btn.dataset.diff)),
-    );
+
+  document.querySelectorAll(".pill-diff").forEach((btn) =>
+    btn.addEventListener("click", () => toggleDiffFilter(btn.dataset.diff))
+  );
   document.getElementById("search-input").addEventListener("input", (e) => {
     state.filters.search = e.target.value;
     applyFilters();
   });
   document.getElementById("clear-filters").addEventListener("click", () => {
-    state.filters = {
-      search: "",
-      difficulties: [],
-      companies: [],
-      status: "all",
-      starred: false,
-      review: false,
-    };
+    state.filters = { search: "", difficulties: [], companies: [], patterns: [], status: "all", starred: false, review: false };
     document.getElementById("search-input").value = "";
     document.getElementById("filter-starred-btn").classList.remove("active");
     document.getElementById("filter-review-btn").classList.remove("active");
     renderDiffPills();
     clearCompanyFilters();
-    renderCompanyCheckboxList("");
+    clearPatternFilters();
+    renderCompanyCheckboxList(""); renderPatternCheckboxList("");
     updateStatusDropdown();
-    state.sortCol = "id";
-    state.sortDir = "asc";
-    updateSortBtn();
-    applyFilters();
+    state.sortCol = "id"; state.sortDir = "asc";
+    updateSortBtn(); applyFilters();
   });
-  document
-    .querySelectorAll("th[data-sort]")
-    .forEach((th) =>
-      th.addEventListener("click", () => setSort(th.dataset.sort)),
-    );
-  document
-    .getElementById("theme-toggle")
-    .addEventListener("click", toggleTheme);
-  document
-    .getElementById("note-modal-overlay")
-    .addEventListener("click", (e) => {
-      if (e.target === e.currentTarget) closeNoteModal();
-    });
-  document
-    .getElementById("import-file-input")
-    .addEventListener("change", handleImportFile);
+  document.querySelectorAll("th[data-sort]").forEach((th) =>
+    th.addEventListener("click", () => setSort(th.dataset.sort))
+  );
+  document.getElementById("theme-toggle").addEventListener("click", toggleTheme);
+  document.getElementById("note-modal-overlay").addEventListener("click", (e) => {
+    if (e.target === e.currentTarget) closeNoteModal();
+  });
+  document.getElementById("import-file-input").addEventListener("change", handleImportFile);
   initKeyboardShortcuts();
   applyFilters();
   initRouting();
@@ -1510,6 +1560,8 @@ function renderInsightsPage() {
   renderTodoBreakdown();
   renderNextToSolve();
   renderTimeStats();
+  renderWeeklyChart();       // Feature 6
+  renderPatternInsights();   // Feature 1
 }
 function renderInsightsRibbon() {
   const total = state.questions.length;
@@ -1518,6 +1570,7 @@ function renderInsightsRibbon() {
   const companies = state.companies.length;
   const streak = getCurrentStreak();
   const starred = Object.keys(state.bookmarks).length;
+  const reviewDue = Object.keys(state.solved).filter((id) => isReviewDue(+id)).length;
   document.getElementById("insights-ribbon").innerHTML = `
     <div class="ribbon-item"><div class="ribbon-val">${total}</div><div class="ribbon-label">Total Questions</div></div>
     <div class="ribbon-item"><div class="ribbon-val accent-text">${solved}</div><div class="ribbon-label">Solved</div></div>
@@ -1525,103 +1578,105 @@ function renderInsightsRibbon() {
     <div class="ribbon-item"><div class="ribbon-val">${companies}</div><div class="ribbon-label">Companies</div></div>
     <div class="ribbon-item"><div class="ribbon-val streak-text">${streak}🔥</div><div class="ribbon-label">Day Streak</div></div>
     <div class="ribbon-item"><div class="ribbon-val" style="color:var(--accent)">★ ${starred}</div><div class="ribbon-label">Bookmarked</div></div>
+    ${reviewDue > 0 ? `<div class="ribbon-item" style="cursor:pointer" onclick="showPage('tracker'); state.filters.review=true; document.getElementById('filter-review-btn').classList.add('active'); applyFilters()"><div class="ribbon-val" style="color:var(--yellow)">↺ ${reviewDue}</div><div class="ribbon-label">Due Review</div></div>` : ""}
   `;
 }
 function getCurrentStreak() {
-  const days = Object.keys(state.activity)
-    .filter((d) => state.activity[d] > 0)
-    .sort();
+  const days = Object.keys(state.activity).filter((d) => state.activity[d] > 0).sort();
   if (!days.length) return 0;
-  let streak = 0;
-  let d = new Date();
+  let streak = 0, d = new Date();
   d.setHours(0, 0, 0, 0);
   while (true) {
     const key = d.toISOString().slice(0, 10);
-    if (state.activity[key]) {
-      streak++;
-      d.setDate(d.getDate() - 1);
-    } else break;
+    if (state.activity[key]) { streak++; d.setDate(d.getDate() - 1); } else break;
   }
   return streak;
 }
+
+// ─── Feature 1: Pattern Insights ──────────────────────────────────────────────
+function renderPatternInsights() {
+  const el = document.getElementById("insights-patterns");
+  if (!el) return;
+  if (!state.allTags.length) { el.innerHTML = `<div class="empty-insights">Run <code>node fetch-metadata.js</code> to enable pattern analytics.</div>`; return; }
+
+  const solvedIds = new Set(Object.keys(state.solved).map(Number));
+  const tagStats = {};
+  for (const [idStr, meta] of Object.entries(state.metaMap)) {
+    const id = +idStr;
+    for (const tag of (meta.tags || [])) {
+      if (!tagStats[tag]) tagStats[tag] = { total: 0, solved: 0 };
+      tagStats[tag].total++;
+      if (solvedIds.has(id)) tagStats[tag].solved++;
+    }
+  }
+  const sorted = Object.entries(tagStats).sort((a, b) => b[1].total - a[1].total).slice(0, 15);
+  const maxTotal = sorted[0]?.[1].total || 1;
+
+  el.innerHTML = sorted.map(([tag, { total, solved }]) => {
+    const pct = Math.round((solved / total) * 100);
+    const barW = Math.round((total / maxTotal) * 100);
+    return `<div class="pattern-row" onclick="state.filters.patterns=[]; togglePatternFilter('${tag.replace(/'/g, "\\'")}'); showPage('tracker')">
+      <span class="pattern-row-name">${tag}</span>
+      <div class="pattern-row-bar-bg">
+        <div class="pattern-row-bar-total" style="width:${barW}%"></div>
+        <div class="pattern-row-bar-solved" style="width:${Math.round((solved / maxTotal) * 100)}%"></div>
+      </div>
+      <span class="pattern-row-count">${solved}/${total}</span>
+      <span class="pattern-row-pct ${pct >= 70 ? "easy-text" : pct >= 40 ? "medium-text" : "hard-text"}">${pct}%</span>
+    </div>`;
+  }).join("");
+}
+
 function renderHotQuestions() {
-  const sorted = [...state.questions]
-    .sort((a, b) => b.companies.length - a.companies.length)
-    .slice(0, 15);
+  const sorted = [...state.questions].sort((a, b) => b.companies.length - a.companies.length).slice(0, 15);
   const max = sorted[0]?.companies.length || 1;
-  document.getElementById("insights-hot").innerHTML = sorted
-    .map((q, i) => {
-      const pct = Math.round((q.companies.length / max) * 100);
-      const solved = !!state.solved[q.id];
-      const diffCls = q.difficulty.toLowerCase();
-      return `<div class="hot-row ${solved ? "hot-row-solved" : ""}" onclick="window.open('${q.link}', '_blank')">
+  document.getElementById("insights-hot").innerHTML = sorted.map((q, i) => {
+    const pct = Math.round((q.companies.length / max) * 100);
+    const solved = !!state.solved[q.id];
+    const diffCls = q.difficulty.toLowerCase();
+    return `<div class="hot-row ${solved ? "hot-row-solved" : ""}" onclick="window.open('${q.link}', '_blank')">
       <span class="hot-rank">${i + 1}</span>
       <div class="hot-bar-wrap"><div class="hot-title">${q.title} <span class="diff-badge diff-${diffCls}">${q.difficulty}</span>${solved ? ' <span class="solved-tick">✓</span>' : ""}</div>
       <div class="hot-bar-bg"><div class="hot-bar-fill diff-fill-${diffCls}" style="width:${pct}%"></div></div></div>
       <span class="hot-count">${q.companies.length} co.</span>
     </div>`;
-    })
-    .join("");
+  }).join("");
 }
 function renderDiffChart() {
   const counts = { Easy: 0, Medium: 0, Hard: 0 };
-  state.questions.forEach((q) => {
-    if (counts[q.difficulty] !== undefined) counts[q.difficulty]++;
-  });
+  state.questions.forEach((q) => { if (counts[q.difficulty] !== undefined) counts[q.difficulty]++; });
   const total = state.questions.length || 1;
   const rows = [
     { label: "Easy", count: counts.Easy, cls: "easy", color: "var(--green)" },
-    {
-      label: "Medium",
-      count: counts.Medium,
-      cls: "medium",
-      color: "var(--yellow)",
-    },
+    { label: "Medium", count: counts.Medium, cls: "medium", color: "var(--yellow)" },
     { label: "Hard", count: counts.Hard, cls: "hard", color: "var(--red)" },
   ];
   const maxCount = Math.max(...rows.map((r) => r.count)) || 1;
   document.getElementById("insights-diff-chart").innerHTML = `
     <div class="diff-donut-wrap"><svg viewBox="0 0 120 120" class="diff-donut">${buildDonut(rows, total)}</svg>
     <div class="donut-center"><div class="donut-total">${total}</div><div class="donut-label">total</div></div></div>
-    <div class="diff-legend">${rows
-      .map(
-        (r) => `
+    <div class="diff-legend">${rows.map((r) => `
       <div class="diff-legend-row"><span class="diff-legend-dot" style="background:${r.color}"></span><span class="diff-legend-name ${r.cls}-text">${r.label}</span>
       <div class="diff-legend-bar-bg"><div class="diff-legend-bar" style="width:${Math.round((r.count / maxCount) * 100)}%;background:${r.color}"></div></div>
-      <span class="diff-legend-count">${r.count}</span><span class="diff-legend-pct">${Math.round((r.count / total) * 100)}%</span></div>`,
-      )
-      .join("")}
+      <span class="diff-legend-count">${r.count}</span><span class="diff-legend-pct">${Math.round((r.count / total) * 100)}%</span></div>`).join("")}
     </div>`;
 }
 function buildDonut(rows, total) {
-  const cx = 60,
-    cy = 60,
-    r = 48,
-    stroke = 14;
+  const cx = 60, cy = 60, r = 48, stroke = 14;
   const circ = 2 * Math.PI * r;
   let offset = 0;
-  const colors = {
-    Easy: "var(--green)",
-    Medium: "var(--yellow)",
-    Hard: "var(--red)",
-  };
-  return rows
-    .map((row) => {
-      const frac = row.count / (total || 1);
-      const dash = frac * circ;
-      const gap = circ - dash;
-      const svg = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${colors[row.label]}" stroke-width="${stroke}" stroke-dasharray="${dash.toFixed(2)} ${gap.toFixed(2)}" stroke-dashoffset="${((-offset * circ) / (total || 1)).toFixed(2)}" transform="rotate(-90 ${cx} ${cy})" opacity="0.85"/>`;
-      offset += row.count;
-      return svg;
-    })
-    .join("");
+  const colors = { Easy: "var(--green)", Medium: "var(--yellow)", Hard: "var(--red)" };
+  return rows.map((row) => {
+    const frac = row.count / (total || 1);
+    const dash = frac * circ;
+    const gap = circ - dash;
+    const svg = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${colors[row.label]}" stroke-width="${stroke}" stroke-dasharray="${dash.toFixed(2)} ${gap.toFixed(2)}" stroke-dashoffset="${((-offset * circ) / (total || 1)).toFixed(2)}" transform="rotate(-90 ${cx} ${cy})" opacity="0.85"/>`;
+    offset += row.count;
+    return svg;
+  }).join("");
 }
 function renderSolveRate() {
-  const buckets = {
-    Easy: { total: 0, solved: 0 },
-    Medium: { total: 0, solved: 0 },
-    Hard: { total: 0, solved: 0 },
-  };
+  const buckets = { Easy: { total: 0, solved: 0 }, Medium: { total: 0, solved: 0 }, Hard: { total: 0, solved: 0 } };
   state.questions.forEach((q) => {
     if (!buckets[q.difficulty]) return;
     buckets[q.difficulty].total++;
@@ -1629,124 +1684,77 @@ function renderSolveRate() {
   });
   const rows = [
     { label: "Easy", ...buckets.Easy, cls: "easy", color: "var(--green)" },
-    {
-      label: "Medium",
-      ...buckets.Medium,
-      cls: "medium",
-      color: "var(--yellow)",
-    },
+    { label: "Medium", ...buckets.Medium, cls: "medium", color: "var(--yellow)" },
     { label: "Hard", ...buckets.Hard, cls: "hard", color: "var(--red)" },
   ];
   const totalSolved = rows.reduce((s, r) => s + r.solved, 0);
   const totalAll = rows.reduce((s, r) => s + r.total, 0);
   document.getElementById("insights-solve-rate").innerHTML = `
     <div class="solve-overall"><div class="solve-overall-num accent-text">${totalSolved} <span>/ ${totalAll}</span></div><div class="solve-overall-label">Total solved</div></div>
-    ${rows
-      .map((r) => {
-        const pct = r.total ? Math.round((r.solved / r.total) * 100) : 0;
-        return `
-      <div class="solve-row"><div class="solve-row-top"><span class="${r.cls}-text">${r.label}</span><span class="solve-nums">${r.solved} / ${r.total}</span><span class="solve-pct">${pct}%</span></div>
+    ${rows.map((r) => {
+    const pct = r.total ? Math.round((r.solved / r.total) * 100) : 0;
+    return `<div class="solve-row"><div class="solve-row-top"><span class="${r.cls}-text">${r.label}</span><span class="solve-nums">${r.solved} / ${r.total}</span><span class="solve-pct">${pct}%</span></div>
       <div class="solve-bar-bg"><div class="solve-bar-fill" style="width:${pct}%;background:${r.color}"></div></div></div>`;
-      })
-      .join("")}`;
+  }).join("")}`;
 }
 function renderCompanyLeaderboard(search) {
   const q = (search || "").toLowerCase();
-  const companies = state.companies.filter(
-    (c) => !q || c.includes(q) || formatCompany(c).toLowerCase().includes(q),
-  );
-  const data = companies
-    .map((c) => {
-      const qs = state.questions.filter((q) => q.companies.includes(c));
-      const solved = qs.filter((q) => state.solved[q.id]).length;
-      const diff = { easy: 0, medium: 0, hard: 0 };
-      qs.forEach((q) => {
-        const d = q.difficulty.toLowerCase();
-        if (diff[d] !== undefined) diff[d]++;
-      });
-      return { c, qs: qs.length, solved, diff };
-    })
-    .sort((a, b) => b.qs - a.qs);
+  const companies = state.companies.filter((c) => !q || c.includes(q) || formatCompany(c).toLowerCase().includes(q));
+  const data = companies.map((c) => {
+    const qs = state.questions.filter((q) => q.companies.includes(c));
+    const solved = qs.filter((q) => state.solved[q.id]).length;
+    const diff = { easy: 0, medium: 0, hard: 0 };
+    qs.forEach((q) => { const d = q.difficulty.toLowerCase(); if (diff[d] !== undefined) diff[d]++; });
+    return { c, qs: qs.length, solved, diff };
+  }).sort((a, b) => b.qs - a.qs);
   const maxQs = data[0]?.qs || 1;
-  document.getElementById("insights-companies").innerHTML = data
-    .map((row, i) => {
-      const pct = Math.round((row.solved / (row.qs || 1)) * 100);
-      const barW = Math.round((row.qs / maxQs) * 100);
-      return `<div class="co-row"><span class="co-rank">${i + 1}</span>
+  document.getElementById("insights-companies").innerHTML = data.map((row, i) => {
+    const pct = Math.round((row.solved / (row.qs || 1)) * 100);
+    const barW = Math.round((row.qs / maxQs) * 100);
+    return `<div class="co-row"><span class="co-rank">${i + 1}</span>
       <div class="co-info"><div class="co-top"><span class="co-name">${formatCompany(row.c)}</span>
         <span class="co-tags"><span class="co-diff easy-text">${row.diff.easy}E</span><span class="co-diff medium-text">${row.diff.medium}M</span><span class="co-diff hard-text">${row.diff.hard}H</span></span>
         <span class="co-solved-badge ${pct === 100 ? "co-complete" : ""}">${row.solved}/${row.qs} <span class="co-pct">${pct}%</span></span></div>
       <div class="co-bar-bg"><div class="co-bar-fill" style="width:${barW}%"></div><div class="co-bar-solved" style="width:${Math.round((row.solved / maxQs) * 100)}%"></div></div></div>
       <button class="sp-launch-btn" onclick="openStudyPlan('${row.c}')" title="Open Study Plan">📋</button></div>`;
-    })
-    .join("");
+  }).join("");
 }
 function renderTodoBreakdown() {
   const unsolved = state.questions.filter((q) => !state.solved[q.id]);
   const counts = { Easy: 0, Medium: 0, Hard: 0 };
-  unsolved.forEach((q) => {
-    if (counts[q.difficulty] !== undefined) counts[q.difficulty]++;
-  });
-  const reviewCutoff = dateStr(new Date(Date.now() - 7 * 86400000));
-  const reviewDue = Object.entries(state.solved).filter(
-    ([, date]) => date <= reviewCutoff,
-  ).length;
+  unsolved.forEach((q) => { if (counts[q.difficulty] !== undefined) counts[q.difficulty]++; });
+  const reviewDue = Object.keys(state.solved).filter((id) => isReviewDue(+id)).length;
   document.getElementById("insights-todo").innerHTML = `
     <div class="todo-total">${unsolved.length} <span>unsolved</span></div>
     ${[
       { label: "Easy", count: counts.Easy, cls: "easy", color: "var(--green)" },
-      {
-        label: "Medium",
-        count: counts.Medium,
-        cls: "medium",
-        color: "var(--yellow)",
-      },
+      { label: "Medium", count: counts.Medium, cls: "medium", color: "var(--yellow)" },
       { label: "Hard", count: counts.Hard, cls: "hard", color: "var(--red)" },
-    ]
-      .map((r) => {
-        const pct = unsolved.length
-          ? Math.round((r.count / unsolved.length) * 100)
-          : 0;
-        return `<div class="todo-row"><span class="${r.cls}-text todo-label">${r.label}</span><div class="todo-bar-bg"><div class="todo-bar" style="width:${pct}%;background:${r.color}"></div></div><span class="todo-count">${r.count}</span></div>`;
-      })
-      .join("")}
-    ${reviewDue > 0 ? `<div class="review-due-badge" onclick="showPage('tracker'); state.filters.review=true; document.getElementById('filter-review-btn').classList.add('active'); applyFilters();">🔁 ${reviewDue} problem${reviewDue > 1 ? "s" : ""} due for review</div>` : ""}`;
+    ].map((r) => {
+      const pct = unsolved.length ? Math.round((r.count / unsolved.length) * 100) : 0;
+      return `<div class="todo-row"><span class="${r.cls}-text todo-label">${r.label}</span><div class="todo-bar-bg"><div class="todo-bar" style="width:${pct}%;background:${r.color}"></div></div><span class="todo-count">${r.count}</span></div>`;
+    }).join("")}
+    ${reviewDue > 0 ? `<div class="review-due-badge" onclick="showPage('tracker'); state.filters.review=true; document.getElementById('filter-review-btn').classList.add('active'); applyFilters();">↺ ${reviewDue} problem${reviewDue > 1 ? "s" : ""} due for SM2 review</div>` : ""}`;
 }
 function renderNextToSolve() {
-  const unsolved = [...state.questions]
-    .filter((q) => !state.solved[q.id])
-    .sort((a, b) => b.companies.length - a.companies.length)
-    .slice(0, 10);
+  const unsolved = [...state.questions].filter((q) => !state.solved[q.id]).sort((a, b) => b.companies.length - a.companies.length).slice(0, 10);
   const max = unsolved[0]?.companies.length || 1;
-  document.getElementById("insights-next").innerHTML =
-    unsolved
-      .map((q, i) => {
-        const pct = Math.round((q.companies.length / max) * 100);
-        const diffCls = q.difficulty.toLowerCase();
-        const starred = !!state.bookmarks[q.id];
-        return `<div class="hot-row" onclick="window.open('${q.link}', '_blank')"><span class="hot-rank">${i + 1}</span>
+  document.getElementById("insights-next").innerHTML = unsolved.map((q, i) => {
+    const pct = Math.round((q.companies.length / max) * 100);
+    const diffCls = q.difficulty.toLowerCase();
+    const starred = !!state.bookmarks[q.id];
+    return `<div class="hot-row" onclick="window.open('${q.link}', '_blank')"><span class="hot-rank">${i + 1}</span>
       <div class="hot-bar-wrap"><div class="hot-title">${q.title} <span class="diff-badge diff-${diffCls}">${q.difficulty}</span>${starred ? ' <span style="color:var(--accent)">★</span>' : ""}</div>
       <div class="hot-bar-bg"><div class="hot-bar-fill diff-fill-${diffCls}" style="width:${pct}%"></div></div></div>
       <span class="hot-count">${q.companies.length} co.</span></div>`;
-      })
-      .join("") ||
-    `<div class="empty-insights">🎉 All high-frequency problems solved!</div>`;
+  }).join("") || `<div class="empty-insights">🎉 All high-frequency problems solved!</div>`;
 }
 function renderTimeStats() {
   const el = document.getElementById("insights-time");
   if (!el) return;
-  const logs = Object.entries(state.timeLogs)
-    .map(([id, m]) => ({
-      id: +id,
-      m,
-      q: state.questions.find((x) => x.id === +id),
-    }))
-    .filter((x) => x.q && x.m);
+  const logs = Object.entries(state.timeLogs).map(([id, m]) => ({ id: +id, m, q: state.questions.find((x) => x.id === +id) })).filter((x) => x.q && x.m);
 
-  // ── Solve pace (problems/week from activity) ───────────────────────────────
-  const activityDays = Object.keys(state.activity)
-    .filter((d) => state.activity[d] > 0)
-    .sort();
+  const activityDays = Object.keys(state.activity).filter((d) => state.activity[d] > 0).sort();
   let paceHtml = "";
   if (activityDays.length >= 2) {
     const firstDay = new Date(activityDays[0]);
@@ -1755,22 +1763,17 @@ function renderTimeStats() {
     const totalSolved = Object.keys(state.solved).length;
     const pace = (totalSolved / weeks).toFixed(1);
     const last7 = dateStr(new Date(Date.now() - 7 * 86400000));
-    const last7Count = Object.values(state.activity).reduce(
-      (s, v, i) => (Object.keys(state.activity)[i] >= last7 ? s + v : s),
-      0,
-    );
-    paceHtml = `
-      <div class="smart-stat-row">
-        <div class="smart-stat"><div class="smart-stat-val accent-text">${pace}</div><div class="smart-stat-label">problems/week (all time)</div></div>
-        <div class="smart-stat"><div class="smart-stat-val">${last7Count}</div><div class="smart-stat-label">solved last 7 days</div></div>
-        <div class="smart-stat"><div class="smart-stat-val">${activityDays.length}</div><div class="smart-stat-label">active days total</div></div>
-      </div>`;
+    const last7Count = Object.entries(state.activity).filter(([d]) => d >= last7).reduce((s, [, v]) => s + v, 0);
+    paceHtml = `<div class="smart-stat-row">
+      <div class="smart-stat"><div class="smart-stat-val accent-text">${pace}</div><div class="smart-stat-label">problems/week (all time)</div></div>
+      <div class="smart-stat"><div class="smart-stat-val">${last7Count}</div><div class="smart-stat-label">solved last 7 days</div></div>
+      <div class="smart-stat"><div class="smart-stat-val">${activityDays.length}</div><div class="smart-stat-label">active days total</div></div>
+    </div>`;
   }
 
   if (!logs.length) {
-    el.innerHTML = `
-      ${paceHtml ? `<div><div class="time-section-title">Time Distribution <span style="font-size:9px;color:var(--text-dim);font-weight:400">(how many problems solved in each time range, split by difficulty)</span></div>` : ""}
-      <div class="empty-insights">No time logs yet. Solve a problem and log your time via the ✎ button — time analytics will appear here.</div>`;
+    el.innerHTML = `${paceHtml ? `<div><div class="time-section-title">Solve Pace</div>${paceHtml}</div>` : ""}
+      <div class="empty-insights">No time logs yet. Solve a problem and log your time — time analytics will appear here.</div>`;
     return;
   }
 
@@ -1778,125 +1781,52 @@ function renderTimeStats() {
   const avg = Math.round(total / logs.length);
   const sorted = [...logs].sort((a, b) => a.m - b.m);
   const median = sorted[Math.floor(sorted.length / 2)].m;
-
   const byDiff = { Easy: [], Medium: [], Hard: [] };
-  logs.forEach(({ m, q }) => {
-    if (byDiff[q.difficulty]) byDiff[q.difficulty].push(m);
-  });
+  logs.forEach(({ m, q }) => { if (byDiff[q.difficulty]) byDiff[q.difficulty].push(m); });
+  const avgOf = (arr) => arr.length ? Math.round(arr.reduce((s, v) => s + v, 0) / arr.length) : null;
+  const diffColor = { Easy: "var(--green)", Medium: "var(--yellow)", Hard: "var(--red)" };
 
-  const avgOf = (arr) =>
-    arr.length ? Math.round(arr.reduce((s, v) => s + v, 0) / arr.length) : null;
-  const medianOf = (arr) => {
-    if (!arr.length) return null;
-    const s = [...arr].sort((a, b) => a - b);
-    return s[Math.floor(s.length / 2)];
-  };
-  // Consistency: lower stddev = more consistent. Show as a score 0-100
-  const stdDev = (arr) => {
-    if (arr.length < 2) return null;
-    const mean = arr.reduce((s, v) => s + v, 0) / arr.length;
-    return Math.sqrt(arr.reduce((s, v) => s + (v - mean) ** 2, 0) / arr.length);
-  };
-  const consistencyScore = (arr) => {
-    if (arr.length < 2) return null;
-    const sd = stdDev(arr);
-    const mean = avgOf(arr);
-    const cv = sd / mean; // coefficient of variation
-    return Math.max(0, Math.round((1 - Math.min(cv, 1)) * 100));
-  };
-
-  const diffColor = {
-    Easy: "var(--green)",
-    Medium: "var(--yellow)",
-    Hard: "var(--red)",
-  };
-
-  const outliers = logs
-    .filter((x) => x.q && byDiff[x.q.difficulty].length >= 2)
-    .map((x) => {
-      const diffAvg = avgOf(byDiff[x.q.difficulty]);
-      const delta = x.m - diffAvg;
-      const pct = Math.round((delta / diffAvg) * 100);
-      return { ...x, diffAvg, delta, pct };
-    })
-    .filter((x) => x.diffAvg !== null)
-    .sort((a, b) => b.pct - a.pct);
-
+  const outliers = logs.filter((x) => x.q && byDiff[x.q.difficulty].length >= 2).map((x) => {
+    const diffAvg = avgOf(byDiff[x.q.difficulty]);
+    const delta = x.m - diffAvg;
+    const pct = Math.round((delta / diffAvg) * 100);
+    return { ...x, diffAvg, delta, pct };
+  }).filter((x) => x.diffAvg !== null).sort((a, b) => b.pct - a.pct);
   const slow = outliers.filter((x) => x.pct > 10).slice(0, 3);
-  const fast = outliers
-    .filter((x) => x.pct < -10)
-    .reverse()
-    .slice(0, 3);
+  const fast = outliers.filter((x) => x.pct < -10).reverse().slice(0, 3);
+  const hasEnoughData = Object.values(byDiff).some((arr) => arr.length >= 2);
 
-  const hasEnoughData = Object.values(byDiff).some(arr => arr.length >= 2);
-
-  const outlierHtml =
-    hasEnoughData
-      ? `
-  <div><div class="time-section-title">Performance vs Your Average 
-  <span style="font-size:10px;color:var(--text-muted);font-weight:400;text-transform:none">— Easy avg ${avgOf(byDiff.Easy) ?? "—"}m · Medium avg ${avgOf(byDiff.Medium) ?? "—"}m · Hard avg ${avgOf(byDiff.Hard) ?? "—"}m</span>
-  </div>
+  const outlierHtml = hasEnoughData ? `
+    <div><div class="time-section-title">Performance vs Your Average
+      <span style="font-size:10px;color:var(--text-muted);font-weight:400;text-transform:none">— Easy avg ${avgOf(byDiff.Easy) ?? "—"}m · Medium avg ${avgOf(byDiff.Medium) ?? "—"}m · Hard avg ${avgOf(byDiff.Hard) ?? "—"}m</span>
+    </div>
     <div class="outlier-grid">
-      ${slow.length
-        ? `<div class="outlier-col">
-        <div class="outlier-heading" style="color:var(--red)">🐢 Took longer than usual</div>
-        ${slow
-          .map(
-            (
-              x,
-            ) => `<div class="time-problem-row" onclick="window.open('${x.q.link}','_blank')">
+      ${slow.length ? `<div class="outlier-col"><div class="outlier-heading" style="color:var(--red)">🐢 Took longer than usual</div>
+        ${slow.map((x) => `<div class="time-problem-row" onclick="window.open('${x.q.link}','_blank')">
           <span class="time-problem-diff-dot" style="background:${diffColor[x.q.difficulty]}"></span>
           <span class="time-problem-name">${x.q.title}</span>
-          <span class="diff-badge diff-${x.q.difficulty.toLowerCase()} sm" style="flex-shrink:0;margin-right:4px">${x.q.difficulty[0]}</span>
+          <span class="diff-badge diff-${x.q.difficulty.toLowerCase()} sm">${x.q.difficulty[0]}</span>
           <span class="time-problem-badge" style="color:var(--red)">${x.m}m</span>
           <span class="outlier-delta">+${x.pct}%</span>
-        </div>`,
-          )
-          .join("")}
-      </div>`
-        : ""
-      }
-      ${fast.length
-        ? `<div class="outlier-col">
-        <div class="outlier-heading" style="color:var(--green)">⚡ Faster than usual</div>
-        ${fast
-          .map(
-            (
-              x,
-            ) => `<div class="time-problem-row" onclick="window.open('${x.q.link}','_blank')">
+        </div>`).join("")}</div>` : ""}
+      ${fast.length ? `<div class="outlier-col"><div class="outlier-heading" style="color:var(--green)">⚡ Faster than usual</div>
+        ${fast.map((x) => `<div class="time-problem-row" onclick="window.open('${x.q.link}','_blank')">
           <span class="time-problem-diff-dot" style="background:${diffColor[x.q.difficulty]}"></span>
           <span class="time-problem-name">${x.q.title}</span>
-          <span class="diff-badge diff-${x.q.difficulty.toLowerCase()} sm" style="flex-shrink:0;margin-right:4px">${x.q.difficulty[0]}</span>
+          <span class="diff-badge diff-${x.q.difficulty.toLowerCase()} sm">${x.q.difficulty[0]}</span>
           <span class="time-problem-badge" style="color:var(--green)">${x.m}m</span>
           <span class="outlier-delta" style="color:var(--green)">${x.pct}%</span>
-        </div>`,
-          )
-          .join("")}
-      </div>`
-        : ""
-      }
-    </div>
-  </div>`
-      : "";
+        </div>`).join("")}</div>` : ""}
+    </div></div>` : "";
 
-  // Buckets
   const buckets = [
-    { label: "≤15m", min: 0, max: 15 },
-    { label: "≤30m", min: 15, max: 30 },
-    { label: "≤60m", min: 30, max: 60 },
-    { label: "≤2h", min: 60, max: 120 },
-    { label: "2h+", min: 120, max: Infinity },
+    { label: "≤15m", min: 0, max: 15 }, { label: "≤30m", min: 15, max: 30 },
+    { label: "≤60m", min: 30, max: 60 }, { label: "≤2h", min: 60, max: 120 }, { label: "2h+", min: 120, max: Infinity },
   ];
   buckets.forEach((b) => {
-    b.easy = logs.filter(
-      (x) => x.q.difficulty === "Easy" && x.m > b.min && x.m <= b.max,
-    ).length;
-    b.medium = logs.filter(
-      (x) => x.q.difficulty === "Medium" && x.m > b.min && x.m <= b.max,
-    ).length;
-    b.hard = logs.filter(
-      (x) => x.q.difficulty === "Hard" && x.m > b.min && x.m <= b.max,
-    ).length;
+    b.easy = logs.filter((x) => x.q.difficulty === "Easy" && x.m > b.min && x.m <= b.max).length;
+    b.medium = logs.filter((x) => x.q.difficulty === "Medium" && x.m > b.min && x.m <= b.max).length;
+    b.hard = logs.filter((x) => x.q.difficulty === "Hard" && x.m > b.min && x.m <= b.max).length;
     b.total = b.easy + b.medium + b.hard;
   });
   const maxBucket = Math.max(...buckets.map((b) => b.total), 1);
@@ -1905,37 +1835,16 @@ function renderTimeStats() {
     ${paceHtml ? `<div><div class="time-section-title">Solve Pace</div>${paceHtml}</div>` : ""}
     <div><div class="time-section-title">Overview</div>
       <div class="time-stats-summary">
-        ${[
-      { label: "Problems timed", val: logs.length },
-      {
-        label: "Total time",
-        val:
-          total >= 60
-            ? `${Math.floor(total / 60)}h ${total % 60}m`
-            : `${total}m`,
-      },
-      { label: "Average", val: avg + "m", cls: "accent-text" },
-      { label: "Median", val: median + "m" },
-      { label: "Fastest", val: sorted[0].m + "m", cls: "easy-text" },
-    ]
-      .map(
-        (r) =>
-          `<div class="time-stat-card"><div class="time-stat-val ${r.cls || ""}">${r.val}</div><div class="time-stat-label">${r.label}</div></div>`,
-      )
-      .join("")}
+        ${[{ label: "Problems timed", val: logs.length }, { label: "Total time", val: total >= 60 ? `${Math.floor(total / 60)}h ${total % 60}m` : `${total}m` }, { label: "Average", val: avg + "m", cls: "accent-text" }, { label: "Median", val: median + "m" }, { label: "Fastest", val: sorted[0].m + "m", cls: "easy-text" }]
+      .map((r) => `<div class="time-stat-card"><div class="time-stat-val ${r.cls || ""}">${r.val}</div><div class="time-stat-label">${r.label}</div></div>`).join("")}
       </div>
     </div>
     <div><div class="time-section-title">Time Distribution</div>
       <div class="time-histogram">
-        ${buckets
-      .map((b) => {
+        ${buckets.map((b) => {
         const heightPct = Math.round((b.total / maxBucket) * 100);
-        const easyH = b.total
-          ? Math.round((b.easy / b.total) * heightPct)
-          : 0;
-        const medH = b.total
-          ? Math.round((b.medium / b.total) * heightPct)
-          : 0;
+        const easyH = b.total ? Math.round((b.easy / b.total) * heightPct) : 0;
+        const medH = b.total ? Math.round((b.medium / b.total) * heightPct) : 0;
         const hardH = heightPct - easyH - medH;
         return `<div class="time-hist-col">
             <div class="time-hist-count">${b.total || ""}</div>
@@ -1946,8 +1855,7 @@ function renderTimeStats() {
             </div></div>
             <div class="time-hist-label">${b.label}</div>
           </div>`;
-      })
-      .join("")}
+      }).join("")}
       </div>
       <div style="display:flex;gap:12px;margin-top:8px;font-size:10px;color:var(--text-muted)">
         <span><span style="color:var(--green)">■</span> Easy</span>
