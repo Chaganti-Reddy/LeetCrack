@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LeetTrack — Company-wise Problem Tracker</title>
+  <link rel="stylesheet" href="style.css">
+  <script>window.GITHUB_CLIENT_ID = "REPLACE_GITHUB_CLIENT_ID";</script>
+</head>
+
+<body>
+
+  <input type="file" id="import-file-input" accept=".json" style="display:none">
+
+  <nav class="topnav">
+    <div class="nav-inner">
+      <div class="logo" onclick="showPage('tracker')">Leet<span>Track</span></div>
+      <div class="nav-links">
+        <button class="nav-btn active" id="nav-tracker" onclick="showPage('tracker')">Problems</button>
+        <button class="nav-btn" id="nav-profile" onclick="showPage('profile')">Profile</button>
+        <button class="nav-btn" id="nav-insights" onclick="showPage('insights')">Insights</button>
+      </div>
+      <div class="nav-actions">
+        <button class="nav-icon-btn" onclick="openRandomPicker()" title="Random Problem (R)">🎲</button>
+        <button id="theme-toggle" class="theme-toggle" title="Toggle theme">☀️</button>
+      </div>
+      <div id="auth-area"></div>
+    </div>
+  </nav>
+
+  <!-- ── TRACKER PAGE ─────────────────────────────────────────────────────── -->
+  <div id="page-tracker" class="page active">
+    <div class="app-wrapper">
+
+      <div class="stats-bar">
+        <div class="stat-item">
+          <div class="stat-value" id="stat-total">—</div>
+          <div class="stat-label">Total</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value easy-text" id="stat-easy">—</div>
+          <div class="stat-label">Easy</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value medium-text" id="stat-medium">—</div>
+          <div class="stat-label">Medium</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value hard-text" id="stat-hard">—</div>
+          <div class="stat-label">Hard</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value accent" id="stat-solved">0</div>
+          <div class="stat-label">Solved</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value accent" id="stat-pct">0%</div>
+          <div class="stat-label">Done</div>
+        </div>
+      </div>
+      <div class="progress-wrap">
+        <div id="progress-bar-fill"></div>
+      </div>
+
+      <div id="loading">
+        <div class="loader-inner"><span class="spinner"></span><span>Loading questions from CSVs…</span></div>
+      </div>
+
+      <div id="main-content" style="display:none">
+        <div class="filters-row">
+          <div class="search-wrap">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
+            <input type="text" id="search-input" placeholder="Search problems or companies… ( / )" autocomplete="off">
+          </div>
+
+          <div id="filter-difficulty-pills" class="diff-pills">
+            <button class="pill pill-diff pill-easy" data-diff="easy">Easy</button>
+            <button class="pill pill-diff pill-medium" data-diff="medium">Medium</button>
+            <button class="pill pill-diff pill-hard" data-diff="hard">Hard</button>
+          </div>
+
+          <div class="filter-group">
+            <div class="company-filter-wrap" id="company-filter-wrap">
+              <button class="filter-dropdown-btn" id="company-filter-btn" onclick="toggleCompanyDropdown()">
+                Companies <span id="company-filter-count" class="filter-count" style="display:none">0</span><span
+                  class="dropdown-arrow">▾</span>
+              </button>
+              <div class="company-dropdown" id="company-dropdown" style="display:none">
+                <div class="company-dropdown-search">
+                  <input type="text" id="company-search-input" placeholder="Search companies…"
+                    oninput="filterCompanyList(this.value)" autocomplete="off">
+                </div>
+                <div class="company-checkbox-list" id="company-checkbox-list"></div>
+                <div class="company-dropdown-footer"><button class="dropdown-clear-btn"
+                    onclick="clearCompanyFilters()">Clear</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="status-filter-wrap" id="status-filter-wrap">
+              <button class="filter-dropdown-btn" id="status-filter-btn" onclick="toggleStatusDropdown()">
+                <span class="status-filter-label">All Status</span><span class="dropdown-arrow">▾</span>
+              </button>
+              <div class="status-dropdown" id="status-dropdown" style="display:none">
+                <div class="status-option" onclick="setStatusFilter('all')">All Status</div>
+                <div class="status-option" onclick="setStatusFilter('unsolved')">Unsolved</div>
+                <div class="status-option" onclick="setStatusFilter('solved')">Solved ✓</div>
+              </div>
+            </div>
+            <div class="sort-wrap" id="sort-wrap">
+              <button class="filter-dropdown-btn" id="sort-btn" onclick="toggleSortDropdown()">
+                <span class="sort-btn-label">Sort</span><span class="dropdown-arrow">▾</span>
+              </button>
+              <div class="sort-dropdown" id="sort-dropdown" style="display:none">
+                <div class="sort-option" onclick="setSortFromDropdown('id','asc')"># ID (asc)</div>
+                <div class="sort-option" onclick="setSortFromDropdown('id','desc')"># ID (desc)</div>
+                <div class="sort-option" onclick="setSortFromDropdown('title','asc')">Title A→Z</div>
+                <div class="sort-option" onclick="setSortFromDropdown('difficulty','asc')">Difficulty Easy→Hard</div>
+                <div class="sort-option" onclick="setSortFromDropdown('difficulty','desc')">Difficulty Hard→Easy</div>
+                <div class="sort-option" onclick="setSortFromDropdown('acceptance','desc')">Acceptance High→Low</div>
+                <div class="sort-option" onclick="setSortFromDropdown('solveDate','desc')">Solve Date Newest</div>
+                <div class="sort-option" onclick="setSortFromDropdown('solveDate','asc')">Solve Date Oldest</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="filter-pills-group">
+            <button class="pill filter-pill" id="filter-starred-btn" onclick="toggleStarredFilter()"
+              title="Show bookmarked only">★ Starred</button>
+            <button class="pill filter-pill" id="filter-review-btn" onclick="toggleReviewFilter()"
+              title="Solved 7+ days ago">🔁
+              Review</button>
+          </div>
+
+          <button id="clear-filters" style="display:none">✕ Clear</button>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="col-check">✓</th>
+                <th class="col-star">★</th>
+                <th class="col-id" data-sort="id">#</th>
+                <th class="col-title" data-sort="title">Question</th>
+                <th class="col-diff" data-sort="difficulty">Difficulty</th>
+                <th class="col-accept" data-sort="acceptance">Accept %</th>
+                <th class="col-companies">Companies</th>
+              </tr>
+            </thead>
+            <tbody id="questions-tbody"></tbody>
+          </table>
+        </div>
+        <div id="pagination"></div>
+        <div class="keyboard-hint">
+          <span>Press <kbd>/</kbd> to search</span>
+          <span><kbd>R</kbd> random problem</span>
+          <span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> switch pages</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PROFILE PAGE ─────────────────────────────────────────────────────── -->
+  <div id="page-profile" class="page">
+    <div class="app-wrapper profile-wrapper">
+
+      <div id="profile-guest" style="display:none">
+        <div class="guest-card">
+          <div class="guest-icon">⚡</div>
+          <h2>Sync your progress</h2>
+          <p>Login with GitHub to track streaks, see detailed stats, and sync across all your devices — stored privately
+            in your GitHub Gist.</p>
+          <button class="btn-github-large" onclick="loginWithGitHub()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
+            </svg>
+            Continue with GitHub
+          </button>
+          <p class="guest-note">No database. No tracking. Just your own GitHub Gist.</p>
+        </div>
+      </div>
+
+      <div id="profile-content" style="display:none">
+        <div class="profile-header">
+          <div class="profile-avatar-wrap"><img id="profile-avatar" src="" alt="" class="profile-avatar"></div>
+          <div class="profile-info">
+            <div class="profile-name" id="profile-name"></div>
+            <div class="profile-handle" id="profile-handle"></div>
+            <div id="profile-avg-time" class="profile-avg-time"></div>
+          </div>
+          <div class="profile-actions">
+            <button class="btn-export" onclick="exportProgress()">⬇ Export</button>
+            <button class="btn-export" onclick="triggerImport()" style="margin-left:0">⬆ Import</button>
+            <button class="btn-outline-danger" onclick="confirmClearData()">🗑 Clear</button>
+            <button class="btn-secondary" onclick="logout()">Logout</button>
+          </div>
+        </div>
+
+        <div class="streak-section">
+          <div class="streak-card main-streak" id="streak-card">
+            <div class="streak-bg-glow"></div>
+            <div class="streak-flame" id="streak-flame">🔥</div>
+            <div class="streak-number" id="streak-number">0</div>
+            <div class="streak-label">Day Streak</div>
+            <div class="streak-sub" id="streak-sub">Start solving to build your streak!</div>
+          </div>
+          <div class="streak-card side-streak">
+            <div class="streak-emoji">⚡</div>
+            <div class="streak-number-sm" id="longest-streak">0</div>
+            <div class="streak-label">Longest Streak</div>
+          </div>
+          <div class="streak-card side-streak">
+            <div class="streak-emoji">📅</div>
+            <div class="streak-number-sm" id="total-days">0</div>
+            <div class="streak-label">Active Days</div>
+          </div>
+          <div class="streak-card side-streak">
+            <div class="streak-emoji">🏆</div>
+            <div class="streak-number-sm" id="total-solved-profile">0</div>
+            <div class="streak-label">Total Solved</div>
+          </div>
+        </div>
+
+        <div class="section-block">
+          <div class="section-title">Solve Activity — Last 16 Weeks</div>
+          <div id="heatmap" class="heatmap"></div>
+          <div class="heatmap-legend"><span>Less</span>
+            <div class="legend-box l0"></div>
+            <div class="legend-box l1"></div>
+            <div class="legend-box l2"></div>
+            <div class="legend-box l3"></div>
+            <div class="legend-box l4"></div><span>More</span>
+          </div>
+        </div>
+
+        <div class="profile-grid">
+          <div class="section-block">
+            <div class="section-title">Progress by Difficulty</div>
+            <div class="diff-breakdown">
+              <div class="diff-row"><span class="diff-label easy-text">Easy</span>
+                <div class="diff-bar-wrap">
+                  <div class="diff-bar easy-bar" id="bar-easy"></div>
+                </div><span class="diff-count" id="count-easy">0 / 0</span>
+              </div>
+              <div class="diff-row"><span class="diff-label medium-text">Medium</span>
+                <div class="diff-bar-wrap">
+                  <div class="diff-bar medium-bar" id="bar-medium"></div>
+                </div><span class="diff-count" id="count-medium">0 / 0</span>
+              </div>
+              <div class="diff-row"><span class="diff-label hard-text">Hard</span>
+                <div class="diff-bar-wrap">
+                  <div class="diff-bar hard-bar" id="bar-hard"></div>
+                </div><span class="diff-count" id="count-hard">0 / 0</span>
+              </div>
+            </div>
+          </div>
+          <div class="section-block">
+            <div class="section-title">Company Coverage</div>
+            <div id="company-coverage" class="company-coverage"></div>
+          </div>
+        </div>
+
+        <div class="section-block">
+          <div class="section-title">Recently Solved</div>
+          <div id="recent-solves" class="recent-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── INSIGHTS PAGE ────────────────────────────────────────────────────── -->
+  <div id="page-insights" class="page">
+    <div class="app-wrapper insights-wrapper">
+      <div class="insights-ribbon" id="insights-ribbon"></div>
+      <div class="insights-grid">
+        <div class="insights-card insights-card-wide">
+          <div class="insights-card-header"><span class="insights-card-icon">🔥</span>
+            <div>
+              <div class="insights-card-title">Hot Questions</div>
+              <div class="insights-card-sub">Ranked by company frequency</div>
+            </div>
+          </div>
+          <div id="insights-hot" class="insights-hot-list"></div>
+        </div>
+        <div class="insights-card">
+          <div class="insights-card-header"><span class="insights-card-icon">📊</span>
+            <div>
+              <div class="insights-card-title">Difficulty Distribution</div>
+              <div class="insights-card-sub">Across all questions</div>
+            </div>
+          </div>
+          <div id="insights-diff-chart" class="insights-diff-chart"></div>
+        </div>
+        <div class="insights-card">
+          <div class="insights-card-header"><span class="insights-card-icon">🎯</span>
+            <div>
+              <div class="insights-card-title">Solve Rate</div>
+              <div class="insights-card-sub">Progress by difficulty</div>
+            </div>
+          </div>
+          <div id="insights-solve-rate" class="insights-solve-rate"></div>
+        </div>
+        <div class="insights-card insights-card-wide">
+          <div class="insights-card-header"><span class="insights-card-icon">🏢</span>
+            <div>
+              <div class="insights-card-title">Companies</div>
+              <div class="insights-card-sub">Click 📋 for company study plan</div>
+            </div>
+            <input type="text" class="insights-search" id="insights-company-search" placeholder="Filter companies…"
+              oninput="renderCompanyLeaderboard(this.value)">
+          </div>
+          <div id="insights-companies" class="insights-companies-list"></div>
+        </div>
+        <div class="insights-card">
+          <div class="insights-card-header"><span class="insights-card-icon">⏳</span>
+            <div>
+              <div class="insights-card-title">Still To Do</div>
+              <div class="insights-card-sub">Unsolved breakdown</div>
+            </div>
+          </div>
+          <div id="insights-todo" class="insights-todo"></div>
+        </div>
+        <div class="insights-card">
+          <div class="insights-card-header"><span class="insights-card-icon">⚡</span>
+            <div>
+              <div class="insights-card-title">Next to Solve</div>
+              <div class="insights-card-sub">High-frequency unsolved</div>
+            </div>
+          </div>
+          <div id="insights-next" class="insights-hot-list"></div>
+        </div>
+        <div class="insights-card insights-card-wide">
+          <div class="insights-card-header"><span class="insights-card-icon">⏱</span>
+            <div>
+              <div class="insights-card-title">Time Analytics</div>
+              <div class="insights-card-sub">Based on your manual time logs</div>
+            </div>
+          </div>
+          <div id="insights-time"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MODALS ──────────────────────────────────────────────────────────── -->
+  <div id="modal-overlay" class="modal-overlay" style="display:none" onclick="closeModal()">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-title">Clear all progress?</div>
+      <div class="modal-body">This permanently deletes all solved questions, bookmarks, notes, time logs, streaks, and
+        activity data. Cannot be undone.</div>
+      <div class="modal-actions"><button class="btn-secondary" onclick="closeModal()">Cancel</button><button
+          class="btn-danger" onclick="clearAllData()">Yes, delete everything</button></div>
+    </div>
+  </div>
+
+  <div id="note-modal-overlay" class="modal-overlay" style="display:none">
+    <div class="modal note-modal" onclick="event.stopPropagation()">
+      <div class="modal-title" id="note-modal-title">Problem Notes</div>
+      <input type="hidden" id="note-modal-id">
+      <div class="note-time-row">
+        <label class="note-time-label">⏱ Solve time (minutes)</label>
+        <input type="number" id="note-time-input" placeholder="e.g. 25" min="1" max="999" class="note-time-input">
+      </div>
+      <textarea id="note-textarea" class="note-textarea"
+        placeholder="Approach, complexity, patterns, mistakes…"></textarea>
+      <div class="modal-actions"><button class="btn-secondary" onclick="closeNoteModal()">Cancel</button><button
+          class="btn-primary" onclick="saveNote()">Save</button></div>
+    </div>
+  </div>
+
+  <div id="study-plan-overlay" class="modal-overlay" style="display:none"
+    onclick="if(event.target===this)closeStudyPlan()">
+    <div class="modal study-plan-modal" onclick="event.stopPropagation()">
+      <div class="study-plan-header">
+        <div>
+          <div class="modal-title" id="study-plan-title">Study Plan</div>
+          <div class="study-plan-meta" id="study-plan-meta"></div>
+        </div>
+        <button class="sp-close-btn" onclick="closeStudyPlan()">✕</button>
+      </div>
+      <div id="study-plan-body" class="study-plan-body"></div>
+    </div>
+  </div>
+
+  <div id="unsolve-modal-overlay" class="modal-overlay" style="display:none">
+    <div class="modal unsolve-modal" onclick="event.stopPropagation()">
+      <div class="unsolve-modal-icon">↩️</div>
+      <div class="modal-title">Mark as unsolved?</div>
+      <div class="modal-body">This will clear your <strong>notes</strong> and <strong>time log</strong> for this
+        problem. This
+        cannot be undone.</div>
+      <div class="modal-actions"><button class="btn-secondary" onclick="closeUnsolveModal()">Keep it
+          solved</button><button class="btn-danger" onclick="confirmUnsolve()">Yes, unmark it</button></div>
+    </div>
+  </div>
+
+  <!-- ── RANDOM PICKER MODAL ───────────────────────────────────────────── -->
+  <div id="random-modal-overlay" class="modal-overlay" style="display:none"
+    onclick="if(event.target===this)closeRandomPicker()">
+    <div class="modal random-modal" onclick="event.stopPropagation()">
+      <div class="random-modal-header">
+        <div class="modal-title">🎲 Random Problem</div>
+        <button class="sp-close-btn" onclick="closeRandomPicker()">✕</button>
+      </div>
+      <div id="random-problem-content" class="random-problem-content"></div>
+      <div class="random-modal-footer">
+        <button class="btn-secondary" onclick="pickRandom()">🔀 Pick Another</button>
+        <button class="btn-secondary" onclick="closeRandomPicker()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ONBOARDING MODAL ──────────────────────────────────────────────── -->
+  <div id="onboarding-overlay" class="modal-overlay" style="display:none">
+    <div class="modal onboarding-modal" onclick="event.stopPropagation()">
+      <div class="onboarding-header">
+        <div class="onboarding-logo">Leet<span>Track</span></div>
+        <div class="onboarding-tagline">Your personal LeetCode companion</div>
+      </div>
+      <div class="onboarding-steps">
+        <div class="onboarding-step">
+          <div class="onboarding-step-icon">✓</div>
+          <div>
+            <div class="onboarding-step-title">Track your solves</div>
+            <div class="onboarding-step-desc">Check the box next to any problem to mark it solved. Your progress saves
+              automatically.</div>
+          </div>
+        </div>
+        <div class="onboarding-step">
+          <div class="onboarding-step-icon">⏱</div>
+          <div>
+            <div class="onboarding-step-title">Log your time & notes</div>
+            <div class="onboarding-step-desc">After solving, a prompt will appear to log your time and approach notes.
+            </div>
+          </div>
+        </div>
+        <div class="onboarding-step">
+          <div class="onboarding-step-icon">🏢</div>
+          <div>
+            <div class="onboarding-step-title">Filter by company</div>
+            <div class="onboarding-step-desc">Use the Companies dropdown to focus on problems asked by your target
+              company.</div>
+          </div>
+        </div>
+        <div class="onboarding-step">
+          <div class="onboarding-step-icon">🎲</div>
+          <div>
+            <div class="onboarding-step-title">Pick a random problem</div>
+            <div class="onboarding-step-desc">Press <kbd>R</kbd> or click 🎲 in the nav for a random unsolved problem.
+              Good for daily practice!</div>
+          </div>
+        </div>
+        <div class="onboarding-step">
+          <div class="onboarding-step-icon">⚡</div>
+          <div>
+            <div class="onboarding-step-title">Keyboard shortcuts</div>
+            <div class="onboarding-step-desc"><kbd>/</kbd> to search · <kbd>R</kbd> random ·
+              <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> switch pages · <kbd>Esc</kbd> close modals
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="onboarding-footer">
+        <button class="btn-primary onboarding-btn" onclick="closeOnboarding()">Let's go! →</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+
+</html>
