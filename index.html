@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LeetTrack — Company-wise Problem Tracker</title>
+  <title>AlgoTrack — Multi-Platform Problem Tracker</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="style.css">
   <script>window.GITHUB_CLIENT_ID = "REPLACE_GITHUB_CLIENT_ID";</script>
@@ -16,7 +16,7 @@
 
   <nav class="topnav">
     <div class="nav-inner">
-      <div class="logo" onclick="showPage('tracker')">Leet<span>Track</span></div>
+      <div class="logo" onclick="showPage('tracker')"><img src="logo.svg" alt="" class="logo-img">Algo<span>Track</span></div>
       <div class="nav-links">
         <button class="nav-btn active" id="nav-tracker" onclick="showPage('tracker')">Problems</button>
         <button class="nav-btn" id="nav-profile" onclick="showPage('profile')">Profile</button>
@@ -33,6 +33,24 @@
   <!-- ── TRACKER PAGE ─────────────────────────────────────────────────────── -->
   <div id="page-tracker" class="page active">
     <div class="app-wrapper">
+
+      <!-- Platform tabs -->
+      <div class="platform-tabs">
+        <button class="platform-tab active" id="platform-tab-lc" onclick="switchPlatform('lc')">⚡ LeetCode</button>
+        <button class="platform-tab" id="platform-tab-cf" onclick="switchPlatform('cf')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px">
+            <path
+              d="M4.5 7.5C4.5 5.84 5.84 4.5 7.5 4.5h9C18.16 4.5 19.5 5.84 19.5 7.5v9c0 1.66-1.34 3-3 3h-9c-1.66 0-3-1.34-3-3v-9z"
+              opacity=".3" />
+            <path
+              d="M7.5 3A4.5 4.5 0 0 0 3 7.5v9A4.5 4.5 0 0 0 7.5 21h9a4.5 4.5 0 0 0 4.5-4.5v-9A4.5 4.5 0 0 0 16.5 3h-9zm0 1.5h9A3 3 0 0 1 19.5 7.5v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9a3 3 0 0 1 3-3z" />
+          </svg>
+          Codeforces
+        </button>
+      </div>
+
+      <!-- LC Content -->
+      <div id="lc-tracker-content">
 
       <div class="stats-bar">
         <div class="stat-item">
@@ -175,9 +193,121 @@
         <div class="keyboard-hint">
           <span>Press <kbd>/</kbd> to search</span>
           <span><kbd>R</kbd> random problem</span>
+          <span><kbd>S</kbd> sync accounts</span>
           <span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> switch pages</span>
         </div>
       </div>
+    </div> <!-- end lc-tracker-content -->
+
+    <!-- CF Content -->
+    <div id="cf-tracker-content" style="display:none">
+      <div class="cf-sync-bar">
+        <div id="cf-connect-area" class="cf-connect-area">
+          <input id="cf-username-input" class="lc-input" placeholder="Codeforces handle…" style="width:200px">
+          <button id="cf-sync-btn" class="btn-primary" onclick="syncCFUser()">Sync</button>
+        </div>
+        <div id="cf-connected-area" style="display:none"></div>
+      </div>
+      <div id="cf-stats-bar" class="stats-bar"></div>
+      <div class="filters-row">
+        <div class="search-wrap">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input type="text" id="cf-search-input" placeholder="Search problems or tags…" oninput="setCFSearch(this.value)"
+            autocomplete="off">
+        </div>
+        <div class="cf-rating-filter">
+          <span class="filter-label">Rating:</span>
+          <select id="cf-min-rating" class="cf-rating-select" onchange="setCFRating('min',this.value)">
+            <option value="800">800</option>
+            <option value="900">900</option>
+            <option value="1000">1000</option>
+            <option value="1100">1100</option>
+            <option value="1200">1200</option>
+            <option value="1300">1300</option>
+            <option value="1400">1400</option>
+            <option value="1500">1500</option>
+            <option value="1600">1600</option>
+            <option value="1700">1700</option>
+            <option value="1800">1800</option>
+            <option value="1900">1900</option>
+            <option value="2000">2000</option>
+            <option value="2100">2100</option>
+            <option value="2200">2200</option>
+            <option value="2300">2300</option>
+            <option value="2400">2400</option>
+            <option value="2500">2500</option>
+            <option value="2600">2600</option>
+            <option value="2700">2700</option>
+            <option value="2800">2800</option>
+            <option value="2900">2900</option>
+            <option value="3000">3000</option>
+            <option value="3500">3500</option>
+          </select>
+          <span style="color:var(--text-muted);font-size:12px">–</span>
+          <select id="cf-max-rating" class="cf-rating-select" onchange="setCFRating('max',this.value)">
+            <option value="800">800</option>
+            <option value="900">900</option>
+            <option value="1000">1000</option>
+            <option value="1100">1100</option>
+            <option value="1200">1200</option>
+            <option value="1300">1300</option>
+            <option value="1400">1400</option>
+            <option value="1500">1500</option>
+            <option value="1600">1600</option>
+            <option value="1700">1700</option>
+            <option value="1800">1800</option>
+            <option value="1900">1900</option>
+            <option value="2000">2000</option>
+            <option value="2100">2100</option>
+            <option value="2200">2200</option>
+            <option value="2300">2300</option>
+            <option value="2400">2400</option>
+            <option value="2500">2500</option>
+            <option value="2600">2600</option>
+            <option value="2700">2700</option>
+            <option value="2800">2800</option>
+            <option value="2900">2900</option>
+            <option value="3000">3000</option>
+            <option value="3500" selected>3500</option>
+          </select>
+        </div>
+        <select class="filter-dropdown-btn" onchange="setCFTagFilter(this.value)" id="cf-tag-select"></select>
+        <select class="filter-dropdown-btn" id="cf-status-select" onchange="setCFStatusFilter(this.value)">
+          <option value="all">All Status</option>
+          <option value="unsolved">Unsolved</option>
+          <option value="solved">Solved ✓</option>
+        </select>
+        <div class="filter-pills-group">
+          <button class="pill filter-pill" id="cf-filter-starred-btn" onclick="toggleCFStarredFilter()" title="Show bookmarked only">★ Starred</button>
+          <button class="pill filter-pill" id="cf-filter-review-btn" onclick="toggleCFReviewFilter()" title="Due for SM2 review">🔁 Review</button>
+        </div>
+        <button id="cf-clear-filters" onclick="clearCFFilters()"
+          style="display:none;background:transparent;border:1px solid var(--border);color:var(--text-muted);padding:8px 14px;border-radius:var(--radius);font-size:12px;font-family:var(--mono);cursor:pointer;transition:border-color .15s,color .15s">✕
+          Clear</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="col-status">✓</th>
+              <th class="col-title">Problem</th>
+              <th class="col-diff">Rating</th>
+              <th class="col-contest">Contest</th>
+              <th class="col-solves">Solves</th>
+            </tr>
+          </thead>
+          <tbody id="cf-tbody"></tbody>
+        </table>
+      </div>
+      <div id="cf-pagination"></div>
+      <div class="keyboard-hint">
+        <span>Press <kbd>/</kbd> to search</span>
+        <span><kbd>R</kbd> random problem</span>
+        <span><kbd>S</kbd> sync accounts</span>
+        <span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> switch pages</span>
+      </div>
+    </div> <!-- end cf-tracker-content -->
+
     </div>
   </div>
 
@@ -203,6 +333,7 @@
       </div>
 
       <div id="profile-content" style="display:none">
+        <!-- GitHub identity header - always shown, generic -->
         <div class="profile-header">
           <div class="profile-avatar-wrap"><img id="profile-avatar" src="" alt="" class="profile-avatar"></div>
           <div class="profile-info">
@@ -211,13 +342,12 @@
             <div id="profile-avg-time" class="profile-avg-time"></div>
           </div>
           <div class="profile-actions">
-            <button class="btn-export" onclick="exportProgress()">⬇ Export</button>
-            <button class="btn-export" onclick="triggerImport()" style="margin-left:0">⬆ Import</button>
             <button class="btn-outline-danger" onclick="confirmClearData()">🗑 Clear</button>
             <button class="btn-secondary" onclick="logout()">Logout</button>
           </div>
         </div>
 
+        <!-- Cross-platform streak & heatmap -->
         <div class="streak-section">
           <div class="streak-card main-streak" id="streak-card">
             <div class="streak-bg-glow"></div>
@@ -240,11 +370,14 @@
             <div class="streak-emoji">🏆</div>
             <div class="streak-number-sm" id="total-solved-profile">0</div>
             <div class="streak-label">Total Solved</div>
+            <div style="font-size:9px;color:var(--text-dim);margin-top:2px">LC + CF</div>
           </div>
         </div>
 
         <div class="section-block">
-          <div class="section-title">Solve Activity — Last 16 Weeks</div>
+          <div class="section-title">Solve Activity — Last 52 Weeks <span
+              style="font-size:9px;color:var(--text-dim);font-weight:400;letter-spacing:0;text-transform:none">LC + CF
+              combined</span></div>
           <div id="heatmap" class="heatmap"></div>
           <div class="heatmap-legend"><span>Less</span>
             <div class="legend-box l0"></div>
@@ -255,46 +388,114 @@
           </div>
         </div>
 
-        <div class="section-block readiness-section" style="position:relative;padding-top:44px">
-          <div class="section-title" style="position:absolute;top:22px;left:24px">Interview Readiness Score</div>
-          <div id="readiness-gauge" style="margin-top:8px"></div>
+        <!-- Platform tabs -->
+        <div class="profile-platform-tabs">
+          <button class="profile-plat-tab active" id="profile-tab-lc" onclick="switchProfilePlatform('lc')">⚡ LeetCode</button>
+          <button class="profile-plat-tab" id="profile-tab-cf" onclick="switchProfilePlatform('cf')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px">
+              <path
+                d="M7.5 3A4.5 4.5 0 0 0 3 7.5v9A4.5 4.5 0 0 0 7.5 21h9a4.5 4.5 0 0 0 4.5-4.5v-9A4.5 4.5 0 0 0 16.5 3h-9zm0 1.5h9A3 3 0 0 1 19.5 7.5v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9a3 3 0 0 1 3-3z" />
+            </svg>
+            Codeforces
+          </button>
         </div>
-
-        <div class="profile-grid">
-          <div class="section-block">
-            <div class="section-title">Progress by Difficulty</div>
-            <div class="diff-breakdown">
-              <div class="diff-row"><span class="diff-label easy-text">Easy</span>
-                <div class="diff-bar-wrap">
-                  <div class="diff-bar easy-bar" id="bar-easy"></div>
-                </div><span class="diff-count" id="count-easy">0 / 0</span>
-              </div>
-              <div class="diff-row"><span class="diff-label medium-text">Medium</span>
-                <div class="diff-bar-wrap">
-                  <div class="diff-bar medium-bar" id="bar-medium"></div>
-                </div><span class="diff-count" id="count-medium">0 / 0</span>
-              </div>
-              <div class="diff-row"><span class="diff-label hard-text">Hard</span>
-                <div class="diff-bar-wrap">
-                  <div class="diff-bar hard-bar" id="bar-hard"></div>
-                </div><span class="diff-count" id="count-hard">0 / 0</span>
-              </div>
+        
+        <!-- ── LC Profile Section ── -->
+        <div id="profile-lc-section">
+          <!-- LC action bar -->
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+            <div id="profile-lc-badge" class="profile-lc-badge"></div>
+            <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn-export" onclick="exportProgress()">⬇ Export LC</button>
+              <button class="btn-export" onclick="triggerImport()">⬆ Import LC</button>
+              <button class="btn-full-sync" onclick="openFullSyncModal()"
+                title="Import your complete LeetCode history using session cookie">⚡ Full History Sync</button>
             </div>
           </div>
-          <div class="section-block">
-            <div class="section-title">Company Coverage</div>
-            <div id="company-coverage" class="company-coverage"></div>
-          </div>
-        </div>
 
-        <div class="section-block">
-          <div class="section-title">Recently Solved</div>
-          <div id="recent-solves" class="recent-list"></div>
-        </div>
-<div class="section-block">
-  <div class="section-title">Notes Search</div>
-  <div id="profile-notes-search"></div>
-</div>
+          <div class="section-block readiness-section" style="position:relative;padding-top:44px">
+            <div class="section-title" style="position:absolute;top:22px;left:24px">Interview Readiness Score</div>
+            <div id="readiness-gauge" style="margin-top:8px"></div>
+          </div>
+
+          <div class="profile-grid">
+            <div class="section-block">
+              <div class="section-title">Progress by Difficulty</div>
+              <div class="diff-breakdown">
+                <div class="diff-row"><span class="diff-label easy-text">Easy</span>
+                  <div class="diff-bar-wrap">
+                    <div class="diff-bar easy-bar" id="bar-easy"></div>
+                  </div>
+                  <span class="diff-count" id="count-easy">0 / 0</span>
+                  </div>
+                  <div class="diff-row"><span class="diff-label medium-text">Medium</span>
+                    <div class="diff-bar-wrap">
+                      <div class="diff-bar medium-bar" id="bar-medium"></div>
+                  </div>
+                  <span class="diff-count" id="count-medium">0 / 0</span>
+                  </div>
+                  <div class="diff-row"><span class="diff-label hard-text">Hard</span>
+                    <div class="diff-bar-wrap">
+                      <div class="diff-bar hard-bar" id="bar-hard"></div>
+                  </div>
+                  <span class="diff-count" id="count-hard">0 / 0</span>
+                  </div>
+                  </div>
+                  </div>
+                  <div class="section-block">
+                    <div class="section-title">Company Coverage</div>
+                    <div id="company-coverage" class="company-coverage"></div>
+                  </div>
+                  </div>
+
+          <div class="section-block">
+            <div class="section-title">Recently Solved</div>
+            <div id="recent-solves" class="recent-list"></div>
+          </div>
+
+          <div class="section-block">
+            <div class="section-title">Notes Search</div>
+            <div class="notes-search-wrap">
+              <input type="text" class="notes-search-input" placeholder="Search your notes…" oninput="renderNotesSearch(this.value)"
+                autocomplete="off">
+            </div>
+            <div id="notes-search-results" class="notes-search-results"></div>
+            </div>
+            </div>
+            
+            <!-- ── CF Profile Section ── -->
+            <div id="profile-cf-section" style="display:none">
+              <!-- CF action bar -->
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+                <div id="profile-cf-badge" class="profile-lc-badge"></div>
+                <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+                  <button class="btn-export" onclick="exportCFProgress()">⬇ Export CF</button>
+                  <button class="btn-export" onclick="triggerImport()">⬆ Import CF</button>
+                </div>
+              </div>
+            
+              <div class="section-block">
+                <div class="section-title">Codeforces Stats</div>
+                <div id="profile-cf-stats"></div>
+              </div>
+            
+              <div class="profile-grid">
+                <div class="section-block">
+                  <div class="section-title">Solved by Rating Band</div>
+                  <div id="profile-cf-rating-dist" class="company-coverage"></div>
+                </div>
+                <div class="section-block">
+                  <div class="section-title">Top Tags Solved</div>
+                  <div id="profile-cf-tags" class="company-coverage"></div>
+                </div>
+              </div>
+            
+              <div class="section-block">
+                <div class="section-title">Recently Solved on Codeforces</div>
+                <div id="cf-recent-solves" class="recent-list"></div>
+              </div>
+            </div>
+
       </div>
     </div>
   </div>
@@ -302,96 +503,143 @@
   <!-- ── INSIGHTS PAGE ────────────────────────────────────────────────────── -->
   <div id="page-insights" class="page">
     <div class="app-wrapper insights-wrapper">
-      <div class="insights-ribbon" id="insights-ribbon"></div>
-      <div class="insights-grid">
-        <div class="insights-card insights-card-wide">
-          <div class="insights-card-header"><span class="insights-card-icon">🔥</span>
-            <div>
-              <div class="insights-card-title">Hot Questions</div>
-              <div class="insights-card-sub">Ranked by company frequency</div>
-            </div>
-          </div>
-          <div id="insights-hot" class="insights-hot-list"></div>
-        </div>
-        <div class="insights-card">
-          <div class="insights-card-header"><span class="insights-card-icon">📊</span>
-            <div>
-              <div class="insights-card-title">Difficulty Distribution</div>
-              <div class="insights-card-sub">Across all questions</div>
-            </div>
-          </div>
-          <div id="insights-diff-chart" class="insights-diff-chart"></div>
-        </div>
-        <div class="insights-card">
-          <div class="insights-card-header"><span class="insights-card-icon">🎯</span>
-            <div>
-              <div class="insights-card-title">Solve Rate</div>
-              <div class="insights-card-sub">Progress by difficulty</div>
-            </div>
-          </div>
-          <div id="insights-solve-rate" class="insights-solve-rate"></div>
-        </div>
-        <div class="insights-card insights-card-wide">
-          <div class="insights-card-header"><span class="insights-card-icon">🏢</span>
-            <div>
-              <div class="insights-card-title">Companies</div>
-              <div class="insights-card-sub">Click 📋 for company study plan</div>
-            </div>
-            <input type="text" class="insights-search" id="insights-company-search" placeholder="Filter companies…"
-              oninput="renderCompanyLeaderboard(this.value)">
-          </div>
-          <div id="insights-companies" class="insights-companies-list"></div>
-        </div>
-        <div class="insights-card">
-          <div class="insights-card-header"><span class="insights-card-icon">⏳</span>
-            <div>
-              <div class="insights-card-title">Still To Do</div>
-              <div class="insights-card-sub">Unsolved breakdown</div>
-            </div>
-          </div>
-          <div id="insights-todo" class="insights-todo"></div>
-        </div>
-        <div class="insights-card">
-          <div class="insights-card-header"><span class="insights-card-icon">⚡</span>
-            <div>
-              <div class="insights-card-title">Next to Solve</div>
-              <div class="insights-card-sub">High-frequency unsolved</div>
-            </div>
-          </div>
-          <div id="insights-next" class="insights-hot-list"></div>
-        </div>
-        <div class="insights-card insights-card-wide">
-          <div class="insights-card-header">
-            <span class="insights-card-icon">📈</span>
-            <div>
-              <div class="insights-card-title">Weekly Solve Progression</div>
-              <div class="insights-card-sub">Problems solved per week (last 12 weeks)</div>
-            </div>
-          </div>
-          <div id="insights-weekly"></div>
-        </div>
+<!-- Platform tabs -->
+<div class="profile-platform-tabs">
+  <button class="profile-plat-tab active" id="insights-tab-lc" onclick="switchInsightsPlatform('lc')">⚡
+    LeetCode</button>
+  <button class="profile-plat-tab" id="insights-tab-cf" onclick="switchInsightsPlatform('cf')">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px">
+      <path
+        d="M7.5 3A4.5 4.5 0 0 0 3 7.5v9A4.5 4.5 0 0 0 7.5 21h9a4.5 4.5 0 0 0 4.5-4.5v-9A4.5 4.5 0 0 0 16.5 3h-9zm0 1.5h9A3 3 0 0 1 19.5 7.5v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9a3 3 0 0 1 3-3z" />
+    </svg>
+    Codeforces
+  </button>
+</div>
 
-        <div class="insights-card insights-card-wide">
-          <div class="insights-card-header">
-            <span class="insights-card-icon">🧩</span>
-            <div>
-              <div class="insights-card-title">Pattern Coverage</div>
-              <div class="insights-card-sub">Click a row to filter by that pattern · requires data/leetcode-meta.json</div>
+<!-- ── LC Insights Section ── -->
+<div id="insights-lc-section">
+        <div class="insights-ribbon" id="insights-ribbon"></div>
+        <div class="insights-grid">
+          <div class="insights-card insights-card-wide">
+            <div class="insights-card-header"><span class="insights-card-icon">🔥</span>
+              <div>
+                <div class="insights-card-title">Hot Questions</div>
+                <div class="insights-card-sub">Ranked by company frequency</div>
+              </div>
+            </div>
+            <div id="insights-hot" class="insights-hot-list"></div>
+          </div>
+          <div class="insights-card">
+            <div class="insights-card-header"><span class="insights-card-icon">📊</span>
+              <div>
+                <div class="insights-card-title">Difficulty Distribution</div>
+                <div class="insights-card-sub">Across all questions</div>
+              </div>
+            </div>
+            <div id="insights-diff-chart" class="insights-diff-chart"></div>
+          </div>
+          <div class="insights-card">
+            <div class="insights-card-header"><span class="insights-card-icon">🎯</span>
+              <div>
+                <div class="insights-card-title">Solve Rate</div>
+                <div class="insights-card-sub">Progress by difficulty</div>
+              </div>
+            </div>
+            <div id="insights-solve-rate" class="insights-solve-rate"></div>
+          </div>
+          <div class="insights-card insights-card-wide">
+            <div class="insights-card-header"><span class="insights-card-icon">🏢</span>
+              <div>
+                <div class="insights-card-title">Companies</div>
+                <div class="insights-card-sub">Click 📋 for company study plan</div>
+              </div>
+              <input type="text" class="insights-search" id="insights-company-search" placeholder="Filter companies…"
+                oninput="renderCompanyLeaderboard(this.value)">
+            </div>
+            <div id="insights-companies" class="insights-companies-list"></div>
+          </div>
+          <div class="insights-card">
+            <div class="insights-card-header"><span class="insights-card-icon">⏳</span>
+              <div>
+                <div class="insights-card-title">Still To Do</div>
+                <div class="insights-card-sub">Unsolved breakdown</div>
+              </div>
+            </div>
+            <div id="insights-todo" class="insights-todo"></div>
+          </div>
+          <div class="insights-card">
+            <div class="insights-card-header"><span class="insights-card-icon">⚡</span>
+              <div>
+                <div class="insights-card-title">Next to Solve</div>
+                <div class="insights-card-sub">High-frequency unsolved</div>
+              </div>
+            </div>
+            <div id="insights-next" class="insights-hot-list"></div>
+          </div>
+          <div class="insights-card insights-card-wide">
+            <div class="insights-card-header"><span class="insights-card-icon">📈</span>
+              <div>
+                <div class="insights-card-title">Weekly Solve Progression</div>
+                <div class="insights-card-sub">Problems solved per week (last 12 weeks)</div>
+              </div>
+            </div>
+            <div id="insights-weekly"></div>
+            </div>
+          <div class="insights-card insights-card-wide">
+            <div class="insights-card-header"><span class="insights-card-icon">🧩</span>
+              <div>
+                <div class="insights-card-title">Pattern Coverage</div>
+                <div class="insights-card-sub">Click a row to filter by that pattern · requires data/leetcode-meta.json</div>
+              </div>
+            </div>
+            <div id="insights-patterns" class="insights-hot-list"></div>
             </div>
           </div>
-          <div id="insights-patterns" class="insights-hot-list"></div>
-        </div>
+          </div>
 
-        <div class="insights-card insights-card-wide">
-          <div class="insights-card-header"><span class="insights-card-icon">⏱</span>
-            <div>
-              <div class="insights-card-title">Time Analytics</div>
-              <div class="insights-card-sub">Based on your manual time logs</div>
+      <!-- ── CF Insights Section ── -->
+      <div id="insights-cf-section" style="display:none">
+        <div class="insights-ribbon" id="cf-insights-ribbon"></div>
+        <div class="insights-grid">
+          <div class="insights-card insights-card-wide">
+            <div class="insights-card-header"><span class="insights-card-icon">📊</span>
+              <div>
+                <div class="insights-card-title">Rating Distribution</div>
+                <div class="insights-card-sub">Problems by difficulty band — total vs solved</div>
+              </div>
             </div>
+            <div id="cf-insights-rating-chart"></div>
           </div>
-          <div id="insights-time"></div>
+          <div class="insights-card">
+            <div class="insights-card-header"><span class="insights-card-icon">🎯</span>
+              <div>
+                <div class="insights-card-title">Solve Rate by Rating</div>
+                <div class="insights-card-sub">How many you've solved in each band</div>
+              </div>
+            </div>
+            <div id="cf-insights-solve-rate" class="insights-solve-rate"></div>
+          </div>
+          <div class="insights-card">
+            <div class="insights-card-header"><span class="insights-card-icon">📈</span>
+              <div>
+                <div class="insights-card-title">Weekly CF Activity</div>
+                <div class="insights-card-sub">Problems solved per week (last 12 weeks)</div>
+              </div>
+            </div>
+            <div id="cf-insights-weekly"></div>
+          </div>
+          <div class="insights-card insights-card-wide">
+            <div class="insights-card-header"><span class="insights-card-icon">🧩</span>
+              <div>
+                <div class="insights-card-title">Tag Coverage</div>
+                <div class="insights-card-sub">Algorithm topics across all CF problems</div>
+              </div>
+            </div>
+            <div id="cf-insights-tags" class="insights-hot-list"></div>
+          </div>
         </div>
       </div>
+
     </div>
   </div>
 
@@ -410,10 +658,6 @@
     <div class="modal note-modal" onclick="event.stopPropagation()">
       <div class="modal-title" id="note-modal-title">Problem Notes</div>
       <input type="hidden" id="note-modal-id">
-      <div class="note-time-row">
-        <label class="note-time-label">⏱ Solve time (minutes)</label>
-        <input type="number" id="note-time-input" placeholder="e.g. 25" min="1" max="999" class="note-time-input">
-      </div>
       <textarea id="note-textarea" class="note-textarea"
         placeholder="Approach, complexity, patterns, mistakes…"></textarea>
       <div class="modal-actions"><button class="btn-secondary" onclick="closeNoteModal()">Cancel</button><button
@@ -435,25 +679,24 @@
     </div>
   </div>
 
-  <div id="unsolve-modal-overlay" class="modal-overlay" style="display:none">
-    <div class="modal unsolve-modal" onclick="event.stopPropagation()">
-      <div class="unsolve-modal-icon">↩️</div>
-      <div class="modal-title">Mark as unsolved?</div>
-      <div class="modal-body">This will clear your <strong>notes</strong> and <strong>time log</strong> for this
-        problem. This
-        cannot be undone.</div>
-      <div class="modal-actions"><button class="btn-secondary" onclick="closeUnsolveModal()">Keep it
-          solved</button><button class="btn-danger" onclick="confirmUnsolve()">Yes, unmark it</button></div>
-    </div>
-  </div>
-
-  <!-- ── RANDOM PICKER MODAL ───────────────────────────────────────────── -->
   <div id="random-modal-overlay" class="modal-overlay" style="display:none"
     onclick="if(event.target===this)closeRandomPicker()">
     <div class="modal random-modal" onclick="event.stopPropagation()">
       <div class="random-modal-header">
         <div class="modal-title">🎲 Random Problem</div>
         <button class="sp-close-btn" onclick="closeRandomPicker()">✕</button>
+      </div>
+      <div style="display:flex;gap:4px;padding:0 24px 0;border-bottom:1px solid var(--border);margin-bottom:0">
+        <button id="random-tab-lc" onclick="switchRandomPlatform('lc')"
+          style="background:none;border:none;border-bottom:2px solid var(--accent);padding:8px 16px;font-size:12px;font-weight:600;font-family:var(--mono);color:var(--accent);cursor:pointer;margin-bottom:-1px;transition:color .15s,border-color .15s">⚡
+          LeetCode</button>
+        <button id="random-tab-cf" onclick="switchRandomPlatform('cf')"
+          style="background:none;border:none;border-bottom:2px solid transparent;padding:8px 16px;font-size:12px;font-weight:600;font-family:var(--mono);color:var(--text-muted);cursor:pointer;margin-bottom:-1px;transition:color .15s,border-color .15s">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-1px">
+            <path
+              d="M7.5 3A4.5 4.5 0 0 0 3 7.5v9A4.5 4.5 0 0 0 7.5 21h9a4.5 4.5 0 0 0 4.5-4.5v-9A4.5 4.5 0 0 0 16.5 3h-9zm0 1.5h9A3 3 0 0 1 19.5 7.5v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9a3 3 0 0 1 3-3z" />
+          </svg>
+          Codeforces</button>
       </div>
       <div id="random-problem-content" class="random-problem-content"></div>
       <div class="random-modal-footer">
@@ -467,8 +710,8 @@
   <div id="onboarding-overlay" class="modal-overlay" style="display:none">
     <div class="modal onboarding-modal" onclick="event.stopPropagation()">
       <div class="onboarding-header">
-        <div class="onboarding-logo">Leet<span>Track</span></div>
-        <div class="onboarding-tagline">Your personal LeetCode companion</div>
+        <div class="onboarding-logo">Algo<span>Track</span></div>
+        <div class="onboarding-tagline">Your multi-platform competitive programming companion</div>
       </div>
       <div class="onboarding-steps">
         <div class="onboarding-step">
@@ -522,6 +765,38 @@
       </div>
       <div class="onboarding-footer">
         <button class="btn-primary onboarding-btn" onclick="closeOnboarding()">Let's go! →</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="lc-modal-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeLCModal()">
+    <div class="modal lc-modal" onclick="event.stopPropagation()">
+      <div class="modal-title">Connect LeetCode</div>
+      <div class="modal-body">Enter your LeetCode username. Your profile must be <strong>public</strong> for sync to work.
+      </div>
+      <input type="text" id="lc-username-input" class="lc-username-input" placeholder="e.g. neal_wu" autocomplete="off">
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeLCModal()">Cancel</button>
+        <button class="btn-primary" onclick="saveLCUsername()">Connect & Sync</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="full-sync-modal-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeFullSyncModal()">
+    <div class="modal lc-modal" onclick="event.stopPropagation()">
+      <div class="modal-title">⚡ Full History Sync</div>
+      <div class="modal-body">
+        This will fetch your <strong>complete LeetCode solve history</strong> and overwrite your current progress with the full data.<br><br>
+        <strong>How to get your session cookie:</strong><br>
+        1. Log into leetcode.com<br>
+        2. Open DevTools → Application → Cookies → leetcode.com<br>
+        3. Copy the value of <code>LEETCODE_SESSION</code>
+      </div>
+      <input type="password" id="full-sync-session-input" class="lc-username-input" placeholder="Paste LEETCODE_SESSION cookie value here" autocomplete="off">
+      <div id="full-sync-status" style="font-size:12px;color:var(--text-muted);margin-bottom:12px;min-height:18px"></div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeFullSyncModal()">Cancel</button>
+        <button class="btn-primary" onclick="runFullHistorySync()">Sync Full History</button>
       </div>
     </div>
   </div>

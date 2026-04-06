@@ -114,6 +114,16 @@ button {
   cursor: pointer;
   letter-spacing: -.3px;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.logo-img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 .logo span {
@@ -770,12 +780,6 @@ tr:hover .note-btn-inline,
   color: var(--accent);
 }
 
-/* Checkbox */
-.checkbox-wrap {
-  display: inline-flex;
-  cursor: pointer;
-  position: relative;
-}
 
 .checkbox-wrap input {
   position: absolute;
@@ -784,17 +788,6 @@ tr:hover .note-btn-inline,
   height: 0;
 }
 
-.checkmark {
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  border: 1.5px solid var(--border-2);
-  background: var(--bg-3);
-  transition: all .15s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
 
 .checkbox-wrap:hover .checkmark {
   border-color: var(--accent);
@@ -803,14 +796,6 @@ tr:hover .note-btn-inline,
 .checkbox-wrap input:checked~.checkmark {
   background: var(--accent);
   border-color: var(--accent);
-}
-
-.checkbox-wrap input:checked~.checkmark::after {
-  content: "✓";
-  font-size: 10px;
-  color: #000;
-  font-weight: 700;
-  line-height: 1;
 }
 
 .col-title a {
@@ -986,6 +971,57 @@ kbd {
 
 .page-info strong {
   color: var(--text);
+}
+
+/* Shared pagination component (used by both LC and CF) */
+.pagination-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+.page-btn {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-family: var(--mono);
+  cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+  min-width: 36px;
+  text-align: center;
+}
+
+.page-btn:hover:not(:disabled):not(.disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.page-btn:disabled,
+.page-btn.disabled {
+  opacity: .35;
+  cursor: default;
+}
+
+.page-btn--active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #000 !important;
+  font-weight: 700;
+  cursor: default;
+}
+
+.page-ellipsis {
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 0 2px;
+  line-height: 1;
+  align-self: flex-end;
 }
 
 /* ── Toast ──────────────────────────────────────────────────────────────────── */
@@ -1430,9 +1466,31 @@ kbd {
 
 /* ── Heatmap ────────────────────────────────────────────────────────────────── */
 .heatmap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.heatmap-wrapper {
+  display: inline-block;
+  min-width: 100%;
+}
+
+  .heatmap-month-row {
+    position: relative;
+    height: 18px;
+    margin-bottom: 2px;
+  }
+  
+  .heatmap-month-label {
+    position: absolute;
+    font-size: 10px;
+    color: var(--text-muted, #888);
+    white-space: nowrap;
+  }
+  
+  .heatmap-grid {
   display: flex;
   gap: 3px;
-  overflow-x: auto;
   padding-bottom: 4px;
 }
 
@@ -1440,6 +1498,7 @@ kbd {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  flex-shrink: 0;
 }
 
 .heatmap-cell {
@@ -3693,5 +3752,772 @@ kbd {
   .title-cell-content {
     flex-wrap: wrap;
     gap: 6px;
+  }
+}
+
+/* LC sync pill in nav */
+.lc-dot { width:7px; height:7px; border-radius:50%; background:#f89f1b; flex-shrink:0; display:inline-block; }
+.lc-name { color:var(--text-muted); font-size:12px; }
+.lc-sync-btn { background:var(--bg-3); border:1px solid var(--border); color:var(--accent); cursor:pointer; font-size:11px; font-weight:600; padding:3px 10px; border-radius:20px; transition:border-color .15s,background .15s; }
+.lc-sync-btn:hover { border-color:var(--accent); background:var(--bg-2); }
+.lc-sync-btn:disabled { opacity:.5; cursor:not-allowed; }
+.btn-lc-connect { background:var(--accent); color:#fff; border:none; border-radius:6px; padding:4px 10px; font-size:12px; cursor:pointer; font-weight:600; }
+
+/* LC connect modal */
+.lc-modal { max-width:400px; }
+.lc-username-input { width:100%; padding:10px 12px; border-radius:8px; border:1px solid var(--border); background:var(--bg-2); color:var(--text); font-size:14px; margin:12px 0; outline:none; }
+.lc-username-input:focus { border-color:var(--accent); }
+.lc-input { padding:8px 12px; border-radius:var(--radius); border:1px solid var(--border); background:var(--bg-2); color:var(--text); font-size:13px; font-family:var(--mono); outline:none; transition:border-color .15s; }
+.lc-input:focus { border-color:var(--accent); }
+
+/* Sync banner */
+.lc-sync-banner { display:flex; align-items:center; gap:10px; background:var(--bg-3); border:1px solid var(--border); border-radius:8px; padding:10px 14px; margin-bottom:14px; font-size:13px; }
+.lc-banner-icon { font-size:16px; }
+.lc-sync-banner span { flex:1; color:var(--text-muted); }
+.lc-banner-dismiss { background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:16px; }
+
+/* Status icon in table (replaces checkbox) */
+.col-status { width:36px; text-align:center; }
+.solved-icon { color:var(--green); font-weight:700; font-size:14px; }
+.unsolved-icon { color:var(--text-muted); font-size:14px; }
+
+/* Profile LC badge */
+.profile-lc-badge { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-muted); margin-top:4px; }
+.lc-disconnect-btn { background:none; border:none; color:var(--red); cursor:pointer; font-size:12px; text-decoration:underline; }
+
+/* Auth row layout */
+.auth-user-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.logout-btn { font-size:16px; opacity:.6; }
+.logout-btn:hover { opacity:1; }
+
+/* sp-status-icon (study plan, replaces checkbox) */
+.sp-status-icon { color:var(--green); font-weight:700; width:16px; text-align:center; }
+/* Full History Sync button */
+.btn-full-sync {
+  background: rgba(96, 165, 250, .1);
+  border: 1px solid rgba(96, 165, 250, .4);
+  color: var(--blue);
+  padding: 7px 14px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-family: var(--mono);
+  transition: all .15s;
+  cursor: pointer;
+}
+.btn-full-sync:hover {
+  background: rgba(96, 165, 250, .2);
+  border-color: var(--blue);
+}
+/* ─── Platform Tabs ──────────────────────────────────────────────────────────── */
+.platform-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 12px 0 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+.platform-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  margin-bottom: -1px;
+  letter-spacing: .03em;
+  transition: color .15s, border-color .15s;
+}
+
+.platform-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* ─── CF Sync Bar ────────────────────────────────────────────────────────────── */
+.cf-sync-bar {
+  margin-bottom: 14px;
+}
+
+.cf-connect-area {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.cf-user-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  padding: 6px 12px;
+  background: var(--bg-2);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.cf-rank-badge {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ─── CF Rating Filter ───────────────────────────────────────────────────────── */
+.cf-rating-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.cf-rating-label {
+  font-weight: 600;
+  color: var(--accent);
+  min-width: 80px;
+}
+
+.cf-rating-select {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-family: var(--mono);
+  cursor: pointer;
+  transition: border-color .15s;
+  appearance: auto;
+}
+
+.cf-rating-select:hover,
+.cf-rating-select:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+/* ─── Insights Platform Tabs ─────────────────────────────────────────────────── */
+.insights-platform-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ins-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  margin-bottom: -1px;
+  transition: color .15s, border-color .15s;
+}
+
+.ins-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* ─── Platform Breakdown ─────────────────────────────────────────────────────── */
+.platform-breakdown {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.platform-stat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.platform-label {
+  color: var(--text-muted);
+}
+
+.platform-count {
+  font-weight: 700;
+  font-size: 16px;
+}
+/* ═══════════════════════════════════════════════════════════════════════════
+   CF + PROFILE/INSIGHTS PLATFORM TABS — NEW ADDITIONS
+   Covers: profile-platform-tabs, profile-plat-tab, cf-profile-stats,
+           cf-dist-row, cf-tag-chip, col-contest, col-solves, cf-check-btn,
+           cf-row-solved, cf-ribbon, cf-chart-*, insights-plat-tab,
+           cf-unrated-label, cf-search-input, cf-status-select,
+           cf-recent-*, responsive tweaks
+═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Profile Platform Tabs ──────────────────────────────────────────────────── */
+.profile-platform-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+
+.profile-plat-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--mono);
+  color: var(--text-muted);
+  cursor: pointer;
+  margin-bottom: -1px;
+  letter-spacing: .03em;
+  transition: color .15s, border-color .15s;
+}
+
+.profile-plat-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.profile-plat-tab:hover:not(.active) {
+  color: var(--text);
+}
+
+/* ── CF Profile Stats Grid ──────────────────────────────────────────────────── */
+.cf-profile-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.cf-profile-stat {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 12px;
+  text-align: center;
+}
+
+.cf-profile-stat-val {
+  font-family: var(--display);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+}
+
+.cf-profile-stat-val.accent {
+  color: var(--accent);
+}
+
+.cf-profile-stat-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  margin-top: 5px;
+}
+
+/* ── CF Rating Distribution Rows ────────────────────────────────────────────── */
+.cf-dist-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cf-dist-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cf-dist-label {
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 90px;
+  flex-shrink: 0;
+}
+
+.cf-dist-bar-wrap {
+  flex: 1;
+  height: 7px;
+  background: var(--bg-4);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.cf-dist-bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width .7s cubic-bezier(.4, 0, .2, 1);
+}
+
+.cf-dist-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--mono);
+  min-width: 56px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* CF rank colour palette — matches Codeforces rank colours */
+.cf-rank-newbie     { color: #808080; }
+.cf-rank-pupil      { color: #008000; }
+.cf-rank-specialist { color: #03a89e; }
+.cf-rank-expert     { color: #0000ff; }
+.cf-rank-cm         { color: #aa00aa; }
+.cf-rank-master     { color: #ff8c00; }
+.cf-rank-im         { color: #ff8c00; }
+.cf-rank-gm         { color: #ff0000; }
+.cf-rank-unrated    { color: var(--text-dim); }
+
+/* CF dist bar colours */
+.cf-bar-newbie      { background: #808080; }
+.cf-bar-pupil       { background: #008000; }
+.cf-bar-specialist  { background: #03a89e; }
+.cf-bar-expert      { background: #0000ff; }
+.cf-bar-cm          { background: #aa00aa; }
+.cf-bar-master      { background: #ff8c00; }
+.cf-bar-im          { background: #ff8c00; }
+.cf-bar-gm          { background: #ff0000; }
+.cf-bar-unrated     { background: var(--text-dim); }
+
+/* ── CF Tag Chips & Coverage Bars ───────────────────────────────────────────── */
+.cf-tag-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  background: rgba(96, 165, 250, .08);
+  border: 1px solid rgba(96, 165, 250, .22);
+  color: var(--blue);
+  border-radius: 4px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.cf-tag-coverage {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.cf-tag-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cf-tag-name {
+  font-size: 11px;
+  color: var(--text-muted);
+  min-width: 120px;
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cf-tag-bar-wrap {
+  flex: 1;
+  height: 6px;
+  background: var(--bg-4);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.cf-tag-bar {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--blue);
+  opacity: .8;
+  transition: width .7s ease;
+}
+
+.cf-tag-count {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  min-width: 42px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ── CF Table Columns ───────────────────────────────────────────────────────── */
+.col-contest {
+  max-width: 160px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.col-solves {
+  width: 70px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* ── CF Clear Filters Button ────────────────────────────────────────────────── */
+#cf-clear-filters {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-family: var(--mono);
+  cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+
+#cf-clear-filters:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ── CF Search Input ────────────────────────────────────────────────────────── */
+#cf-search-input {
+  width: 100%;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 12px 8px 34px;
+  border-radius: var(--radius);
+  font-family: var(--mono);
+  font-size: 12px;
+  outline: none;
+  transition: border-color .15s;
+}
+
+#cf-search-input:focus {
+  border-color: var(--accent);
+}
+
+#cf-search-input::placeholder {
+  color: var(--text-dim);
+}
+
+/* ── CF Status Select ───────────────────────────────────────────────────────── */
+#cf-status-select {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  font-family: var(--mono);
+  font-size: 12px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color .15s;
+}
+
+#cf-status-select:focus {
+  border-color: var(--accent);
+}
+
+/* ── CF Ribbon (mirrors .insights-ribbon) ───────────────────────────────────── */
+.cf-ribbon {
+  display: flex;
+  gap: 0;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.cf-ribbon-item {
+  flex: 1;
+  padding: 16px 18px;
+  text-align: center;
+  border-right: 1px solid var(--border);
+  transition: background .15s;
+}
+
+.cf-ribbon-item:last-child {
+  border-right: none;
+}
+
+.cf-ribbon-item:hover {
+  background: var(--bg-3);
+}
+
+.cf-ribbon-val {
+  font-family: var(--display);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+}
+
+.cf-ribbon-val.accent-text {
+  color: var(--accent);
+}
+
+.cf-ribbon-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  margin-top: 5px;
+}
+
+/* ── CF Insights: Solve-by-Rating ───────────────────────────────────────────── */
+.cf-solve-rating-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cf-solve-rating-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cf-solve-rating-label {
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 42px;
+  flex-shrink: 0;
+}
+
+.cf-solve-rating-bar-wrap {
+  flex: 1;
+  height: 7px;
+  background: var(--bg-4);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.cf-solve-rating-bar {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--blue);
+  opacity: .8;
+  transition: width .7s ease;
+}
+
+.cf-solve-rating-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--mono);
+  min-width: 42px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ── CF Insights: Rating Chart ──────────────────────────────────────────────── */
+.cf-chart-wrap {
+  padding: 4px 0;
+}
+
+.cf-rating-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 100px;
+  margin-bottom: 8px;
+}
+
+.cf-chart-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  gap: 3px;
+}
+
+.cf-chart-bar-wrap {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.cf-chart-bar {
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  min-height: 2px;
+  transition: height .6s ease;
+}
+
+.cf-chart-count {
+  font-size: 9px;
+  color: var(--text-muted);
+  font-family: var(--mono);
+  text-align: center;
+  min-height: 12px;
+}
+
+.cf-chart-label {
+  font-size: 8px;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 100%;
+}
+
+/* ── CF Insights: Weekly Chart ──────────────────────────────────────────────── */
+.cf-weekly-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 100px;
+}
+
+.cf-weekly-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  gap: 3px;
+}
+
+.cf-weekly-bar-wrap {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.cf-weekly-count {
+  font-size: 9px;
+  color: var(--text-muted);
+  font-family: var(--mono);
+  min-height: 12px;
+  text-align: center;
+}
+
+.cf-weekly-label {
+  font-size: 8px;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  white-space: nowrap;
+  text-align: center;
+  overflow: hidden;
+}
+
+/* ── CF Recent Solves ───────────────────────────────────────────────────────── */
+.cf-recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.cf-recent-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border-radius: var(--radius);
+  transition: background .1s;
+}
+
+.cf-recent-item:hover {
+  background: var(--bg-3);
+}
+
+.cf-recent-rating {
+  font-size: 11px;
+  font-family: var(--mono);
+  font-weight: 600;
+  min-width: 38px;
+  flex-shrink: 0;
+}
+
+.cf-recent-title {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.cf-recent-title a {
+  color: var(--text);
+  transition: color .15s;
+}
+
+.cf-recent-title a:hover {
+  color: var(--accent);
+}
+
+.cf-recent-date {
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Insights Platform Tabs (used inside insights page) ─────────────────────── */
+.insights-plat-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+
+.insights-plat-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--mono);
+  color: var(--text-muted);
+  cursor: pointer;
+  margin-bottom: -1px;
+  letter-spacing: .03em;
+  transition: color .15s, border-color .15s;
+}
+
+.insights-plat-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.insights-plat-tab:hover:not(.active) {
+  color: var(--text);
+}
+
+/* ── Responsive additions ───────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .cf-profile-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .cf-profile-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .cf-weekly-label {
+    display: none;
+  }
+
+  .profile-plat-tab,
+  .insights-plat-tab {
+    padding: 7px 12px;
+    font-size: 12px;
+  }
+
+  .col-contest {
+    display: none;
   }
 }
