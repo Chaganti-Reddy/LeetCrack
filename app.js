@@ -1,45 +1,99 @@
 "use strict";
 
 // ─── Config ────────────────────────────────────────────────────────────────────
-const GITHUB_CLIENT_ID = window.GITHUB_CLIENT_ID || "YOUR_CLIENT_ID_HERE";
-const GIST_FILENAME = "leetcode-tracker-progress.json";
-const ITEMS_PER_PAGE = 20;
-const CACHE_KEY = "leet_csv_cache";
+// Supabase — set these in your environment / window globals
+const SUPABASE_URL  = window.SUPABASE_URL  || "YOUR_SUPABASE_URL";
+const SUPABASE_ANON = window.SUPABASE_ANON || "YOUR_SUPABASE_ANON_KEY";
 
-const PRIORITY_RANK = {
-  google: 1,
-  amazon: 2,
-  microsoft: 3,
-  meta: 4,
-  apple: 5,
-  netflix: 6,
-  uber: 7,
-  linkedin: 8,
-  twitter: 9,
-  airbnb: 10,
-  bloomberg: 11,
-  salesforce: 12,
-  adobe: 13,
-  oracle: 14,
-  nvidia: 15,
-  tesla: 16,
-  stripe: 17,
-  snapchat: 18,
-  tiktok: 19,
-  bytedance: 20,
-  goldman_sachs: 21,
-  morgan_stanley: 22,
-  atlassian: 23,
-  shopify: 24,
-  dropbox: 25,
-  lyft: 26,
-  pinterest: 27,
-  doordash: 28,
-  coinbase: 29,
-  robinhood: 30,
-};
+const ITEMS_PER_PAGE = 20;
+const CACHE_KEY      = "leet_csv_cache_v2";   // localStorage — persists across sessions
+const CACHE_HASH_KEY = "leet_csv_cache_hash";  // stores manifest hash for invalidation
+
+// Remove the old sessionStorage-based cache from previous versions
+try { sessionStorage.removeItem("leet_csv_cache"); } catch (_) {}
+
+/** Call from console or dev tooling to force a full reload on next page load */
+function clearLCCache() {
+  localStorage.removeItem(CACHE_KEY);
+  localStorage.removeItem(CACHE_HASH_KEY);
+  console.log("[cache] LC question cache cleared — reload to re-fetch");
+}
+
+
+// ─── XSS sanitizer ────────────────────────────────────────────────────────────
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
+
+const COMPANY_PRIORITY = [
+  "google","amazon","microsoft","meta","apple","netflix","uber","linkedin",
+  "twitter","airbnb","bloomberg","salesforce","adobe","oracle","nvidia","tesla",
+  "stripe","snapchat","tiktok","bytedance","goldman_sachs","morgan_stanley",
+  "atlassian","shopify","dropbox","lyft","pinterest","doordash","coinbase","robinhood"
+];
+// backward-compat alias
+const PRIORITY_RANK = Object.fromEntries(COMPANY_PRIORITY.map((c,i) => [c, i+1]));
 
 const SM2_INTERVALS = [1, 3, 7, 14, 30, 90];
+
+// ─── Curated Problem Lists ────────────────────────────────────────────────────
+const CURATED_LISTS = {
+  // LeetCode
+  blind75: new Set([1,2,3,11,15,19,20,21,23,33,39,49,51,53,55,56,62,70,72,76,79,84,91,98,100,101,102,104,105,121,124,125,128,133,141,143,144,152,153,190,191,200,206,207,208,213,217,226,230,235,238,242,261,268,269,271,277,278,283,286,295,297,300,322,323,329,338,340,344,347,371,378,380,395,412,416,417,424,435,438,448,543,567,647,678,684,695,739,743,763,778,787,820,844,876,973,994]),
+  neetcode150: new Set([1,2,3,11,15,17,19,20,21,23,33,36,39,40,42,43,45,46,48,49,51,53,54,55,56,57,62,70,72,73,74,76,78,79,84,85,90,91,97,98,100,101,102,104,105,106,110,121,124,125,127,128,130,131,133,136,138,141,143,144,145,150,152,153,167,188,190,191,198,200,202,206,207,208,210,211,212,213,215,217,226,230,235,236,238,239,242,261,268,269,271,272,277,278,283,286,295,297,300,309,312,322,323,329,338,340,344,347,355,371,374,378,380,386,394,395,406,407,412,416,417,421,424,435,437,438,448,480,502,518,543,547,560,567,572,605,621,647,678,684,685,695,703,704,739,743,746,763,778,787,802,815,820,844,853,875,876,901,907,912,947,953,968,973,978,994,997,1046,1048,1143,1448,1584,1899,2013,2104])
+,
+  // CF — A2OJ-style difficulty ladders (contestId_index as string keys)
+  cf_a2oj_800: new Set(["4A","71A","158A","118A","1A","231A","263A","282A","339A","581A","677A","734A","791A","977A","1030A","1064A"]),
+  cf_a2oj_1200: new Set(["1B","158B","160B","200B","230B","263B","381A","476A","552B","580B","677B","734B","822B","977B","1030B","1217B"]),
+  cf_a2oj_1600: new Set(["2B","28C","91B","159D","226C","300B","380C","381B","460B","558C","598C","652C","682C","813B","915C","1092D"]),
+  // AC typical90 — problem IDs from AtCoder Problems
+  ac_typical90: new Set(["typical90_a","typical90_b","typical90_c","typical90_d","typical90_e","typical90_f","typical90_g","typical90_h","typical90_i","typical90_j","typical90_k","typical90_l","typical90_m","typical90_n","typical90_o","typical90_p","typical90_q","typical90_r","typical90_s","typical90_t","typical90_u","typical90_v","typical90_w","typical90_x","typical90_y","typical90_z","typical90_ab","typical90_ac","typical90_ad","typical90_ae"]),
+  ac_beginner: new Set(["abc001_a","abc001_b","abc001_c","abc001_d","abc002_a","abc002_b","abc002_c","abc002_d","abc003_a","abc003_b","abc003_c","abc003_d","abc004_a","abc004_b","abc004_c","abc004_d","abc005_a","abc005_b","abc005_c","abc005_d","abc006_a","abc006_b","abc006_c","abc006_d"]),
+};
+
+function setCuratedList(platform, listKey) {
+  if (platform === "lc") {
+    state.curatedList = state.curatedList === listKey ? null : listKey;
+    updateCuratedPills("lc");
+    applyFilters();
+  } else if (platform === "cf") {
+    state.cfCuratedList = state.cfCuratedList === listKey ? null : listKey;
+    updateCuratedPills("cf");
+    applyCFFilters();
+  } else if (platform === "ac") {
+    state.acCuratedList = state.acCuratedList === listKey ? null : listKey;
+    updateCuratedPills("ac");
+    applyACFilters();
+  }
+}
+
+function updateCuratedPills(platform) {
+  const active = platform === "lc" ? state.curatedList
+               : platform === "cf" ? state.cfCuratedList
+               : state.acCuratedList;
+  document.querySelectorAll(`.curated-pill[data-platform="${platform}"]`).forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.list === active);
+  });
+}
+
+function renderCuratedRow(platform) {
+  const pills = platform === "lc"
+    ? [["blind75","Blind 75"],["neetcode150","NeetCode 150"]]
+    : platform === "cf"
+    ? [["cf_a2oj_800","A2OJ 800"],["cf_a2oj_1200","A2OJ 1200"],["cf_a2oj_1600","A2OJ 1600"]]
+    : [["ac_typical90","Typical 90"],["ac_beginner","Beginner Series"]];
+  const active = platform === "lc" ? state.curatedList
+               : platform === "cf" ? state.cfCuratedList
+               : state.acCuratedList;
+  return `<div class="curated-row" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+    <span style="font-size:11px;color:var(--text-muted);line-height:28px;margin-right:2px;">📋 Curated:</span>
+    ${pills.map(([key,label]) => `<button class="curated-pill${active===key?" active":""}" data-platform="${platform}" data-list="${key}" onclick="setCuratedList('${platform}','${key}')">${label}</button>`).join("")}
+  </div>`;
+}
+
+
 
 // ─── State ─────────────────────────────────────────────────────────────────────
 const state = {
@@ -50,10 +104,9 @@ const state = {
   bookmarks: {}, // id -> true
   notes: {}, // id -> string  (manual enrichment, kept)
   reviewData: {}, // id -> { intervalIdx, nextReviewDate, reps, lastReviewed }
-  user: null, // GitHub user object
-  token: null, // GitHub OAuth token
-  gistId: null,
+  user: null, // Supabase user object
   lcUsername: null, // LeetCode username
+  lcUserInfo: null,
   lcSyncing: false, // sync in progress flag
   page: 1,
   companies: [],
@@ -73,64 +126,109 @@ const state = {
   coverageExpanded: false,
   expandedRows: new Set(),
   studyPlanCompany: null,
+  curatedList: null,   // "blind75" | "neetcode150" | null
+  cfCuratedList: null, // "a2oj_ladder" | "cf_edu" | null
+  acCuratedList: null, // "typical90" | "ac_beginner" | null
   activePlatform: "lc",
   cfMeta: {},
   cfSolved: {},
   cfActivity: {},
   cfBookmarks: {},
+  cfNotes: {},   // key -> string
   cfReviewData: {},
   cfUsername: null,
   cfUserInfo: null,
-  cfFilters: { search: "", minRating: 800, maxRating: 3500, tags: [], status: "all", starred: false, review: false },
+  cfFilters: {
+    search: "",
+    minRating: 800,
+    maxRating: 3500,
+    tags: [],
+    status: "all",
+    starred: false,
+    review: false,
+  },
   cfPage: 1,
   cfFiltered: [],
+  // ── AtCoder ──
+  acMeta: {},
+  acSolved: {},
+  acActivity: {},
+  acBookmarks: {},
+  acNotes: {},   // id -> string
+  acReviewData: {},
+  acUsername: null,
+  acUserInfo: null,
+  acFilters: {
+    search: "",
+    minDiff: 0,
+    maxDiff: 4000,
+    status: "all",
+    starred: false,
+    review: false,
+  },
+  acPage: 1,
+  acFiltered: [],
+  interviewDate: null,   // ISO date string e.g. "2025-09-01"
 };
 
 // ─── Hash Routing ──────────────────────────────────────────────────────────────
-const PAGES = ["tracker", "profile", "insights"];
+const PAGES = ["tracker", "profile", "insights", "contests"];
+
+function activatePage(name) {
+  document.querySelectorAll(".page").forEach((p) => p.classList.remove("active"));
+  document.querySelectorAll(".nav-btn").forEach((b) => b.classList.remove("active"));
+  document.getElementById(`page-${name}`)?.classList.add("active");
+  document.getElementById(`nav-${name}`)?.classList.add("active");
+}
 
 function showPage(name) {
-  document
-    .querySelectorAll(".page")
-    .forEach((p) => p.classList.remove("active"));
-  document
-    .querySelectorAll(".nav-btn")
-    .forEach((b) => b.classList.remove("active"));
-  document.getElementById(`page-${name}`).classList.add("active");
-  document.getElementById(`nav-${name}`).classList.add("active");
-  window.location.hash = name;
+  activatePage(name);
+  const sub =
+    name === "profile"
+      ? state.profilePlatform || "lc"
+      : name === "insights"
+        ? state.insightsPlatform || "lc"
+        : name === "tracker"
+          ? state.activePlatform || "lc"
+          : name === "contests"
+            ? contestsState.activePlatform || "cf"
+            : null;
+  window.location.hash = sub ? `${name}/${sub}` : name;
   if (name === "profile") renderProfilePage();
   if (name === "insights") renderInsightsPage();
+  if (name === "contests") initContestsPage();
+}
+
+function handleHashChange() {
+  const raw = window.location.hash.replace("#", "");
+  const [page, sub] = raw.split("/");
+  if (!PAGES.includes(page)) return;
+  activatePage(page);
+  if (page === "profile") renderProfilePage();
+  if (page === "insights") renderInsightsPage();
+  if (page === "contests") initContestsPage();
+  if (sub) {
+    if (page === "profile") renderProfilePlatformTabs(sub);
+    else if (page === "insights") renderInsightsPlatformTabs(sub);
+    else if (page === "tracker") switchPlatform(sub);
+    else if (page === "contests") switchContestPlatform(sub);
+  }
 }
 
 function initRouting() {
-  const hash = window.location.hash.replace("#", "") || "tracker";
-  const page = PAGES.includes(hash) ? hash : "tracker";
-  document
-    .querySelectorAll(".page")
-    .forEach((p) => p.classList.remove("active"));
-  document
-    .querySelectorAll(".nav-btn")
-    .forEach((b) => b.classList.remove("active"));
-  document.getElementById(`page-${page}`).classList.add("active");
-  document.getElementById(`nav-${page}`).classList.add("active");
+  const raw = window.location.hash.replace("#", "") || "tracker";
+  const [page, sub] = raw.split("/");
+  const validPage = PAGES.includes(page) ? page : "tracker";
+  activatePage(validPage);
   if (page === "profile") renderProfilePage();
   if (page === "insights") renderInsightsPage();
-  window.addEventListener("hashchange", () => {
-    const h = window.location.hash.replace("#", "");
-    if (PAGES.includes(h)) {
-      document
-        .querySelectorAll(".page")
-        .forEach((p) => p.classList.remove("active"));
-      document
-        .querySelectorAll(".nav-btn")
-        .forEach((b) => b.classList.remove("active"));
-      document.getElementById(`page-${h}`).classList.add("active");
-      document.getElementById(`nav-${h}`).classList.add("active");
-      if (h === "profile") renderProfilePage();
-      if (h === "insights") renderInsightsPage();
-    }
-  });
+  if (page === "contests") initContestsPage();
+  if (sub) {
+    if (page === "profile") renderProfilePlatformTabs(sub);
+    else if (page === "insights") renderInsightsPlatformTabs(sub);
+    else if (page === "tracker") switchPlatform(sub);
+    else if (page === "contests") switchContestPlatform(sub);
+  }
 }
 
 // ─── Theme ─────────────────────────────────────────────────────────────────────
@@ -149,152 +247,167 @@ function toggleTheme() {
   applyTheme(current === "dark" ? "light" : "dark");
 }
 
-// ─── GitHub Auth ───────────────────────────────────────────────────────────────
-function loginWithGitHub() {
-  const redirectUri = encodeURIComponent(
-    `${window.location.origin}/api/github-oauth`,
-  );
-  window.location.href = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&scope=gist&redirect_uri=${redirectUri}`;
+// ─── Supabase Auth ────────────────────────────────────────────────────────────
+let _supabase = null;
+function getSupabase() {
+  if (!_supabase) {
+    _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+  }
+  return _supabase;
 }
-function logout() {
-  state.token = null;
+
+function loginWithGitHub() {
+  getSupabase().auth.signInWithOAuth({
+    provider: "github",
+    options: { redirectTo: window.location.origin + window.location.pathname },
+  });
+}
+
+async function logout() {
+  await getSupabase().auth.signOut();
   state.user = null;
-  state.gistId = null;
   state.lcUsername = null;
-  localStorage.removeItem("gh_token");
-  localStorage.removeItem("gh_gist_id");
-  localStorage.removeItem("lc_username");
+  state.cfUsername = null;
+  state.acUsername = null;
+  state.solved = {};
+  state.activity = {};
+  state.bookmarks = {};
+  state.notes = {};
+  state.reviewData = {};
+  state.cfSolved = {};
+  state.cfActivity = {};
+  state.cfBookmarks = {};
+  state.cfNotes = {};
+  state.cfReviewData = {};
+  state.cfUserInfo = null;
+  state.acSolved = {};
+  state.acActivity = {};
+  state.acBookmarks = {};
+  state.acNotes = {};
+  state.acReviewData = {};
+  state.acUserInfo = null;
+  // Keep theme; clear everything else
+  localStorage.removeItem("leet_local");
+  localStorage.removeItem("lc_last_sync");
+  localStorage.removeItem("cf_rivals");
+  localStorage.removeItem("ac_rivals");
   renderAuthArea();
   renderProfilePage();
 }
-async function fetchGitHubUser(token) {
-  const res = await fetch("https://api.github.com/user", {
-    headers: { Authorization: `token ${token}` },
-  });
-  if (!res.ok) throw new Error("Bad token");
-  return res.json();
-}
 
-// ─── Gist Storage ──────────────────────────────────────────────────────────────
-function serializeProgress() {
-  return JSON.stringify({
+// ─── Supabase Progress Storage ────────────────────────────────────────────────
+function buildProgressPayload() {
+  return {
+    user_id: state.user?.id,
+    lc_username: state.lcUsername || null,
+    cf_username: state.cfUsername || null,
+    ac_username: state.acUsername || null,
     solved: state.solved,
     activity: state.activity,
     bookmarks: state.bookmarks,
     notes: state.notes,
-    reviewData: state.reviewData,
-    lcUsername: state.lcUsername || null,
-    cfSolved: state.cfSolved,
-    cfActivity: state.cfActivity,
-    cfBookmarks: state.cfBookmarks,
-    cfReviewData: state.cfReviewData,
-    cfUsername: state.cfUsername || null,
-  });
+    review_data: state.reviewData,
+    cf_solved: state.cfSolved,
+    cf_activity: state.cfActivity,
+    cf_bookmarks: state.cfBookmarks,
+    cf_notes: state.cfNotes,
+    cf_review_data: state.cfReviewData,
+    cf_user_info: state.cfUserInfo || null,
+    ac_solved: state.acSolved,
+    ac_activity: state.acActivity,
+    ac_bookmarks: state.acBookmarks,
+    ac_notes: state.acNotes,
+    ac_review_data: state.acReviewData,
+    ac_user_info: state.acUserInfo || null,
+    lc_last_sync: localStorage.getItem("lc_last_sync") || null,
+    cf_rivals: JSON.parse(localStorage.getItem("cf_rivals") || "[]"),
+    ac_rivals: JSON.parse(localStorage.getItem("ac_rivals") || "[]"),
+    interview_date: state.interviewDate || null,
+    updated_at: new Date().toISOString(),
+  };
 }
 
-function deserializeProgress(content) {
+function applyProgressData(data) {
+  if (!data) return;
+  // migrate old boolean solved values
+  if (data.solved) {
+    for (const id in data.solved) {
+      if (data.solved[id] === true) data.solved[id] = "2024-01-01";
+    }
+  }
+  state.solved = data.solved || {};
+  state.activity = data.activity || {};
+  state.bookmarks = data.bookmarks || {};
+  state.notes = data.notes || {};
+  state.reviewData = data.review_data || {};
+  state.cfSolved = data.cf_solved || {};
+  state.cfActivity = data.cf_activity || {};
+  state.cfBookmarks = data.cf_bookmarks || {};
+  state.cfNotes = data.cf_notes || {};
+  state.cfReviewData = data.cf_review_data || {};
+  state.cfUserInfo = data.cf_user_info || null;
+  state.acSolved = data.ac_solved || {};
+  state.acActivity = data.ac_activity || {};
+  state.acBookmarks = data.ac_bookmarks || {};
+  state.acNotes = data.ac_notes || {};
+  state.acReviewData = data.ac_review_data || {};
+  if (data.ac_user_info) state.acUserInfo = data.ac_user_info;
+  if (data.lc_last_sync)
+    localStorage.setItem("lc_last_sync", data.lc_last_sync);
+  // Restore rivals to localStorage so the contests page can load them
+  if (Array.isArray(data.cf_rivals) && data.cf_rivals.length) {
+    localStorage.setItem("cf_rivals", JSON.stringify(data.cf_rivals));
+  }
+  if (Array.isArray(data.ac_rivals) && data.ac_rivals.length) {
+    localStorage.setItem("ac_rivals", JSON.stringify(data.ac_rivals));
+  }
+  // Usernames — only apply if not already set from a fresher source
+  if (data.lc_username && !state.lcUsername)
+    state.lcUsername = data.lc_username;
+  if (data.cf_username && !state.cfUsername)
+    state.cfUsername = data.cf_username;
+  if (data.ac_username && !state.acUsername)
+    state.acUsername = data.ac_username;
+  if (data.interview_date) state.interviewDate = data.interview_date;
+}
+
+async function loadProgressFromSupabase() {
+  if (!state.user) return;
+  const { data, error } = await getSupabase()
+    .from("users_progress")
+    .select("*")
+    .eq("user_id", state.user.id)
+    .single();
+  if (error && error.code !== "PGRST116") {
+    console.warn("[supabase] load error:", error.message);
+    return;
+  }
+  if (data) applyProgressData(data);
+}
+
+// Debounced remote save — avoids hammering Supabase on rapid state changes
+let _saveTimer = null;
+async function saveProgress() {
+  // Always write to local cache immediately for offline resilience
   try {
-    const data = JSON.parse(content);
-    // migrate old boolean solved values
-    if (data.solved) {
-      for (const id in data.solved) {
-        if (data.solved[id] === true) data.solved[id] = "2024-01-01";
-      }
-    }
-    state.solved = data.solved || {};
-    state.activity = data.activity || {};
-    state.bookmarks = data.bookmarks || {};
-    state.notes = data.notes || {};
-    state.reviewData = data.reviewData || {};
-    state.cfSolved = data.cfSolved || {};
-    state.cfActivity = data.cfActivity || {};
-    state.cfBookmarks = data.cfBookmarks || {};
-    state.cfReviewData = data.cfReviewData || {};
-    // restore LC username from gist if present
-    if (data.lcUsername) {
-      state.lcUsername = data.lcUsername;
-      localStorage.setItem("lc_username", data.lcUsername);
-    }
-    if (data.cfUsername) {
-      state.cfUsername = data.cfUsername;
-      localStorage.setItem("cf_username", data.cfUsername);
-    }
+    localStorage.setItem("leet_local", JSON.stringify(buildProgressPayload()));
   } catch (_) {}
+  if (!state.user) return;
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(async () => {
+    const { error } = await getSupabase()
+      .from("users_progress")
+      .upsert(buildProgressPayload(), { onConflict: "user_id" });
+    if (error) console.warn("[supabase] save error:", error.message);
+  }, 800);
 }
 
-async function loadProgressFromGist() {
-  const savedId = localStorage.getItem("gh_gist_id");
-  if (savedId) {
-    try {
-      const res = await fetch(`https://api.github.com/gists/${savedId}`, {
-        headers: { Authorization: `token ${state.token}` },
-      });
-      if (res.ok) {
-        const gist = await res.json();
-        state.gistId = savedId;
-        const content = gist.files[GIST_FILENAME]?.content;
-        if (content) deserializeProgress(content);
-        return;
-      }
-    } catch (_) {}
-  }
-  const res = await fetch("https://api.github.com/gists?per_page=100", {
-    headers: { Authorization: `token ${state.token}` },
-  });
-  const gists = await res.json();
-  const found =
-    Array.isArray(gists) && gists.find((g) => g.files[GIST_FILENAME]);
-  if (found) {
-    state.gistId = found.id;
-    localStorage.setItem("gh_gist_id", found.id);
-    const full = await fetch(`https://api.github.com/gists/${found.id}`, {
-      headers: { Authorization: `token ${state.token}` },
-    });
-    const data = await full.json();
-    deserializeProgress(data.files[GIST_FILENAME]?.content || "{}");
-  }
-}
-
-async function saveProgressToGist() {
-  if (!state.token) return;
-  const body = {
-    description: "LeetTrack Progress",
-    public: false,
-    files: { [GIST_FILENAME]: { content: serializeProgress() } },
-  };
-  const headers = {
-    Authorization: `token ${state.token}`,
-    "Content-Type": "application/json",
-  };
-  if (state.gistId) {
-    await fetch(`https://api.github.com/gists/${state.gistId}`, {
-      method: "PATCH",
-      headers,
-      body: JSON.stringify(body),
-    });
-  } else {
-    const res = await fetch("https://api.github.com/gists", {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-    });
-    const gist = await res.json();
-    state.gistId = gist.id;
-    localStorage.setItem("gh_gist_id", gist.id);
-  }
-}
-
-function saveLocalProgress() {
-  localStorage.setItem("leet_local", serializeProgress());
-}
 function loadLocalProgress() {
-  const raw = localStorage.getItem("leet_local");
-  if (raw) deserializeProgress(raw);
-}
-
-function saveProgress() {
-  saveLocalProgress();
-  if (state.token) saveProgressToGist();
+  try {
+    const raw = localStorage.getItem("leet_local");
+    if (raw) applyProgressData(JSON.parse(raw));
+  } catch (_) {}
+  renderCountdown();
 }
 
 // ─── Export / Import ───────────────────────────────────────────────────────────
@@ -412,6 +525,28 @@ function disconnectLC() {
   showToast("LeetCode disconnected");
 }
 
+async function fetchLCUserInfo() {
+  if (!state.lcUsername) return;
+  try {
+    const res = await fetch(
+      `/.netlify/functions/lc-sync?username=${encodeURIComponent(state.lcUsername)}`,
+    );
+    const data = await res.json();
+    state.lcUserInfo = {
+      username: state.lcUsername,
+      avatar:
+        data.userAvatar ||
+        `https://ui-avatars.com/api/?name=${encodeURIComponent(state.lcUsername)}&size=56&background=f89f1b&color=fff&rounded=true`,
+    };
+  } catch (_) {
+    state.lcUserInfo = {
+      username: state.lcUsername,
+      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(state.lcUsername)}&size=56&background=f89f1b&color=fff&rounded=true`,
+    };
+  }
+  renderProfileLC();
+}
+
 function openFullSyncModal() {
   document.getElementById("full-sync-session-input").value = "";
   document.getElementById("full-sync-status").textContent = "";
@@ -515,7 +650,11 @@ async function syncLeetCode(silent = false) {
 
     const submissions2 = data.recentAcSubmissionList || [];
     if (submissions2.length === 0) {
-      if (!silent) showToast("⚠️ No recent submissions found. Make sure your profile is public.", "error");
+      if (!silent)
+        showToast(
+          "⚠️ No recent submissions found. Make sure your profile is public.",
+          "error",
+        );
       state.lcSyncing = false;
       updateSyncBtn(false);
       return { ok: false };
@@ -548,7 +687,10 @@ async function syncLeetCode(silent = false) {
     renderTable();
     renderStats();
     refreshDataDependentPages();
-    if (!silent) showToast(`✅ Synced! ${newlySynced} new solve${newlySynced !== 1 ? "s" : ""} found. Total: ${Object.keys(state.solved).length}`);
+    if (!silent)
+      showToast(
+        `✅ Synced! ${newlySynced} new solve${newlySynced !== 1 ? "s" : ""} found. Total: ${Object.keys(state.solved).length}`,
+      );
     localStorage.setItem("lc_last_sync", new Date().toISOString());
     renderAuthArea();
     state.lcSyncing = false;
@@ -573,29 +715,44 @@ function updateSyncBtn(syncing) {
 async function syncAll() {
   const lcConnected = !!state.lcUsername;
   const cfConnected = !!state.cfUsername;
-  if (!lcConnected && !cfConnected) {
+  const acConnected = !!state.acUsername;
+  if (!lcConnected && !cfConnected && !acConnected) {
     openLCModal();
     return;
   }
 
   const btn = document.getElementById("lc-sync-btn");
-  if (btn) { btn.disabled = true; btn.textContent = "⏳ Syncing…"; }
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "⏳ Syncing…";
+  }
 
   const results = await Promise.allSettled([
     lcConnected ? syncLeetCode(true) : Promise.resolve(null),
     cfConnected ? syncCFSilent() : Promise.resolve(null),
+    acConnected ? syncACSilent() : Promise.resolve(null),
   ]);
 
-  if (btn) { btn.disabled = false; btn.textContent = "⟳ Sync"; }
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = "⟳ Sync";
+  }
 
   const lcResult = lcConnected ? results[0] : null;
   const cfResult = cfConnected ? results[1] : null;
+  const acResult = acConnected ? results[2] : null;
 
   const parts = [];
-  if (lcResult?.value?.ok) parts.push(`LC: +${lcResult.value.newlySynced ?? 0} solves`);
-  else if (lcConnected && lcResult?.value?.ok === false) parts.push("LC: up to date");
+  if (lcResult?.value?.ok)
+    parts.push(`LC: +${lcResult.value.newlySynced ?? 0} solves`);
+  else if (lcConnected && lcResult?.value?.ok === false)
+    parts.push("LC: up to date");
   if (cfResult?.value?.ok) parts.push(`CF: synced`);
-  else if (cfConnected && cfResult?.value?.ok === false) parts.push("CF: failed");
+  else if (cfConnected && cfResult?.value?.ok === false)
+    parts.push("CF: failed");
+  if (acResult?.value?.ok) parts.push(`AC: synced`);
+  else if (acConnected && acResult?.value?.ok === false)
+    parts.push("AC: failed");
 
   showToast(`✅ ${parts.join(" · ") || "Sync complete"}`);
 }
@@ -603,14 +760,19 @@ async function syncAll() {
 async function syncCFSilent() {
   if (!state.cfUsername) return { ok: false };
   try {
-    const infoRes = await fetch(`https://codeforces.com/api/user.info?handles=${state.cfUsername}`);
+    const infoRes = await fetch(
+      `https://codeforces.com/api/user.info?handles=${state.cfUsername}`,
+    );
     const infoData = await infoRes.json();
     if (infoData.status !== "OK") throw new Error("CF user not found");
     state.cfUserInfo = infoData.result[0];
 
-    const statusRes = await fetch(`https://codeforces.com/api/user.status?handle=${state.cfUsername}&from=1&count=10000`);
+    const statusRes = await fetch(
+      `https://codeforces.com/api/user.status?handle=${state.cfUsername}&from=1&count=10000`,
+    );
     const statusData = await statusRes.json();
-    if (statusData.status !== "OK") throw new Error("Could not fetch CF submissions");
+    if (statusData.status !== "OK")
+      throw new Error("Could not fetch CF submissions");
 
     const newSolved = {};
     const newActivity = {};
@@ -675,6 +837,9 @@ function calcStreaks() {
   Object.entries(state.cfActivity).forEach(([d, v]) => {
     merged[d] = (merged[d] || 0) + v;
   });
+  Object.entries(state.acActivity).forEach(([d, v]) => {
+    merged[d] = (merged[d] || 0) + v;
+  });
   const days = Object.keys(merged)
     .filter((d) => merged[d] > 0)
     .sort();
@@ -704,6 +869,14 @@ function calcStreaks() {
 }
 function dateStr(d) {
   return d.toISOString().slice(0, 10);
+}
+
+function addCFTagFilter(tag) {
+  if (!state.cfFilters.tags.includes(tag)) {
+    state.cfFilters.tags.push(tag);
+  }
+  // scroll to top of CF list so the filter is visible
+  renderCF();
 }
 
 // ─── SM2 Spaced Repetition ─────────────────────────────────────────────────────
@@ -772,6 +945,48 @@ async function saveNote() {
   saveProgress();
 }
 
+// ─── CF Notes Modal ───────────────────────────────────────────────────────────
+function openCFNoteModal(key, name) {
+  document.getElementById("cf-note-modal-title").textContent = name || "Problem";
+  document.getElementById("cf-note-textarea").value = state.cfNotes[key] || "";
+  document.getElementById("cf-note-modal-key").value = key;
+  document.getElementById("cf-note-modal-overlay").style.display = "flex";
+  document.getElementById("cf-note-textarea").focus();
+}
+function closeCFNoteModal() {
+  document.getElementById("cf-note-modal-overlay").style.display = "none";
+}
+async function saveCFNote() {
+  const key = document.getElementById("cf-note-modal-key").value;
+  const text = document.getElementById("cf-note-textarea").value.trim();
+  if (text) state.cfNotes[key] = text;
+  else delete state.cfNotes[key];
+  closeCFNoteModal();
+  renderCFTable();
+  saveProgress();
+}
+
+// ─── AC Notes Modal ───────────────────────────────────────────────────────────
+function openACNoteModal(id, title) {
+  document.getElementById("ac-note-modal-title").textContent = title || "Problem";
+  document.getElementById("ac-note-textarea").value = state.acNotes[id] || "";
+  document.getElementById("ac-note-modal-key").value = id;
+  document.getElementById("ac-note-modal-overlay").style.display = "flex";
+  document.getElementById("ac-note-textarea").focus();
+}
+function closeACNoteModal() {
+  document.getElementById("ac-note-modal-overlay").style.display = "none";
+}
+async function saveACNote() {
+  const id = document.getElementById("ac-note-modal-key").value;
+  const text = document.getElementById("ac-note-textarea").value.trim();
+  if (text) state.acNotes[id] = text;
+  else delete state.acNotes[id];
+  closeACNoteModal();
+  renderACTable();
+  saveProgress();
+}
+
 function refreshDataDependentPages() {
   const activePage = document.querySelector(".page.active")?.id;
   if (activePage === "page-insights") renderInsightsPage();
@@ -806,6 +1021,7 @@ function switchRandomPlatform(platform) {
 function updateRandomPickerTabs() {
   const lcBtn = document.getElementById("random-tab-lc");
   const cfBtn = document.getElementById("random-tab-cf");
+  const acBtn = document.getElementById("random-tab-ac");
   if (lcBtn) {
     const active = state.randomPlatform === "lc";
     lcBtn.style.color = active ? "var(--accent)" : "var(--text-muted)";
@@ -816,6 +1032,11 @@ function updateRandomPickerTabs() {
     cfBtn.style.color = active ? "var(--accent)" : "var(--text-muted)";
     cfBtn.style.borderBottomColor = active ? "var(--accent)" : "transparent";
   }
+  if (acBtn) {
+    const active = state.randomPlatform === "ac";
+    acBtn.style.color = active ? "var(--accent)" : "var(--text-muted)";
+    acBtn.style.borderBottomColor = active ? "var(--accent)" : "transparent";
+  }
 }
 function pickRandom() {
   const platform = state.randomPlatform || "lc";
@@ -823,6 +1044,8 @@ function pickRandom() {
   if (!state.randomPickCache) state.randomPickCache = {};
   if (platform === "cf") {
     pickRandomCF(content);
+  } else if (platform === "ac") {
+    pickRandomAC(content);
   } else {
     pickRandomLC(content);
   }
@@ -1010,11 +1233,18 @@ function switchPlatform(platform) {
   document
     .getElementById("platform-tab-cf")
     .classList.toggle("active", platform === "cf");
+  document
+    .getElementById("platform-tab-ac")
+    .classList.toggle("active", platform === "ac");
   document.getElementById("lc-tracker-content").style.display =
     platform === "lc" ? "" : "none";
   document.getElementById("cf-tracker-content").style.display =
     platform === "cf" ? "" : "none";
+  document.getElementById("ac-tracker-content").style.display =
+    platform === "ac" ? "" : "none";
   if (platform === "cf") renderCFTable();
+  if (platform === "ac") renderACTable();
+  window.location.hash = `tracker/${platform}`;
 }
 
 function cfProblemKey(contestId, index) {
@@ -1046,7 +1276,8 @@ function cfRatingLabel(rating) {
 }
 
 function applyCFFilters() {
-  const { search, minRating, maxRating, tags, status, starred, review } = state.cfFilters;
+  const { search, minRating, maxRating, tags, status, starred, review } =
+    state.cfFilters;
   const userRating = state.cfUserInfo?.rating || 0;
   const sq = search.toLowerCase();
 
@@ -1057,7 +1288,11 @@ function applyCFFilters() {
     } else {
       if (p.rating < minRating || p.rating > maxRating) return false;
     }
-    if (sq && !p.name.toLowerCase().includes(sq) && !p.tags.some((t) => t.toLowerCase().includes(sq)))
+    if (
+      sq &&
+      !p.name.toLowerCase().includes(sq) &&
+      !p.tags.some((t) => t.toLowerCase().includes(sq))
+    )
       return false;
     if (tags.length && !tags.every((t) => p.tags.includes(t))) return false;
     const key = cfProblemKey(p.contestId, p.index);
@@ -1068,6 +1303,11 @@ function applyCFFilters() {
     if (review) {
       if (!solved) return false;
       if (!isCFReviewDue(key)) return false;
+    }
+    // Curated list filter
+    if (state.cfCuratedList) {
+      const probId = p.index ? `${p.contestId}${p.index}` : p.id || "";
+      if (!CURATED_LISTS[state.cfCuratedList]?.has(probId)) return false;
     }
     return true;
   });
@@ -1144,28 +1384,40 @@ function renderCFTable() {
       const key = cfProblemKey(p.contestId, p.index);
       const solved = !!state.cfSolved[key];
       const starred = !!state.cfBookmarks[key];
+      const hasNote = !!state.cfNotes[key];
+      const safeCFName = escHtml(p.name).replace(/'/g, "&#39;");
       const reviewDue = solved && isCFReviewDue(key);
       const solveDate = state.cfSolved[key] || "";
       const link = `https://codeforces.com/problemset/problem/${p.contestId}/${p.index}`;
       const contestLink = `https://codeforces.com/contest/${p.contestId}`;
-      const ratingColor = p.rating ? cfRatingColor(p.rating) : "var(--text-muted)";
+      const ratingColor = p.rating
+        ? cfRatingColor(p.rating)
+        : "var(--text-muted)";
       const ratingDisplay = p.rating
         ? `<span style="color:${ratingColor};font-weight:600">${p.rating}</span>`
         : `<span style="color:var(--text-muted);font-size:11px">Unrated</span>`;
-      const tags = (p.tags || []).slice(0, 3)
-        .map((t) => `<span class="pattern-tag-sm">${t}</span>`).join("");
+      const tags = (p.tags || [])
+        .slice(0, 3)
+        .map(
+          (t) =>
+            `<span class="pattern-tag-sm" style="cursor:pointer" onclick="toggleCFTagFilter('${t.replace(/'/g, "\\'")}')" title="Filter by ${t}">${t}</span>`,
+        )
+        .join("");
       const solvedCount = p.solvedCount
         ? `${p.solvedCount >= 1000 ? (p.solvedCount / 1000).toFixed(1) + "k" : p.solvedCount}`
         : "—";
       return `<tr class="${solved ? "solved" : ""}">
       <td class="col-status">
-        ${solved
-          ? `<span class="solved-icon" title="Solved${solveDate ? " · " + solveDate : ""}">✓</span>`
-          : `<span class="unsolved-icon">○</span>`}
+        ${
+          solved
+            ? `<span class="solved-icon" title="Solved${solveDate ? " · " + solveDate : ""}">✓</span>`
+            : `<span class="unsolved-icon">○</span>`
+        }
       </td>
       <td class="col-title">
         <div class="title-cell-content">
           <button class="star-btn inline-star ${starred ? "starred" : ""}" onclick="toggleCFBookmark('${key}')" title="Bookmark">${starred ? "★" : "☆"}</button>
+          <button class="note-btn-inline ${hasNote ? "has-note" : ""}" onclick="openCFNoteModal('${key}', '${safeCFName}')" title="${hasNote ? "Edit note" : "Add note"}">${hasNote ? "📝" : "✎"}</button>
           <a href="${link}" target="_blank" rel="noopener" class="cf-problem-link">${p.name}</a>
           ${reviewDue ? '<span class="review-badge-inline" title="Due for SM2 review">↺</span>' : ""}
           ${tags ? `<span class="row-tags">${tags}</span>` : ""}
@@ -1236,7 +1488,8 @@ function toggleCFSolved(key) {
 function initCFSM2OnSolve(key) {
   const nextDate = new Date(Date.now() + SM2_INTERVALS[0] * 86400000);
   state.cfReviewData[key] = {
-    intervalIdx: 0, reps: 0,
+    intervalIdx: 0,
+    reps: 0,
     nextReviewDate: dateStr(nextDate),
     lastReviewed: dateStr(new Date()),
   };
@@ -1296,7 +1549,7 @@ async function syncCFUser() {
 
     state.cfSolved = newSolved;
     state.cfActivity = newActivity;
-    saveProgress();
+    await saveProgress();
     applyCFFilters();
     renderProfilePage();
     showToast(
@@ -1334,13 +1587,13 @@ function renderCFConnectedArea() {
     </div>`;
 }
 
-function disconnectCF() {
+async function disconnectCF() {
   state.cfUsername = null;
   state.cfUserInfo = null;
   state.cfSolved = {};
   state.cfActivity = {};
   localStorage.removeItem("cf_username");
-  saveProgress();
+  await saveProgress();
   document.getElementById("cf-connect-area").style.display = "";
   document.getElementById("cf-connected-area").style.display = "none";
   document.getElementById("cf-connected-area").innerHTML = "";
@@ -1464,14 +1717,18 @@ function setCFStatusFilter(val) {
 
 function toggleCFStarredFilter() {
   state.cfFilters.starred = !state.cfFilters.starred;
-  document.getElementById("cf-filter-starred-btn")?.classList.toggle("active", state.cfFilters.starred);
+  document
+    .getElementById("cf-filter-starred-btn")
+    ?.classList.toggle("active", state.cfFilters.starred);
   applyCFFilters();
   updateCFClearBtn();
 }
 
 function toggleCFReviewFilter() {
   state.cfFilters.review = !state.cfFilters.review;
-  document.getElementById("cf-filter-review-btn")?.classList.toggle("active", state.cfFilters.review);
+  document
+    .getElementById("cf-filter-review-btn")
+    ?.classList.toggle("active", state.cfFilters.review);
   applyCFFilters();
   updateCFClearBtn();
 }
@@ -1486,12 +1743,27 @@ function updateCFClearBtn() {
   const btn = document.getElementById("cf-clear-filters");
   if (!btn) return;
   const f = state.cfFilters;
-  const dirty = f.search || f.tags.length || f.status !== "all" || f.minRating !== 800 || f.maxRating !== 3500 || f.starred || f.review;
+  const dirty =
+    f.search ||
+    f.tags.length ||
+    f.status !== "all" ||
+    f.minRating !== 800 ||
+    f.maxRating !== 3500 ||
+    f.starred ||
+    f.review;
   btn.style.display = dirty ? "" : "none";
 }
 
 function clearCFFilters() {
-  state.cfFilters = { search: "", minRating: 800, maxRating: 3500, tags: [], status: "all", starred: false, review: false };
+  state.cfFilters = {
+    search: "",
+    minRating: 800,
+    maxRating: 3500,
+    tags: [],
+    status: "all",
+    starred: false,
+    review: false,
+  };
   const searchEl = document.getElementById("cf-search-input");
   if (searchEl) searchEl.value = "";
   const tagSel = document.getElementById("cf-tag-select");
@@ -1507,28 +1779,52 @@ function clearCFFilters() {
 
 // ─── CSV Parsing ───────────────────────────────────────────────────────────────
 async function loadAllCSVs() {
-  try {
-    await loadMetadata();
-    const cached = sessionStorage.getItem(CACHE_KEY);
-    if (cached) {
-      const { questions, companies } = JSON.parse(cached);
-      state.questions = questions;
-      state.companies = companies;
-      renderFilterUI();
-      return;
-    }
-  } catch (_) {}
+  // ── Step 1: fetch manifest (tiny ~200 bytes) ─────────────────────────────
   let csvFiles = [];
+  let manifestText = "";
   try {
     const res = await fetch("data/manifest.json");
     if (!res.ok) throw new Error();
-    csvFiles = await res.json();
+    manifestText = await res.text();
+    csvFiles = JSON.parse(manifestText);
   } catch (_) {
     showError(
       "Could not load <code>data/manifest.json</code>. Run <code>node generate-manifest.js</code> first.",
     );
     return;
   }
+
+  // ── Step 2: check localStorage cache via manifest hash ───────────────────
+  // The manifest lists every CSV file — if it hasn't changed, data is fresh.
+  const manifestHash = manifestText.trim();
+  const storedHash = localStorage.getItem(CACHE_HASH_KEY);
+
+  if (storedHash === manifestHash) {
+    try {
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        const { questions, companies } = JSON.parse(cached);
+        if (questions?.length) {
+          state.questions = questions;
+          state.companies = companies;
+          renderFilterUI();
+          console.log(
+            `[cache] hit — ${questions.length} questions from localStorage`,
+          );
+          // Load metadata in background (needed for tags/insights) without blocking
+          loadMetadata().then(() => renderPatternDropdown());
+          return;
+        }
+      }
+    } catch (_) {
+      /* corrupted cache — fall through to full load */
+    }
+  }
+
+  // ── Step 3: cache miss — load metadata + all CSVs in parallel ────────────
+  console.log("[cache] miss — fetching CSVs + metadata");
+  await loadMetadata(); // must resolve before CSV merge for tags/slugs
+
   const map = {};
   await Promise.all(
     csvFiles.map(async (filename) => {
@@ -1566,6 +1862,7 @@ async function loadAllCSVs() {
       }
     }),
   );
+
   state.questions = Object.values(map)
     .map((q) => ({
       ...q,
@@ -1578,18 +1875,44 @@ async function loadAllCSVs() {
       }),
     }))
     .sort((a, b) => a.id - b.id);
+
   const cs = new Set();
   state.questions.forEach((q) => q.companies.forEach((c) => cs.add(c)));
   state.companies = [...cs].sort();
+
+  // ── Step 4: persist to localStorage with manifest hash as cache key ───────
   try {
-    sessionStorage.setItem(
+    localStorage.setItem(
       CACHE_KEY,
       JSON.stringify({
         questions: state.questions,
         companies: state.companies,
       }),
     );
-  } catch (_) {}
+    localStorage.setItem(CACHE_HASH_KEY, manifestHash);
+    console.log(
+      `[cache] saved ${state.questions.length} questions to localStorage`,
+    );
+  } catch (_) {
+    // localStorage quota (~5 MB) exceeded — evict old cache and retry once
+    try {
+      localStorage.removeItem(CACHE_KEY);
+      localStorage.removeItem(CACHE_HASH_KEY);
+      localStorage.setItem(
+        CACHE_KEY,
+        JSON.stringify({
+          questions: state.questions,
+          companies: state.companies,
+        }),
+      );
+      localStorage.setItem(CACHE_HASH_KEY, manifestHash);
+    } catch (__) {
+      console.warn(
+        "[cache] localStorage quota exceeded — cache disabled this session",
+      );
+    }
+  }
+
   renderFilterUI();
 }
 function parseCSV(text) {
@@ -1740,6 +2063,28 @@ function clearPatternFilters() {
   );
   applyFilters();
 }
+
+function toggleCFTagFilter(tag) {
+  const idx = state.cfFilters.tags.indexOf(tag);
+  if (idx === -1) state.cfFilters.tags.push(tag);
+  else state.cfFilters.tags.splice(idx, 1);
+  // Sync the tag select dropdown to "custom" state
+  const sel = document.getElementById("cf-tag-select");
+  if (sel)
+    sel.value =
+      state.cfFilters.tags.length === 1 ? state.cfFilters.tags[0] : "";
+  applyCFFilters();
+}
+
+function toggleACTagFilter(tag) {
+  // AC has no tag filter in state yet — add to acFilters.tags
+  if (!state.acFilters.tags) state.acFilters.tags = [];
+  const idx = state.acFilters.tags.indexOf(tag);
+  if (idx === -1) state.acFilters.tags.push(tag);
+  else state.acFilters.tags.splice(idx, 1);
+  applyACFilters();
+}
+
 function updatePatternFilterCount() {
   const count = state.filters.patterns.length;
   const el = document.getElementById("pattern-filter-count");
@@ -1884,6 +2229,8 @@ function applyFilters() {
       const itemTags = state.metaMap[item.id]?.tags || [];
       if (!patterns.some((p) => itemTags.includes(p))) return false;
     }
+    if (state.curatedList && !CURATED_LISTS[state.curatedList]?.has(item.id))
+      return false;
     if (
       q &&
       !item.title.toLowerCase().includes(q) &&
@@ -2112,7 +2459,7 @@ function renderTable() {
       <a href="${q.link}" target="_blank" rel="noopener">${q.title}</a>
       ${reviewDue ? '<span class="review-badge-inline" title="Due for SM2 review">↺</span>' : ""}
       ${solved ? `<button class="note-btn-inline ${hasNote ? "has-note" : ""}" data-id="${q.id}" onclick="openNoteModal(${q.id})" title="${hasNote ? "Edit note" : "Add note"}">${hasNote ? "📝" : "✎"}</button>` : ""}
-      ${tags.length ? `<span class="row-tags">${tags.map((t) => `<span class="pattern-tag-sm">${t}</span>`).join("")}</span>` : ""}
+      ${tags.length ? `<span class="row-tags">${tags.map((t) => `<span class="pattern-tag-sm" style="cursor:pointer" onclick="togglePatternFilter('${t.replace(/'/g, "\\'")}')" title="Filter by ${t}">${t}</span>`).join("")}</span>` : ""}
     </div>
   </td>
   <td class="col-diff"><span class="diff-badge ${diffClass}">${q.difficulty}</span></td>
@@ -2174,17 +2521,25 @@ function renderAuthArea() {
   if (state.user) {
     const lcConnected = !!state.lcUsername;
     const cfConnected = !!state.cfUsername;
-    const anyConnected = lcConnected || cfConnected;
+    const anyConnected = lcConnected || cfConnected || !!state.acUsername;
 
+    const acConnectedAuth = !!state.acUsername;
     let syncTooltip = "";
-    if (lcConnected && cfConnected) syncTooltip = `Sync LC (${state.lcUsername}) + CF (${state.cfUsername})`;
-    else if (lcConnected) syncTooltip = `Sync LeetCode: ${state.lcUsername} · Last synced: ${getLastSyncLabel()}`;
+    if (lcConnected && cfConnected)
+      syncTooltip = `Sync LC (${state.lcUsername}) + CF (${state.cfUsername})`;
+    else if (lcConnected)
+      syncTooltip = `Sync LeetCode: ${state.lcUsername} · Last synced: ${getLastSyncLabel()}`;
     else if (cfConnected) syncTooltip = `Sync Codeforces: ${state.cfUsername}`;
+    else if (acConnectedAuth) syncTooltip = `Sync AtCoder: ${state.acUsername}`;
+
+    // Supabase stores GitHub profile in user_metadata
+    const avatarUrl = state.user.user_metadata?.avatar_url || "";
+    const login = state.user.user_metadata?.user_name || state.user.email || "";
 
     el.innerHTML = `
       <div class="auth-user-row">
-        <img src="${state.user.avatar_url}" class="nav-avatar" alt="">
-        <span class="nav-username">@${state.user.login}</span>
+        ${avatarUrl ? `<img src="${avatarUrl}" class="nav-avatar" alt="">` : ""}
+        <span class="nav-username">@${login}</span>
         ${
           anyConnected
             ? `<button id="lc-sync-btn" class="lc-sync-btn" onclick="syncAll()" title="${syncTooltip}">⟳ Sync</button>`
@@ -2255,6 +2610,8 @@ function initKeyboardShortcuts() {
       e.preventDefault();
       if (state.activePlatform === "cf") {
         document.getElementById("cf-search-input")?.focus();
+      } else if (state.activePlatform === "ac") {
+        document.getElementById("ac-search-input")?.focus();
       } else {
         document.getElementById("search-input")?.focus();
       }
@@ -2271,6 +2628,10 @@ function initKeyboardShortcuts() {
       e.preventDefault();
       showPage("insights");
     }
+    if (e.key === "4") {
+      e.preventDefault();
+      showPage("contests");
+    }
     if (e.key === "s" || e.key === "S") {
       e.preventDefault();
       syncAll();
@@ -2279,6 +2640,78 @@ function initKeyboardShortcuts() {
 }
 
 // ─── Interview Readiness Score ─────────────────────────────────────────────────
+
+// ─── Interview Countdown ──────────────────────────────────────────────────────
+
+// ─── Weekly Digest Modal ──────────────────────────────────────────────────────
+function openWeeklyDigest() {
+  const now = new Date();
+  const days = Array.from({length: 7}, (_, i) => {
+    const d = new Date(now - (6 - i) * 86400000);
+    return d.toISOString().slice(0, 10);
+  });
+  const lcCount = days.reduce((s, d) => s + (state.activity[d] || 0), 0);
+  const cfCount = days.reduce((s, d) => s + (state.cfActivity[d] || 0), 0);
+  const acCount = days.reduce((s, d) => s + (state.acActivity[d] || 0), 0);
+  const total = lcCount + cfCount + acCount;
+  const { current } = calcStreaks();
+  const score = calcReadinessScore().total;
+  const scoreColor = score >= 75 ? "var(--green)" : score >= 50 ? "var(--yellow)" : "var(--accent)";
+  document.getElementById("weekly-digest-body").innerHTML = `
+    <div style="text-align:center;padding:8px 0 20px">
+      <div style="font-size:48px;font-weight:800;color:var(--accent);line-height:1">${total}</div>
+      <div style="color:var(--text-muted);font-size:13px;margin-top:4px">problems solved this week</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px">
+      <div style="text-align:center;background:var(--bg-card);border-radius:10px;padding:12px 8px">
+        <div style="font-size:26px;font-weight:700">${lcCount}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">LeetCode</div>
+      </div>
+      <div style="text-align:center;background:var(--bg-card);border-radius:10px;padding:12px 8px">
+        <div style="font-size:26px;font-weight:700">${cfCount}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Codeforces</div>
+      </div>
+      <div style="text-align:center;background:var(--bg-card);border-radius:10px;padding:12px 8px">
+        <div style="font-size:26px;font-weight:700">${acCount}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">AtCoder</div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-around;font-size:12px;padding:12px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin-bottom:12px">
+      <span>🔥 <strong>${current}</strong> day streak</span>
+      <span style="color:${scoreColor}">⚡ <strong>${score}%</strong> readiness</span>
+      <span>📅 ${days[0]}</span>
+    </div>
+    <div style="font-size:11px;color:var(--text-muted);text-align:center">Week of ${days[0]} → ${days[6]}</div>`;
+  document.getElementById("weekly-digest-overlay").style.display = "flex";
+}
+function closeWeeklyDigest() {
+  document.getElementById("weekly-digest-overlay").style.display = "none";
+}
+
+function setInterviewDate(val) {
+  state.interviewDate = val || null;
+  saveProgress();
+  renderCountdown();
+}
+function renderCountdown() {
+  const el = document.getElementById("interview-countdown");
+  if (!el) return;
+  const inputHtml = `<input type="date" ${state.interviewDate ? `value="${state.interviewDate}"` : ""} onchange="setInterviewDate(this.value)" style="background:var(--bg-card);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:2px 6px;font-size:11px;margin-left:6px">`;
+  if (!state.interviewDate) {
+    el.innerHTML = `<span style="color:var(--text-muted);font-size:11px">🎯 Interview date:</span>${inputHtml}`;
+    return;
+  }
+  const today = new Date(); today.setHours(0,0,0,0);
+  const target = new Date(state.interviewDate + "T00:00:00"); target.setHours(0,0,0,0);
+  const days = Math.round((target - today) / 86400000);
+  const score = calcReadinessScore().total;
+  const scoreColor = score >= 75 ? "var(--green)" : score >= 50 ? "var(--yellow)" : "var(--accent)";
+  const daysStr = days < 0
+    ? `<span style="color:var(--text-muted)">${Math.abs(days)}d ago</span>`
+    : `<span style="font-weight:700;color:var(--accent)">${days}d left</span>`;
+  el.innerHTML = `<span style="font-size:11px;color:var(--text-muted)">🎯</span> ${daysStr} · <span style="color:${scoreColor};font-weight:600;font-size:11px">${score}% ready</span>${inputHtml}`;
+}
+
 function calcReadinessScore() {
   const solvedIds = new Set(Object.keys(state.solved).map(Number));
   const totalSolved = solvedIds.size;
@@ -2525,11 +2958,15 @@ function renderProfilePage() {
   if (contentEl) contentEl.style.display = "block";
 
   // ── GitHub identity (always shown, generic) ──
-  document.getElementById("profile-avatar").src = state.user.avatar_url;
+  document.getElementById("profile-avatar").src =
+    state.user.user_metadata?.avatar_url || "";
   document.getElementById("profile-name").textContent =
-    state.user.name || state.user.login;
+    state.user.user_metadata?.full_name ||
+    state.user.user_metadata?.user_name ||
+    state.user.email ||
+    "";
   document.getElementById("profile-handle").textContent =
-    "@" + state.user.login;
+    "@" + (state.user.user_metadata?.user_name || state.user.email || "");
   // ── Combined streak & heatmap (cross-platform) ──
   const { current, longest, totalDays } = calcStreaks();
   animateNumber("streak-number", current);
@@ -2537,7 +2974,9 @@ function renderProfilePage() {
   animateNumber("total-days", totalDays);
   animateNumber(
     "total-solved-profile",
-    Object.keys(state.solved).length + Object.keys(state.cfSolved).length,
+    Object.keys(state.solved).length +
+      Object.keys(state.cfSolved).length +
+      Object.keys(state.acSolved).length,
   );
 
   const streakCard = document.getElementById("streak-card");
@@ -2582,20 +3021,26 @@ function renderProfilePlatformTabs(platform) {
   // Update tab buttons
   const lcTab = document.getElementById("profile-tab-lc");
   const cfTab = document.getElementById("profile-tab-cf");
+  const acTab = document.getElementById("profile-tab-ac");
   if (lcTab) lcTab.classList.toggle("active", platform === "lc");
   if (cfTab) cfTab.classList.toggle("active", platform === "cf");
+  if (acTab) acTab.classList.toggle("active", platform === "ac");
 
   // Show/hide sections
   const lcSection = document.getElementById("profile-lc-section");
   const cfSection = document.getElementById("profile-cf-section");
+  const acSection = document.getElementById("profile-ac-section");
   if (lcSection) lcSection.style.display = platform === "lc" ? "" : "none";
   if (cfSection) cfSection.style.display = platform === "cf" ? "" : "none";
+  if (acSection) acSection.style.display = platform === "ac" ? "" : "none";
 
   if (platform === "lc") renderProfileLC();
-  else renderProfileCF();
+  else if (platform === "cf") renderProfileCF();
+  else renderProfileAC();
 }
 
 function switchProfilePlatform(platform) {
+  window.location.hash = `profile/${platform}`; // ← add this line
   renderProfilePlatformTabs(platform);
 }
 
@@ -2604,7 +3049,10 @@ function renderProfileLC() {
   const lcBadge = document.getElementById("profile-lc-badge");
   if (lcBadge) {
     if (state.lcUsername) {
-      lcBadge.innerHTML = `<span class="lc-dot"></span> LeetCode: <a href="https://leetcode.com/${state.lcUsername}" target="_blank">@${state.lcUsername}</a> <button class="lc-disconnect-btn" onclick="disconnectLC()">Disconnect</button>`;
+      const lcAvatar = state.lcUserInfo?.avatar
+        ? `<img src="${state.lcUserInfo.avatar}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;margin-right:6px;vertical-align:middle" onerror="this.style.display='none'">`
+        : "";
+      lcBadge.innerHTML = `${lcAvatar}<span class="lc-dot"></span> LeetCode: <a href="https://leetcode.com/${state.lcUsername}" target="_blank">@${state.lcUsername}</a> <button class="lc-disconnect-btn" onclick="disconnectLC()">Disconnect</button>`;
     } else {
       lcBadge.innerHTML = `<button class="btn-lc-connect" onclick="openLCModal()">+ Connect LeetCode</button>`;
     }
@@ -2674,7 +3122,19 @@ function renderProfileCF() {
     if (state.cfUserInfo) {
       const u = state.cfUserInfo;
       const rating = u.rating || null;
-      cfBadge.innerHTML = `<span class="lc-dot" style="background:${cfRatingColor(rating)}"></span> Codeforces: <a href="https://codeforces.com/profile/${u.handle}" target="_blank" style="color:${cfRatingColor(rating)}">@${u.handle}</a> <span style="color:${cfRatingColor(rating)};font-size:11px">${cfRatingLabel(rating)}${rating ? " · " + rating : ""}</span> <button class="lc-disconnect-btn" onclick="disconnectCF()">Disconnect</button>`;
+      const isDefaultCFAvatar = (url) => !url || url.includes("/no-");
+
+      const avatarUrl = !isDefaultCFAvatar(u.titlePhoto)
+        ? u.titlePhoto.startsWith("http")
+          ? u.titlePhoto
+          : `https:${u.titlePhoto}`
+        : !isDefaultCFAvatar(u.avatar)
+          ? u.avatar.startsWith("http")
+            ? u.avatar
+            : `https:${u.avatar}`
+          : `https://ui-avatars.com/api/?name=${encodeURIComponent(u.handle)}&size=56&background=random&rounded=true`;
+      const avatarHtml = `<img src="${avatarUrl}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;margin-right:7px;vertical-align:middle;border:2px solid ${cfRatingColor(rating)}40">`;
+      cfBadge.innerHTML = `${avatarHtml}Codeforces: <a href="https://codeforces.com/profile/${u.handle}" target="_blank" style="color:${cfRatingColor(rating)}">@${u.handle}</a> <span style="color:${cfRatingColor(rating)};font-size:11px">${cfRatingLabel(rating)}${rating ? " · " + rating : ""}</span> <button class="lc-disconnect-btn" onclick="disconnectCF()">Disconnect</button>`;
     } else {
       cfBadge.innerHTML = `<button class="btn-lc-connect" onclick="switchPlatform('cf'); showPage('tracker')">+ Connect Codeforces</button>`;
     }
@@ -2710,9 +3170,28 @@ function renderProfileCFStats() {
   const maxRating = u.maxRating || null;
   const rank = u.rank || "unrated";
   const maxRank = u.maxRank || null;
+  const isDefaultCFAvatar = (url) => !url || url.includes("/no-");
+
+  const avatarUrl = !isDefaultCFAvatar(u.titlePhoto)
+    ? u.titlePhoto.startsWith("http")
+      ? u.titlePhoto
+      : `https:${u.titlePhoto}`
+    : !isDefaultCFAvatar(u.avatar)
+      ? u.avatar.startsWith("http")
+        ? u.avatar
+        : `https:${u.avatar}`
+      : `https://ui-avatars.com/api/?name=${encodeURIComponent(u.handle)}&size=56&background=random&rounded=true`;
 
   el.innerHTML = `
     <div class="cf-profile-stats-grid">
+      ${
+        avatarUrl
+          ? `<div class="cf-profile-stat" style="grid-column:1/-1;display:flex;align-items:center;gap:12px;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:4px">
+        <img src="${avatarUrl}" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:3px solid ${cfRatingColor(rating)}60" onerror="this.style.display='none'">
+        <div><div style="font-weight:700;font-size:15px;color:${cfRatingColor(rating)}">@${u.handle}</div><div style="font-size:12px;color:var(--text-muted);margin-top:2px">${cfRatingLabel(rating)}${rank !== "unrated" ? " · " + rank : ""}</div></div>
+      </div>`
+          : ""
+      }
       <div class="cf-profile-stat">
         <div class="cf-profile-stat-val" style="color:${cfRatingColor(rating)}">${rating ?? "—"}</div>
         <div class="cf-profile-stat-label">Current Rating</div>
@@ -2937,7 +3416,15 @@ function renderHeatmap() {
   const start = new Date(today);
   // Start from the Sunday of the week that was (WEEKS-1) weeks ago
   start.setDate(today.getDate() - today.getDay() - (WEEKS - 1) * 7);
-  const maxVal = Math.max(1, ...Object.values(state.activity));
+  // Build per-day merged totals so maxVal scales correctly across all platforms
+  const _mergedActivity = {};
+  for (const [d, v] of Object.entries(state.activity))
+    _mergedActivity[d] = (_mergedActivity[d] || 0) + v;
+  for (const [d, v] of Object.entries(state.cfActivity))
+    _mergedActivity[d] = (_mergedActivity[d] || 0) + v;
+  for (const [d, v] of Object.entries(state.acActivity))
+    _mergedActivity[d] = (_mergedActivity[d] || 0) + v;
+  const maxVal = Math.max(1, ...Object.values(_mergedActivity));
 
   const monthMarkers = [];
   let lastMonth = -1;
@@ -2958,7 +3445,10 @@ function renderHeatmap() {
       const date = new Date(start);
       date.setDate(start.getDate() + w * 7 + d);
       const key = dateStr(date);
-      const count = (state.activity[key] || 0) + (state.cfActivity[key] || 0);
+      const count =
+        (state.activity[key] || 0) +
+        (state.cfActivity[key] || 0) +
+        (state.acActivity[key] || 0);
       const level = count === 0 ? 0 : Math.ceil((count / maxVal) * 4);
       const future = date > today;
       colsHtml += `<div class="heatmap-cell l${future ? 0 : level}${future ? " future" : ""}" title="${key}: ${count} solve${count !== 1 ? "s" : ""}"></div>`;
@@ -3026,19 +3516,25 @@ function renderInsightsPlatformTabs(platform) {
   state.insightsPlatform = platform;
   const lcTab = document.getElementById("insights-tab-lc");
   const cfTab = document.getElementById("insights-tab-cf");
+  const acTab = document.getElementById("insights-tab-ac");
   if (lcTab) lcTab.classList.toggle("active", platform === "lc");
   if (cfTab) cfTab.classList.toggle("active", platform === "cf");
+  if (acTab) acTab.classList.toggle("active", platform === "ac");
 
   const lcSection = document.getElementById("insights-lc-section");
   const cfSection = document.getElementById("insights-cf-section");
+  const acSection = document.getElementById("insights-ac-section");
   if (lcSection) lcSection.style.display = platform === "lc" ? "" : "none";
   if (cfSection) cfSection.style.display = platform === "cf" ? "" : "none";
+  if (acSection) acSection.style.display = platform === "ac" ? "" : "none";
 
   if (platform === "lc") renderLCInsights();
-  else renderCFInsights();
+  else if (platform === "cf") renderCFInsights();
+  else renderACInsights();
 }
 
 function switchInsightsPlatform(platform) {
+  window.location.hash = `insights/${platform}`; // ← add this line
   renderInsightsPlatformTabs(platform);
 }
 
@@ -3136,61 +3632,9 @@ function renderPatternInsights() {
     lcHtml = `<div class="empty-insights">Run <code>node fetch-metadata.js</code> to enable LC pattern analytics.</div>`;
   }
 
-  // CF tag coverage
-  let cfHtml = "";
-  if (Object.keys(state.cfMeta).length) {
-    const cfTagStats = {};
-    for (const p of Object.values(state.cfMeta)) {
-      if (!p.rating) continue;
-      const key = cfProblemKey(p.contestId, p.index);
-      const solved = !!state.cfSolved[key];
-      for (const tag of p.tags || []) {
-        if (!cfTagStats[tag]) cfTagStats[tag] = { total: 0, solved: 0 };
-        cfTagStats[tag].total++;
-        if (solved) cfTagStats[tag].solved++;
-      }
-    }
-    const cfSorted = Object.entries(cfTagStats)
-      .sort((a, b) => b[1].total - a[1].total)
-      .slice(0, 15);
-    const cfMax = cfSorted[0]?.[1].total || 1;
-    cfHtml = cfSorted
-      .map(([tag, { total, solved }]) => {
-        const pct = Math.round((solved / total) * 100);
-        return `<div class="pattern-row">
-      <span class="pattern-row-name">${tag}</span>
-      <div class="pattern-row-bar-bg">
-        <div class="pattern-row-bar-total" style="width:${Math.round((total / cfMax) * 100)}%"></div>
-        <div class="pattern-row-bar-solved" style="width:${Math.round((solved / cfMax) * 100)}%"></div>
-      </div>
-      <span class="pattern-row-count">${solved}/${total}</span>
-      <span class="pattern-row-pct ${pct >= 70 ? "easy-text" : pct >= 40 ? "medium-text" : "hard-text"}">${pct}%</span>
-    </div>`;
-      })
-      .join("");
-  }
-
-  el.innerHTML = `
-    <div class="insights-platform-tabs">
-      <button class="ins-tab active" id="ins-tab-lc" onclick="switchInsightTab('lc')">LeetCode</button>
-      ${cfHtml ? `<button class="ins-tab" id="ins-tab-cf" onclick="switchInsightTab('cf')">Codeforces</button>` : ""}
-    </div>
-    <div id="ins-patterns-lc">${lcHtml}</div>
-    ${cfHtml ? `<div id="ins-patterns-cf" style="display:none">${cfHtml}</div>` : ""}
-  `;
-}
-
-function switchInsightTab(platform) {
-  document
-    .getElementById("ins-tab-lc")
-    ?.classList.toggle("active", platform === "lc");
-  document
-    .getElementById("ins-tab-cf")
-    ?.classList.toggle("active", platform === "cf");
-  const lcEl = document.getElementById("ins-patterns-lc");
-  const cfEl = document.getElementById("ins-patterns-cf");
-  if (lcEl) lcEl.style.display = platform === "lc" ? "" : "none";
-  if (cfEl) cfEl.style.display = platform === "cf" ? "" : "none";
+  el.innerHTML =
+    lcHtml ||
+    `<div class="empty-insights">Run <code>node fetch-metadata.js</code> to enable pattern analytics.</div>`;
 }
 
 function renderHotQuestions() {
@@ -3436,7 +3880,7 @@ function renderCFRatingChart() {
       solvedCounts[band.label] = (solvedCounts[band.label] || 0) + 1;
   }
   const maxCount = Math.max(...Object.values(counts), 1);
-  el.innerHTML = `<div class="cf-rating-dist-chart">${bands
+  el.innerHTML = `<div class="cf-rating-chart">${bands
     .map((b) => {
       const total = counts[b.label] || 0;
       const solved = solvedCounts[b.label] || 0;
@@ -3445,8 +3889,9 @@ function renderCFRatingChart() {
       return `<div class="cf-chart-col">
       <div class="cf-chart-count">${total > 1000 ? (total / 1000).toFixed(1) + "k" : total}</div>
       <div class="cf-chart-bar-wrap">
-        <div class="cf-chart-bar-total" style="height:${barH}%;background:${b.color}20;border:1px solid ${b.color}40"></div>
-        <div class="cf-chart-bar-solved" style="height:${solvedH}%;background:${b.color}"></div>
+        <div class="cf-chart-bar" style="height:${barH}%;background:${b.color}25;border:1px solid ${b.color}60;position:relative">
+          <div style="position:absolute;bottom:0;left:0;right:0;height:${total ? Math.round((solved / total) * 100) : 0}%;background:${b.color};border-radius:2px 2px 0 0"></div>
+        </div>
       </div>
       <div class="cf-chart-label" style="color:${b.color}">${b.label}</div>
     </div>`;
@@ -3576,51 +4021,845 @@ function renderCFWeeklyChart() {
   </div></div>`;
 }
 
+// ─── AtCoder ───────────────────────────────────────────────────────────────────
+async function loadACMeta() {
+  try {
+    const res = await fetch("data/atcoder-meta.json");
+    if (!res.ok) return;
+    state.acMeta = await res.json();
+  } catch (_) {}
+}
+
+function acDiffColor(diff) {
+  if (diff == null) return "var(--text-muted)";
+  if (diff < 400) return "#808080";
+  if (diff < 800) return "#804000";
+  if (diff < 1200) return "#008000";
+  if (diff < 1600) return "#00c0c0";
+  if (diff < 2000) return "#0000ff";
+  if (diff < 2400) return "#c0c000";
+  if (diff < 2800) return "#ff8000";
+  return "#ff0000";
+}
+
+function acDiffLabel(diff) {
+  if (diff == null) return "Unrated";
+  if (diff < 400) return "Gray";
+  if (diff < 800) return "Brown";
+  if (diff < 1200) return "Green";
+  if (diff < 1600) return "Teal";
+  if (diff < 2000) return "Blue";
+  if (diff < 2400) return "Yellow";
+  if (diff < 2800) return "Orange";
+  return "Red";
+}
+
+async function initAC() {
+  await loadACMeta();
+  const savedHandle = state.acUsername || localStorage.getItem("ac_username");
+  if (savedHandle && !state.acUsername) state.acUsername = savedHandle;
+  applyACFilters();
+  if (state.acUsername && !state.acUserInfo) {
+    try {
+      state.acUserInfo = { handle: state.acUsername };
+      const connectArea = document.getElementById("ac-connect-area");
+      const connectedArea = document.getElementById("ac-connected-area");
+      if (connectArea) connectArea.style.display = "none";
+      if (connectedArea) connectedArea.style.display = "";
+      renderACConnectedArea();
+      renderACStats();
+    } catch (_) {}
+  } else if (state.acUsername && state.acUserInfo) {
+    const connectArea = document.getElementById("ac-connect-area");
+    const connectedArea = document.getElementById("ac-connected-area");
+    if (connectArea) connectArea.style.display = "none";
+    if (connectedArea) connectedArea.style.display = "";
+    renderACConnectedArea();
+    renderACStats();
+  }
+}
+
+async function syncACUser() {
+  const handle = document.getElementById("ac-username-input")?.value.trim();
+  if (!handle) return;
+  const btn = document.getElementById("ac-sync-btn");
+  btn.textContent = "Syncing…";
+  btn.disabled = true;
+  try {
+    const res = await fetch(
+      `/.netlify/functions/ac-sync?user=${encodeURIComponent(handle)}`,
+    );
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    const submissions = Array.isArray(data) ? data : [];
+    if (!submissions.length && res.ok) {
+      // Valid user but no submissions yet — still treat as success
+    }
+
+    state.acUsername = handle;
+    state.acUserInfo = { handle };
+    localStorage.setItem("ac_username", handle);
+
+    const newSolved = {};
+    const newActivity = {};
+    submissions
+      .filter((s) => s.result === "AC")
+      .forEach((s) => {
+        const key = s.problem_id;
+        const d = dateStr(new Date(s.epoch_second * 1000));
+        if (!newSolved[key] || d < newSolved[key]) newSolved[key] = d;
+      });
+    Object.values(newSolved).forEach((d) => {
+      newActivity[d] = (newActivity[d] || 0) + 1;
+    });
+
+    state.acSolved = newSolved;
+    state.acActivity = newActivity;
+    saveProgress();
+    applyACFilters();
+    renderProfilePage();
+    showToast(
+      `✅ AtCoder synced! ${Object.keys(newSolved).length} problems solved.`,
+    );
+    document.getElementById("ac-connect-area").style.display = "none";
+    document.getElementById("ac-connected-area").style.display = "";
+    renderACConnectedArea();
+    renderACStats();
+  } catch (err) {
+    showToast(`❌ ${err.message}`, "error");
+  } finally {
+    btn.textContent = "Sync";
+    btn.disabled = false;
+  }
+}
+
+async function syncACSilent() {
+  if (!state.acUsername) return { ok: false };
+  try {
+    const res = await fetch(
+      `/.netlify/functions/ac-sync?user=${encodeURIComponent(state.acUsername)}`,
+    );
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    const submissions = Array.isArray(data) ? data : [];
+    const newSolved = {};
+    const newActivity = {};
+    submissions
+      .filter((s) => s.result === "AC")
+      .forEach((s) => {
+        const key = s.problem_id;
+        const d = dateStr(new Date(s.epoch_second * 1000));
+        if (!newSolved[key] || d < newSolved[key]) newSolved[key] = d;
+      });
+    Object.values(newSolved).forEach((d) => {
+      newActivity[d] = (newActivity[d] || 0) + 1;
+    });
+    state.acSolved = newSolved;
+    state.acActivity = newActivity;
+    saveProgress();
+    applyACFilters();
+    renderProfilePage();
+    renderACConnectedArea();
+    renderACStats();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+function renderACConnectedArea() {
+  const el = document.getElementById("ac-connected-area");
+  if (!el || !state.acUserInfo) return;
+  const handle = state.acUserInfo.handle;
+  el.innerHTML = `
+    <div class="cf-user-badge">
+      <span style="font-weight:700;color:var(--accent)">${handle}</span>
+      <span class="cf-rank-badge" style="color:var(--text-muted)">AtCoder</span>
+      <button class="btn-outline-danger" style="margin-left:auto;padding:4px 10px;font-size:11px" onclick="disconnectAC()">Disconnect</button>
+    </div>`;
+}
+
+function disconnectAC() {
+  state.acUsername = null;
+  state.acUserInfo = null;
+  state.acSolved = {};
+  state.acActivity = {};
+  localStorage.removeItem("ac_username");
+  saveProgress();
+  document.getElementById("ac-connect-area").style.display = "";
+  document.getElementById("ac-connected-area").style.display = "none";
+  document.getElementById("ac-connected-area").innerHTML = "";
+  applyACFilters();
+  renderProfilePage();
+}
+
+function applyACFilters() {
+  const { search, minDiff, maxDiff, status, starred, review } = state.acFilters;
+  const sq = search.toLowerCase();
+
+  state.acFiltered = Object.values(state.acMeta).filter((p) => {
+    if (p.difficulty != null) {
+      if (p.difficulty < minDiff || p.difficulty > maxDiff) return false;
+    } else {
+      if (minDiff > 0) return false;
+    }
+    if (
+      sq &&
+      !p.title.toLowerCase().includes(sq) &&
+      !p.id.toLowerCase().includes(sq)
+    )
+      return false;
+    const solved = !!state.acSolved[p.id];
+    if (status === "solved" && !solved) return false;
+    if (status === "unsolved" && solved) return false;
+    if (starred && !state.acBookmarks[p.id]) return false;
+    if (review) {
+      if (!solved) return false;
+      if (!isACReviewDue(p.id)) return false;
+    }
+    // Curated list filter
+    if (state.acCuratedList && !CURATED_LISTS[state.acCuratedList]?.has(p.id))
+      return false;
+    return true;
+  });
+
+  state.acFiltered.sort((a, b) => {
+    const aSolved = !!state.acSolved[a.id];
+    const bSolved = !!state.acSolved[b.id];
+    if (aSolved !== bSolved) return aSolved ? 1 : -1;
+    if (a.difficulty == null && b.difficulty == null) return 0;
+    if (a.difficulty == null) return 1;
+    if (b.difficulty == null) return -1;
+    return a.difficulty - b.difficulty;
+  });
+
+  state.acPage = 1;
+  renderACTable();
+  renderACStats();
+  updateACClearBtn();
+}
+
+function renderACStats() {
+  const allProblems = Object.values(state.acMeta);
+  const ratedTotal = allProblems.filter((p) => p.difficulty != null).length;
+  const solved = Object.keys(state.acSolved).length;
+  const el = document.getElementById("ac-stats-bar");
+  if (!el) return;
+  el.innerHTML = `
+    <div class="stat-item"><div class="stat-value">${ratedTotal.toLocaleString()}</div><div class="stat-label">Rated Problems</div></div>
+    <div class="stat-item"><div class="stat-value accent">${solved}</div><div class="stat-label">Solved</div></div>
+    <div class="stat-item"><div class="stat-value accent">${ratedTotal ? Math.round((solved / ratedTotal) * 100) : 0}%</div><div class="stat-label">Done</div></div>
+  `;
+}
+
+function renderACTable() {
+  const tbody = document.getElementById("ac-tbody");
+  if (!tbody) return;
+  const start = (state.acPage - 1) * ITEMS_PER_PAGE;
+  const page = state.acFiltered.slice(start, start + ITEMS_PER_PAGE);
+
+  if (!page.length) {
+    tbody.innerHTML = `<tr><td colspan="4" class="empty-state">No problems match your filters.</td></tr>`;
+    renderACPagination();
+    return;
+  }
+
+  tbody.innerHTML = page
+    .map((p) => {
+      const solved = !!state.acSolved[p.id];
+      const starred = !!state.acBookmarks[p.id];
+      const hasNote = !!state.acNotes[p.id];
+      const safeACTitle = escHtml(p.title).replace(/'/g, "&#39;");
+      const reviewDue = solved && isACReviewDue(p.id);
+      const solveDate = state.acSolved[p.id] || "";
+      const link = `https://atcoder.jp/contests/${p.contestId}/tasks/${p.id}`;
+      const contestLink = `https://atcoder.jp/contests/${p.contestId}`;
+      const diffColor = acDiffColor(p.difficulty);
+      const diffDisplay =
+        p.difficulty != null
+          ? `<span style="color:${diffColor};font-weight:600">${p.difficulty}</span>`
+          : `<span style="color:var(--text-muted);font-size:11px">Unrated</span>`;
+      const solvedCount = p.solvedCount
+        ? `${p.solvedCount >= 1000 ? (p.solvedCount / 1000).toFixed(1) + "k" : p.solvedCount}`
+        : "—";
+      return `<tr class="${solved ? "solved" : ""}">
+      <td class="col-status">
+        ${
+          solved
+            ? `<span class="solved-icon" title="Solved${solveDate ? " · " + solveDate : ""}">✓</span>`
+            : `<span class="unsolved-icon">○</span>`
+        }
+      </td>
+      <td class="col-title">
+        <div class="title-cell-content">
+          <button class="star-btn inline-star ${starred ? "starred" : ""}" onclick="toggleACBookmark('${p.id}')" title="Bookmark">${starred ? "★" : "☆"}</button>
+          <button class="note-btn-inline ${hasNote ? "has-note" : ""}" onclick="openACNoteModal('${p.id}', '${safeACTitle}')" title="${hasNote ? "Edit note" : "Add note"}">${hasNote ? "📝" : "✎"}</button>
+          <a href="${link}" target="_blank" rel="noopener" class="cf-problem-link">${p.title}</a>
+          ${reviewDue ? '<span class="review-badge-inline" title="Due for SM2 review">↺</span>' : ""}
+        </div>
+      </td>
+      <td class="col-diff">${diffDisplay}</td>
+      <td class="col-contest"><a href="${contestLink}" target="_blank" rel="noopener" class="cf-contest-link">${p.contestId.toUpperCase()}</a></td>
+    </tr>`;
+    })
+    .join("");
+
+  renderACPagination();
+}
+
+function renderACPagination() {
+  const el = document.getElementById("ac-pagination");
+  if (!el) return;
+  const total = Math.ceil(state.acFiltered.length / ITEMS_PER_PAGE);
+  if (total <= 1) {
+    el.innerHTML = "";
+    return;
+  }
+  const p = state.acPage;
+  const s = (p - 1) * ITEMS_PER_PAGE + 1;
+  const e = Math.min(p * ITEMS_PER_PAGE, state.acFiltered.length);
+  const startP = Math.max(1, p - 2);
+  const endP = Math.min(total, p + 2);
+  let html = `<button class="page-btn${p === 1 ? " disabled" : ""}" onclick="acGoPage(${p - 1})" ${p === 1 ? "disabled" : ""}>← Prev</button>`;
+  if (startP > 1) {
+    html += `<button class="page-btn" onclick="acGoPage(1)">1</button>`;
+    if (startP > 2) html += `<span class="page-ellipsis">…</span>`;
+  }
+  for (let i = startP; i <= endP; i++) {
+    html += `<button class="page-btn${i === p ? " page-btn--active" : ""}" onclick="acGoPage(${i})">${i}</button>`;
+  }
+  if (endP < total) {
+    if (endP < total - 1) html += `<span class="page-ellipsis">…</span>`;
+    html += `<button class="page-btn" onclick="acGoPage(${total})">${total}</button>`;
+  }
+  html += `<button class="page-btn${p === total ? " disabled" : ""}" onclick="acGoPage(${p + 1})" ${p === total ? "disabled" : ""}>Next →</button>`;
+  html += `<span class="page-info">${s}–${e} of ${state.acFiltered.length}</span>`;
+  el.innerHTML = `<div class="pagination-wrap">${html}</div>`;
+}
+
+function acGoPage(p) {
+  state.acPage = p;
+  renderACTable();
+}
+
+function toggleACBookmark(id) {
+  if (state.acBookmarks[id]) delete state.acBookmarks[id];
+  else state.acBookmarks[id] = true;
+  saveProgress();
+  renderACTable();
+}
+
+function isACReviewDue(id) {
+  const nd = state.acReviewData[id]?.nextReviewDate;
+  return nd ? nd <= dateStr(new Date()) : false;
+}
+
+function setACSearch(val) {
+  state.acFilters.search = val;
+  applyACFilters();
+  updateACClearBtn();
+}
+
+function setACStatusFilter(val) {
+  state.acFilters.status = val;
+  applyACFilters();
+  updateACClearBtn();
+}
+
+function toggleACStarredFilter() {
+  state.acFilters.starred = !state.acFilters.starred;
+  document
+    .getElementById("ac-filter-starred-btn")
+    ?.classList.toggle("active", state.acFilters.starred);
+  applyACFilters();
+  updateACClearBtn();
+}
+
+function toggleACReviewFilter() {
+  state.acFilters.review = !state.acFilters.review;
+  document
+    .getElementById("ac-filter-review-btn")
+    ?.classList.toggle("active", state.acFilters.review);
+  applyACFilters();
+  updateACClearBtn();
+}
+
+function setACDiffFilter(which, val) {
+  const v = parseInt(val);
+  if (which === "min") state.acFilters.minDiff = v;
+  else state.acFilters.maxDiff = v;
+  applyACFilters();
+  updateACClearBtn();
+}
+
+function updateACClearBtn() {
+  const btn = document.getElementById("ac-clear-filters");
+  if (!btn) return;
+  const f = state.acFilters;
+  const dirty =
+    f.search ||
+    f.status !== "all" ||
+    f.minDiff !== 0 ||
+    f.maxDiff !== 4000 ||
+    f.starred ||
+    f.review;
+  btn.style.display = dirty ? "" : "none";
+}
+
+function clearACFilters() {
+  state.acFilters = {
+    search: "",
+    minDiff: 0,
+    maxDiff: 4000,
+    status: "all",
+    starred: false,
+    review: false,
+  };
+  const searchEl = document.getElementById("ac-search-input");
+  if (searchEl) searchEl.value = "";
+  const statusSel = document.getElementById("ac-status-select");
+  if (statusSel) statusSel.value = "all";
+  document.getElementById("ac-filter-starred-btn")?.classList.remove("active");
+  document.getElementById("ac-filter-review-btn")?.classList.remove("active");
+  applyACFilters();
+  updateACClearBtn();
+}
+
+function exportACProgress() {
+  const data = {
+    exportedAt: new Date().toISOString(),
+    acSolved: state.acSolved,
+    acActivity: state.acActivity,
+    acUsername: state.acUsername || null,
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {
+    type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `algotrack-ac-backup-${dateStr(new Date())}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+
+// ─── Export Filtered CSV ──────────────────────────────────────────────────────
+function downloadCSV(rows, filename) {
+  const blob = new Blob([rows.map(r => r.join(",")).join("\n")], {type: "text/csv"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function exportLCFilteredCSV() {
+  const rows = [["ID","Title","Difficulty","Companies","Solved","SolveDate"]];
+  state.filtered.forEach(q => {
+    rows.push([q.id, `"${(q.title||"").replace(/"/g,'""')}"`, q.difficulty,
+      `"${(q.companies||[]).join(";")}"`,
+      state.solved[q.id] ? "Yes" : "No", state.solved[q.id] || ""]);
+  });
+  downloadCSV(rows, `algotrack-lc-filtered-${dateStr(new Date())}.csv`);
+}
+function exportCFFilteredCSV() {
+  const rows = [["Contest","Index","Name","Rating","Tags","Solved","SolveDate"]];
+  state.cfFiltered.forEach(p => {
+    const key = cfProblemKey(p.contestId, p.index);
+    rows.push([p.contestId, p.index, `"${(p.name||"").replace(/"/g,'""')}"`,
+      p.rating || "", `"${(p.tags||[]).join(";")}"`,
+      state.cfSolved[key] ? "Yes" : "No", state.cfSolved[key] || ""]);
+  });
+  downloadCSV(rows, `algotrack-cf-filtered-${dateStr(new Date())}.csv`);
+}
+function exportACFilteredCSV() {
+  const rows = [["ID","Title","Difficulty","Contest","Solved","SolveDate"]];
+  state.acFiltered.forEach(p => {
+    rows.push([p.id, `"${(p.title||"").replace(/"/g,'""')}"`,
+      p.difficulty ?? "", p.contestId,
+      state.acSolved[p.id] ? "Yes" : "No", state.acSolved[p.id] || ""]);
+  });
+  downloadCSV(rows, `algotrack-ac-filtered-${dateStr(new Date())}.csv`);
+}
+
+function renderProfileAC() {
+  const acBadge = document.getElementById("profile-ac-badge");
+  if (acBadge) {
+    if (state.acUserInfo) {
+      const handle = state.acUserInfo.handle;
+      const acAvatar = `<img src="https://ui-avatars.com/api/?name=${encodeURIComponent(handle)}&size=56&background=4f46e5&color=fff&rounded=true" style="width:24px;height:24px;border-radius:50%;object-fit:cover;margin-right:6px;vertical-align:middle">`;
+      acBadge.innerHTML = `${acAvatar}<span class="lc-dot" style="background:var(--accent)"></span> AtCoder: <a href="https://atcoder.jp/users/${handle}" target="_blank">@${handle}</a> <button class="lc-disconnect-btn" onclick="disconnectAC()">Disconnect</button>`;
+    } else {
+      acBadge.innerHTML = `<button class="btn-lc-connect" onclick="switchPlatform('ac'); showPage('tracker')">+ Connect AtCoder</button>`;
+    }
+  }
+  renderProfileACStats();
+  renderProfileACDiffDist();
+  renderACRecentSolves();
+}
+
+function renderProfileACStats() {
+  const el = document.getElementById("profile-ac-stats");
+  if (!el) return;
+  const solved = Object.keys(state.acSolved).length;
+  const total = Object.values(state.acMeta).filter(
+    (p) => p.difficulty != null,
+  ).length;
+  const pct = total ? Math.round((solved / total) * 100) : 0;
+  const streak = calcStreaks().current;
+  el.innerHTML = `
+    <div class="cf-profile-stats">
+      <div class="cf-profile-stat"><div class="cf-profile-stat-val accent">${solved}</div><div class="cf-profile-stat-label">Solved</div></div>
+      <div class="cf-profile-stat"><div class="cf-profile-stat-val">${total.toLocaleString()}</div><div class="cf-profile-stat-label">Rated Total</div></div>
+      <div class="cf-profile-stat"><div class="cf-profile-stat-val accent">${pct}%</div><div class="cf-profile-stat-label">Done</div></div>
+      <div class="cf-profile-stat"><div class="cf-profile-stat-val streak-text">${streak}🔥</div><div class="cf-profile-stat-label">Day Streak</div></div>
+    </div>`;
+}
+
+function renderProfileACDiffDist() {
+  const el = document.getElementById("profile-ac-diff-dist");
+  if (!el) return;
+  const bands = [
+    { label: "0–399 (Gray)", min: 0, max: 399, color: "#808080" },
+    { label: "400–799 (Brown)", min: 400, max: 799, color: "#804000" },
+    { label: "800–1199 (Green)", min: 800, max: 1199, color: "#008000" },
+    { label: "1200–1599 (Teal)", min: 1200, max: 1599, color: "#00c0c0" },
+    { label: "1600–1999 (Blue)", min: 1600, max: 1999, color: "#0000ff" },
+    { label: "2000–2399 (Yel.)", min: 2000, max: 2399, color: "#c0c000" },
+    { label: "2400–2799 (Org.)", min: 2400, max: 2799, color: "#ff8000" },
+    { label: "2800+ (Red)", min: 2800, max: Infinity, color: "#ff0000" },
+  ];
+  const data = bands
+    .map((b) => {
+      const total = Object.values(state.acMeta).filter(
+        (p) =>
+          p.difficulty != null &&
+          p.difficulty >= b.min &&
+          p.difficulty <= b.max,
+      ).length;
+      const solved = Object.values(state.acMeta).filter((p) => {
+        if (
+          p.difficulty == null ||
+          p.difficulty < b.min ||
+          p.difficulty > b.max
+        )
+          return false;
+        return !!state.acSolved[p.id];
+      }).length;
+      return { ...b, total, solved };
+    })
+    .filter((b) => b.total > 0);
+  el.innerHTML = data
+    .map((r) => {
+      const pct = r.total ? Math.round((r.solved / r.total) * 100) : 0;
+      return `<div class="solve-row">
+      <div class="solve-row-top">
+        <span style="color:${r.color}">${r.label}</span>
+        <span class="solve-nums">${r.solved} / ${r.total}</span>
+        <span class="solve-pct">${pct}%</span>
+      </div>
+      <div class="solve-bar-bg"><div class="solve-bar-fill" style="width:${pct}%;background:${r.color}"></div></div>
+    </div>`;
+    })
+    .join("");
+}
+
+function renderACRecentSolves() {
+  const el = document.getElementById("ac-recent-solves");
+  if (!el) return;
+  const recent = Object.entries(state.acSolved)
+    .map(([id, date]) => ({ id, date }))
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 10);
+  if (!recent.length) {
+    el.innerHTML = `<div class="empty-recent">No solves yet. Connect AtCoder and hit Sync! 🚀</div>`;
+    return;
+  }
+  el.innerHTML = recent
+    .map(({ id, date }) => {
+      const p = state.acMeta[id];
+      if (!p) return "";
+      const link = `https://atcoder.jp/contests/${p.contestId}/tasks/${id}`;
+      const diffColor = acDiffColor(p.difficulty);
+      return `<div class="recent-item">
+      <span style="background:${diffColor};width:6px;height:6px;border-radius:50%;display:inline-block;flex-shrink:0;margin-top:3px"></span>
+      <div class="recent-title-wrap"><a href="${link}" target="_blank" class="recent-title">${p.title}</a></div>
+      <span class="recent-date">${formatDate(date)}</span>
+      ${p.difficulty != null ? `<span style="font-size:11px;color:${diffColor};font-weight:600">${p.difficulty}</span>` : ""}
+    </div>`;
+    })
+    .join("");
+}
+
+function renderACInsights() {
+  renderACInsightsRibbon();
+  renderACInsightsDiffDist();
+  renderACInsightsSolveRate();
+  renderACInsightsWeekly();
+}
+
+function renderACInsightsRibbon() {
+  const el = document.getElementById("ac-insights-ribbon");
+  if (!el) return;
+  const allProblems = Object.values(state.acMeta);
+  const ratedTotal = allProblems.filter((p) => p.difficulty != null).length;
+  const solved = Object.keys(state.acSolved).length;
+  const pct = ratedTotal ? Math.round((solved / ratedTotal) * 100) : 0;
+  const { current } = calcStreaks();
+  const starred = Object.keys(state.acBookmarks).length;
+  const reviewDue = Object.keys(state.acSolved).filter((id) =>
+    isACReviewDue(id),
+  ).length;
+  el.innerHTML = `
+    <div class="ribbon-item"><div class="ribbon-val">${ratedTotal.toLocaleString()}</div><div class="ribbon-label">Rated Problems</div></div>
+    <div class="ribbon-item"><div class="ribbon-val accent-text">${solved}</div><div class="ribbon-label">Solved</div></div>
+    <div class="ribbon-item"><div class="ribbon-val">${pct}%</div><div class="ribbon-label">Completion</div></div>
+    <div class="ribbon-item"><div class="ribbon-val streak-text">${current}🔥</div><div class="ribbon-label">Day Streak</div></div>
+    <div class="ribbon-item"><div class="ribbon-val" style="color:var(--accent)">★ ${starred}</div><div class="ribbon-label">Bookmarked</div></div>
+    ${reviewDue > 0 ? `<div class="ribbon-item" style="cursor:pointer" onclick="switchPlatform('ac'); showPage('tracker'); state.acFilters.review=true; document.getElementById('ac-filter-review-btn').classList.add('active'); applyACFilters()"><div class="ribbon-val" style="color:var(--yellow)">↺ ${reviewDue}</div><div class="ribbon-label">Due Review</div></div>` : ""}
+  `;
+}
+
+function renderACInsightsDiffDist() {
+  const el = document.getElementById("ac-insights-rating-chart");
+  if (!el) return;
+  const bands = [
+    { label: "0–399", min: 0, max: 399, color: "#808080" },
+    { label: "400–799", min: 400, max: 799, color: "#804000" },
+    { label: "800–1199", min: 800, max: 1199, color: "#008000" },
+    { label: "1200–1599", min: 1200, max: 1599, color: "#00c0c0" },
+    { label: "1600–1999", min: 1600, max: 1999, color: "#0000ff" },
+    { label: "2000–2399", min: 2000, max: 2399, color: "#c0c000" },
+    { label: "2400–2799", min: 2400, max: 2799, color: "#ff8000" },
+    { label: "2800+", min: 2800, max: Infinity, color: "#ff0000" },
+  ];
+  const data = bands
+    .map((b) => {
+      const total = Object.values(state.acMeta).filter(
+        (p) =>
+          p.difficulty != null &&
+          p.difficulty >= b.min &&
+          p.difficulty <= b.max,
+      ).length;
+      const solved = Object.values(state.acMeta).filter((p) => {
+        if (
+          p.difficulty == null ||
+          p.difficulty < b.min ||
+          p.difficulty > b.max
+        )
+          return false;
+        return !!state.acSolved[p.id];
+      }).length;
+      return { ...b, total, solved };
+    })
+    .filter((b) => b.total > 0);
+  const maxTotal = Math.max(...data.map((d) => d.total), 1);
+  el.innerHTML = `<div class="cf-rating-chart">${data
+    .map((r) => {
+      const totalH = Math.round((r.total / maxTotal) * 100);
+      const solvedH = r.total ? Math.round((r.solved / r.total) * totalH) : 0;
+      return `<div class="cf-rating-col">
+      <div class="cf-rating-bars">
+        <div class="cf-bar-total" style="height:${totalH}%"></div>
+        <div class="cf-bar-solved" style="height:${solvedH}%;background:${r.color}"></div>
+      </div>
+      <div class="cf-rating-label" style="color:${r.color}">${r.label}</div>
+    </div>`;
+    })
+    .join("")}</div>`;
+}
+
+function renderACInsightsSolveRate() {
+  const el = document.getElementById("ac-insights-solve-rate");
+  if (!el) return;
+  const bands = [
+    { label: "0–399", min: 0, max: 399, color: "#808080" },
+    { label: "400–799", min: 400, max: 799, color: "#804000" },
+    { label: "800–1199", min: 800, max: 1199, color: "#008000" },
+    { label: "1200–1599", min: 1200, max: 1599, color: "#00c0c0" },
+    { label: "1600–1999", min: 1600, max: 1999, color: "#0000ff" },
+    { label: "2000–2399", min: 2000, max: 2399, color: "#c0c000" },
+    { label: "2400+", min: 2400, max: Infinity, color: "#ff8000" },
+  ];
+  const data = bands
+    .map((b) => {
+      const total = Object.values(state.acMeta).filter(
+        (p) =>
+          p.difficulty != null &&
+          p.difficulty >= b.min &&
+          p.difficulty <= b.max,
+      ).length;
+      const solved = Object.values(state.acMeta).filter((p) => {
+        if (
+          p.difficulty == null ||
+          p.difficulty < b.min ||
+          p.difficulty > b.max
+        )
+          return false;
+        return !!state.acSolved[p.id];
+      }).length;
+      return { ...b, total, solved };
+    })
+    .filter((b) => b.total > 0);
+  const totalSolved = data.reduce((s, r) => s + r.solved, 0);
+  el.innerHTML = `
+    <div class="solve-overall"><div class="solve-overall-num accent-text">${totalSolved} <span>solved</span></div><div class="solve-overall-label">Total AC problems solved</div></div>
+    ${data
+      .map((r) => {
+        const pct = r.total ? Math.round((r.solved / r.total) * 100) : 0;
+        return `<div class="solve-row">
+        <div class="solve-row-top">
+          <span style="color:${r.color}">${r.label}</span>
+          <span class="solve-nums">${r.solved} / ${r.total}</span>
+          <span class="solve-pct">${pct}%</span>
+        </div>
+        <div class="solve-bar-bg"><div class="solve-bar-fill" style="width:${pct}%;background:${r.color}"></div></div>
+      </div>`;
+      })
+      .join("")}`;
+}
+
+function renderACInsightsWeekly() {
+  const el = document.getElementById("ac-insights-weekly");
+  if (!el) return;
+  const NUM_WEEKS = 12;
+  const weeks = [];
+  const today = new Date();
+  for (let w = NUM_WEEKS - 1; w >= 0; w--) {
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - today.getDay() - w * 7);
+    weekStart.setHours(0, 0, 0, 0);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+    let count = 0;
+    for (const date of Object.values(state.acSolved)) {
+      const d = new Date(date);
+      if (d >= weekStart && d <= weekEnd) count++;
+    }
+    weeks.push({
+      label: weekStart.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      }),
+      count,
+    });
+  }
+  const maxCount = Math.max(...weeks.map((w) => w.count), 1);
+  el.innerHTML = `<div class="weekly-chart-wrap"><div class="weekly-bars">
+    ${weeks
+      .map((w) => {
+        const h = Math.round((w.count / maxCount) * 100);
+        return `<div class="weekly-col">
+        <div class="weekly-count">${w.count || ""}</div>
+        <div class="weekly-bar-wrap">${h ? `<div style="height:${h}%;background:var(--accent);min-height:2px;border-radius:2px 2px 0 0"></div>` : ""}</div>
+        <div class="weekly-label">${w.label}</div>
+      </div>`;
+      })
+      .join("")}
+  </div></div>`;
+}
+
+function pickRandomAC(content) {
+  const pool =
+    state.acFiltered.length > 0
+      ? state.acFiltered
+      : Object.values(state.acMeta);
+  if (!pool.length) {
+    content.innerHTML = `<div class="random-empty">No AC problems loaded! Connect AtCoder first.</div>`;
+    return;
+  }
+  const unsolved = pool.filter((p) => !state.acSolved[p.id]);
+  const source = unsolved.length > 0 ? unsolved : pool;
+  const p = source[Math.floor(Math.random() * source.length)];
+  const solved = !!state.acSolved[p.id];
+  const link = `https://atcoder.jp/contests/${p.contestId}/tasks/${p.id}`;
+  const diffColor = acDiffColor(p.difficulty);
+  content.innerHTML = `
+    <div class="random-problem-card">
+      <div class="random-problem-meta">
+        ${
+          p.difficulty != null
+            ? `<span style="font-weight:700;color:${diffColor}">${p.difficulty} · ${acDiffLabel(p.difficulty)}</span>`
+            : `<span style="color:var(--text-muted)">Unrated</span>`
+        }
+        <span class="random-problem-id">${p.id}</span>
+        ${solved ? '<span class="random-solved-badge">✓ Solved</span>' : ""}
+      </div>
+      <div class="random-problem-title">${p.title}</div>
+      ${p.solvedCount ? `<div style="font-size:11px;color:var(--text-muted);margin-top:4px">Solved by ${p.solvedCount >= 1000 ? (p.solvedCount / 1000).toFixed(1) + "k" : p.solvedCount} users</div>` : ""}
+      <a href="${link}" target="_blank" class="btn-primary random-open-btn">Open on AtCoder →</a>
+    </div>`;
+}
+
 // ─── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
   initTheme();
 
-  // Handle GitHub OAuth callback token in URL
-  const params = new URLSearchParams(window.location.search);
-  const oauthToken = params.get("token");
-  if (oauthToken) {
-    localStorage.setItem("gh_token", oauthToken);
-    window.history.replaceState(
-      {},
-      "",
-      window.location.pathname + window.location.hash,
-    );
+  const sb = getSupabase();
+
+  // Restore local progress immediately so UI is populated before network
+  loadLocalProgress();
+
+  // Resolve Supabase session (handles OAuth redirect automatically)
+  const {
+    data: { session },
+  } = await sb.auth.getSession();
+  if (session) {
+    state.user = session.user;
+    // Remote data wins over local cache — merge on top
+    await loadProgressFromSupabase();
   }
 
-  state.token = oauthToken || localStorage.getItem("gh_token");
-
-  if (state.token) {
-    try {
-      state.user = await fetchGitHubUser(state.token);
-      await loadProgressFromGist();
-    } catch (_) {
-      state.token = null;
-      localStorage.removeItem("gh_token");
+  // Listen for future auth changes (login / logout / token refresh)
+  sb.auth.onAuthStateChange(async (_event, session) => {
+    if (session) {
+      state.user = session.user;
+      await loadProgressFromSupabase();
+      renderAuthArea();
+      renderProfilePage();
+    } else {
+      state.user = null;
+      state.lcUsername = null;
+      state.cfUsername = null;
+      state.acUsername = null;
+      state.solved = {};
+      state.activity = {};
+      state.bookmarks = {};
+      state.notes = {};
+      state.reviewData = {};
+      state.cfSolved = {};
+      state.cfActivity = {};
+      state.cfBookmarks = {};
+      state.cfNotes = {};
+      state.cfReviewData = {};
+      state.cfUserInfo = null;
+      state.acSolved = {};
+      state.acActivity = {};
+      state.acBookmarks = {};
+      state.acNotes = {};
+      state.acReviewData = {};
+      state.acUserInfo = null;
+      localStorage.removeItem("leet_local");
+      localStorage.removeItem("lc_last_sync");
+      localStorage.removeItem("cf_rivals");
+      localStorage.removeItem("ac_rivals");
     }
-  } else {
-    loadLocalProgress();
-    // restore LC username from localStorage for non-GitHub users too
-    const savedLC = localStorage.getItem("lc_username");
-    if (savedLC) state.lcUsername = savedLC;
-  }
-
-  // Also restore LC username from localStorage if not already set from gist
-  if (!state.lcUsername) {
-    const savedLC = localStorage.getItem("lc_username");
-    if (savedLC) state.lcUsername = savedLC;
-  }
+    renderAuthArea();
+  });
 
   renderAuthArea();
 
-  await Promise.all([loadAllCSVs(), loadMetadata(), initCF()]);
+  // loadAllCSVs() internally calls loadMetadata() — no need to call it separately
+  await Promise.all([loadAllCSVs(), initCF(), initAC()]);
 
   document.getElementById("loading").style.display = "none";
   document.getElementById("main-content").style.display = "block";
+
+  if (state.lcUsername) {
+    fetchLCUserInfo();
+    setTimeout(() => syncLeetCode(true), 8000);
+  }
 
   // Event listeners
   document
@@ -3687,12 +4926,2276 @@ async function init() {
   // Show sync banner if logged in but LC not connected
   renderSyncBanner();
 
-  // Auto-sync on load if LC username exists (silent)
-  if (state.lcUsername) {
-    setTimeout(() => syncLeetCode(true), 1500);
-  }
-
   setTimeout(checkOnboarding, 800);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// CONTESTS PAGE
+// Paste this entire block at the very bottom of app.js (before the last line)
+// Also add "contests" to the PAGES array at the top:
+//   const PAGES = ["tracker", "profile", "insights", "contests"];
+// And add to showPage() switch: if (name === "contests") initContestsPage();
+// And add keyboard shortcut: case "4": showPage("contests"); break;
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── Contests State ────────────────────────────────────────────────────────────
+const contestsState = {
+  cfContests: [], // all CF contests from API
+  cfContestHistory: [], // user.rating history for connected user
+  cfHistoryFiltered: [], // after search/filter
+  cfHistoryPage: 1,
+  cfPastVisible: 10, // how many past contests to show
+  cfLoaded: false,
+  cfHistoryLoaded: false,
+  cfParticipatedOnly: false,
+
+  acContests: [], // all AC contests from kenkoooo
+  acContestHistory: [], // user history
+  acHistoryFiltered: [],
+  acHistoryPage: 1,
+  acPastVisible: 10,
+  acLoaded: false,
+  acHistoryLoaded: false,
+  acParticipatedOnly: false,
+
+  activePlatform: "cf",
+
+  cfRivals: [],
+  cfRivalsLoaded: false,
+  acRivals: [],
+  acRivalsLoaded: false,
+  navBadgeTimer: null,
+};
+
+const CONTESTS_HISTORY_PER_PAGE = 15;
+
+// ─── Page Entry Point ─────────────────────────────────────────────────────────
+function initContestsPage() {
+  const plat = contestsState.activePlatform || "cf";
+  renderContestsPlatformTabs(plat);
+  if (plat === "cf") initCFContestsSection();
+  else initACContestsSection();
+}
+
+function switchContestPlatform(plat) {
+  contestsState.activePlatform = plat;
+  renderContestsPlatformTabs(plat);
+  document.getElementById("contests-cf-section").style.display =
+    plat === "cf" ? "" : "none";
+  document.getElementById("contests-ac-section").style.display =
+    plat === "ac" ? "" : "none";
+  if (plat === "cf") initCFContestsSection();
+  else initACContestsSection();
+  window.location.hash = `contests/${plat}`;
+}
+
+function renderContestsPlatformTabs(plat) {
+  document.getElementById("ctab-cf")?.classList.toggle("active", plat === "cf");
+  document.getElementById("ctab-ac")?.classList.toggle("active", plat === "ac");
+}
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
+function fmtDuration(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+function fmtContestDate(epochSeconds) {
+  return new Date(epochSeconds * 1000).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function fmtRelativeTime(epochSeconds) {
+  const diff = epochSeconds * 1000 - Date.now();
+  const abs = Math.abs(diff);
+  const sign = diff < 0 ? "ago" : "in";
+  if (abs < 60000) return "just now";
+  if (abs < 3600000)
+    return `${sign === "in" ? "in " : ""}${Math.round(abs / 60000)}m ${sign === "ago" ? " ago" : ""}`.trim();
+  if (abs < 86400000)
+    return `${sign === "in" ? "in " : ""}${Math.round(abs / 3600000)}h ${sign === "ago" ? " ago" : ""}`.trim();
+  return `${sign === "in" ? "in " : ""}${Math.round(abs / 86400000)}d ${sign === "ago" ? " ago" : ""}`.trim();
+}
+
+function cfContestDivLabel(name) {
+  if (/div\.?\s*1[^234]/i.test(name)) return { text: "Div. 1", cls: "div1" };
+  if (/div\.?\s*2/i.test(name)) return { text: "Div. 2", cls: "div2" };
+  if (/div\.?\s*3/i.test(name)) return { text: "Div. 3", cls: "div3" };
+  if (/div\.?\s*4/i.test(name)) return { text: "Div. 4", cls: "div4" };
+  if (/educational/i.test(name)) return { text: "Educational", cls: "edu" };
+  if (/global/i.test(name)) return { text: "Global", cls: "global" };
+  return null;
+}
+
+function acContestCategory(id) {
+  if (/^abc\d/i.test(id))
+    return { text: "ABC", cls: "abc", fullName: "AtCoder Beginner Contest" };
+  if (/^arc\d/i.test(id))
+    return { text: "ARC", cls: "arc", fullName: "AtCoder Regular Contest" };
+  if (/^agc\d/i.test(id))
+    return { text: "AGC", cls: "agc", fullName: "AtCoder Grand Contest" };
+  if (/^ahc\d/i.test(id))
+    return { text: "AHC", cls: "ahc", fullName: "AtCoder Heuristic Contest" };
+  return { text: "Other", cls: "ac-other", fullName: "Contest" };
+}
+
+// ─── Rating delta badge ──────────────────────────────────────────────────────
+function ratingDeltaBadge(delta) {
+  if (delta == null) return "";
+  const sign = delta > 0 ? "+" : "";
+  const cls = delta > 0 ? "delta-up" : delta < 0 ? "delta-down" : "delta-zero";
+  return `<span class="rating-delta ${cls}">${sign}${delta}</span>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── CODEFORCES CONTESTS ──────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function initCFContestsSection() {
+  // Show/hide user panel based on connection
+  const hasUser = !!state.cfUserInfo;
+  document.getElementById("cf-contest-user-panel").style.display = hasUser
+    ? ""
+    : "none";
+  document.getElementById("cf-contest-no-user").style.display = hasUser
+    ? "none"
+    : "";
+
+  if (hasUser) {
+    document.getElementById("cf-contests-user-tag").textContent =
+      `@${state.cfUserInfo.handle} · ${cfRatingLabel(state.cfUserInfo.rating)} ${state.cfUserInfo.rating || "Unrated"}`;
+    if (!contestsState.cfHistoryLoaded) {
+      await loadCFContestHistory();
+    } else {
+      renderCFContestHistory();
+      renderCFRatingGraph();
+      renderCFContestRibbon();
+      renderCFBestContests();
+      renderCFRankDistribution();
+      renderCFImprovementTips();
+      renderCFPersonalRecords();
+      initCFUpsolver();
+      initCFRatingPredictor();
+      initCFRivals();
+      loadSavedCFRivals();
+    }
+  }
+
+  if (!contestsState.cfLoaded) {
+    await loadCFContests();
+  } else {
+    renderCFContestLists();
+  }
+}
+
+async function loadCFContests(force = false) {
+  if (contestsState.cfLoaded && !force) return;
+  setContestLoadingState("cf-upcoming-contests", true);
+  setContestLoadingState("cf-past-contests", true);
+  try {
+    const res = await fetch("/api/contests-proxy?platform=cf");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    contestsState.cfContests = await res.json();
+    contestsState.cfLoaded = true;
+    renderCFContestLists();
+    initNavContestBadge();
+    initCFRecommender();
+  } catch (err) {
+    setContestError(
+      "cf-upcoming-contests",
+      `Failed to load contests: ${err.message}`,
+    );
+    setContestError("cf-past-contests", "");
+  }
+}
+
+async function loadCFContestHistory() {
+  if (!state.cfUsername) return;
+  const btn = document.getElementById("cf-contest-user-panel");
+  try {
+    const res = await fetch(
+      `/api/contests-proxy?platform=cf-history&handle=${encodeURIComponent(state.cfUsername)}`,
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    contestsState.cfContestHistory = await res.json(); // array of rating changes
+    contestsState.cfHistoryFiltered = [
+      ...contestsState.cfContestHistory,
+    ].reverse(); // newest first
+    contestsState.cfHistoryLoaded = true;
+    renderCFContestHistory();
+    renderCFRatingGraph();
+    renderCFContestRibbon();
+    renderCFBestContests();
+    renderCFRankDistribution();
+    renderCFImprovementTips();
+    renderCFPersonalRecords();
+    initCFUpsolver();
+    initCFRatingPredictor();
+    initCFRivals();
+    loadSavedCFRivals();
+  } catch (err) {
+    console.warn("[contests] CF history load failed:", err.message);
+  }
+}
+
+function renderCFContestLists() {
+  const now = Math.floor(Date.now() / 1000);
+  const upcoming = contestsState.cfContests
+    .filter((c) => c.startTimeSeconds > now)
+    .sort((a, b) => a.startTimeSeconds - b.startTimeSeconds);
+  const live = contestsState.cfContests.filter((c) => c.phase === "CODING");
+  const past = contestsState.cfContests
+    .filter((c) => c.phase === "FINISHED")
+    .sort((a, b) => b.startTimeSeconds - a.startTimeSeconds);
+
+  // Live
+  const liveSection = document.getElementById("cf-live-section");
+  if (live.length) {
+    liveSection.style.display = "";
+    document.getElementById("cf-live-contests").innerHTML = live
+      .map((c) => renderCFContestCard(c, "live"))
+      .join("");
+  } else {
+    liveSection.style.display = "none";
+  }
+
+  // Upcoming
+  const upcomingEl = document.getElementById("cf-upcoming-contests");
+  if (upcoming.length) {
+    upcomingEl.innerHTML = upcoming
+      .slice(0, 20)
+      .map((c) => renderCFContestCard(c, "upcoming"))
+      .join("");
+  } else {
+    upcomingEl.innerHTML = `<div class="contests-empty">No upcoming contests scheduled right now. Check back soon!</div>`;
+  }
+
+  const pastEl = document.getElementById("cf-past-contests");
+  let pastFiltered = past;
+  if (contestsState.cfParticipatedOnly) {
+    if (!state.cfUsername) {
+      pastFiltered = [];
+    } else if (contestsState.cfContestHistory.length) {
+      const ids = new Set(
+        contestsState.cfContestHistory.map((h) => h.contestId),
+      );
+      pastFiltered = past.filter((c) => ids.has(c.id));
+    } else if (!contestsState.cfHistoryLoaded) {
+      // still loading — show spinner, don't show all 2103
+      pastEl.innerHTML = `<div class="contests-empty">Loading your contest history…</div>`;
+      document.getElementById("cf-past-count").textContent = "loading…";
+      document.getElementById("cf-past-more-btn").style.display = "none";
+      return;
+    } else {
+      // loaded but empty — genuinely 0 participations
+      pastFiltered = [];
+    }
+  }
+  const toShow = pastFiltered.slice(0, contestsState.cfPastVisible);
+  pastEl.innerHTML = toShow.length
+    ? toShow.map((c) => renderCFContestCard(c, "past")).join("")
+    : `<div class="contests-empty">${contestsState.cfParticipatedOnly ? "No participated contests found." : "No past contests."}</div>`;
+  document.getElementById("cf-past-count").textContent =
+    contestsState.cfParticipatedOnly
+      ? `${pastFiltered.length} participated`
+      : `${past.length} total`;
+  const moreBtn = document.getElementById("cf-past-more-btn");
+  moreBtn.style.display =
+    pastFiltered.length > contestsState.cfPastVisible ? "" : "none";
+}
+
+function showMoreCFPast() {
+  contestsState.cfPastVisible += 20;
+  renderCFContestLists();
+}
+
+function renderCFContestCard(c, type) {
+  const now = Math.floor(Date.now() / 1000);
+  const div = cfContestDivLabel(c.name);
+  const link = `https://codeforces.com/contest/${c.id}`;
+  const startMs = c.startTimeSeconds;
+  const durStr = fmtDuration(c.durationSeconds);
+
+  let timeInfo = "";
+  if (type === "upcoming") {
+    timeInfo = `<span class="contest-time-badge upcoming-badge">Starts ${fmtRelativeTime(startMs)} · ${fmtContestDate(startMs)}</span>`;
+  } else if (type === "live") {
+    const endEpoch = startMs + c.durationSeconds;
+    timeInfo = `<span class="contest-time-badge live-badge">🔴 Ends ${fmtRelativeTime(endEpoch)}</span>`;
+  } else {
+    timeInfo = `<span class="contest-time-badge past-badge">${fmtContestDate(startMs)}</span>`;
+  }
+
+  // Participation badge — works for past/live/upcoming (e.g. re-listed past rounds)
+  let userResult = "";
+  if (contestsState.cfContestHistory.length) {
+    const entry = contestsState.cfContestHistory.find(
+      (h) => h.contestId === c.id,
+    );
+    if (entry) {
+      if (type === "past") {
+        const delta = entry.newRating - entry.oldRating;
+        userResult = `<div class="contest-user-result">
+          <span class="contest-participated-tag">✓ Participated</span>
+          <span class="contest-rank-pill">Rank #${entry.rank}</span>
+          ${ratingDeltaBadge(delta)}
+          <span class="contest-rating-after">${entry.newRating}</span>
+        </div>`;
+      } else {
+        userResult = `<div class="contest-user-result">
+          <span class="contest-participated-tag">✓ Participated</span>
+        </div>`;
+      }
+    }
+  }
+
+  const clickable =
+    type === "past"
+      ? `onclick="openCFContestDetail(${c.id})" style="cursor:pointer"`
+      : "";
+  return `<div class="contest-card ${type}-card" ${clickable}>
+    <div class="contest-card-top">
+      <div class="contest-card-name-row">
+        ${div ? `<span class="contest-div-badge ${div.cls}">${div.text}</span>` : ""}
+        <a href="${link}" target="_blank" class="contest-name">${c.name}</a>
+      </div>
+      <span class="contest-duration">${durStr}</span>
+    </div>
+    <div class="contest-card-bottom">
+      ${timeInfo}
+      ${userResult}
+      <a href="${link}" target="_blank" class="contest-open-btn" onclick="event.stopPropagation()">Open →</a>
+      ${type === "upcoming" ? `<a href="https://codeforces.com/contest/${c.id}/register" target="_blank" class="contest-register-btn" onclick="event.stopPropagation()">Register</a>` : ""}
+    </div>
+  </div>`;
+}
+
+// ─── CF Contest History Table ─────────────────────────────────────────────────
+function filterCFContestHistory(search) {
+  const q = (search || "").toLowerCase();
+  const resultFilter =
+    document.getElementById("cf-contest-result-filter")?.value || "all";
+  const hist = [...contestsState.cfContestHistory].reverse(); // newest first
+
+  contestsState.cfHistoryFiltered = hist.filter((h) => {
+    if (q && !h.contestName.toLowerCase().includes(q)) return false;
+    const delta = h.newRating - h.oldRating;
+    if (resultFilter === "up" && delta <= 0) return false;
+    if (resultFilter === "down" && delta >= 0) return false;
+    if (resultFilter === "good") {
+      // approximate "top 25%" — just check positive delta for now
+      if (delta <= 0) return false;
+    }
+    return true;
+  });
+
+  contestsState.cfHistoryPage = 1;
+  renderCFContestHistoryTable();
+}
+
+function renderCFContestHistory() {
+  contestsState.cfHistoryFiltered = [
+    ...contestsState.cfContestHistory,
+  ].reverse();
+  contestsState.cfHistoryPage = 1;
+  renderCFContestHistoryTable();
+}
+
+function renderCFContestHistoryTable() {
+  const el = document.getElementById("cf-contest-history-table");
+  if (!el) return;
+  const data = contestsState.cfHistoryFiltered;
+  const page = contestsState.cfHistoryPage;
+  const start = (page - 1) * CONTESTS_HISTORY_PER_PAGE;
+  const pageData = data.slice(start, start + CONTESTS_HISTORY_PER_PAGE);
+
+  if (!data.length) {
+    el.innerHTML = `<div class="contests-empty">No contests match your filters.</div>`;
+    renderCFHistoryPagination(0);
+    return;
+  }
+
+  el.innerHTML = `
+    <table class="contests-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Contest</th>
+          <th>Date</th>
+          <th>Rank</th>
+          <th>Old Rating</th>
+          <th>New Rating</th>
+          <th>Change</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${pageData
+          .map((h, i) => {
+            const delta = h.newRating - h.oldRating;
+            const contestLink = `https://codeforces.com/contest/${h.contestId}`;
+            const idx = data.length - start - i; // descending index (most recent = highest)
+            return `<tr class="contest-history-row ${delta > 0 ? "ch-up" : delta < 0 ? "ch-down" : ""}">
+            <td class="ch-num">${idx}</td>
+            <td class="ch-name"><a href="${contestLink}" target="_blank">${h.contestName}</a></td>
+            <td class="ch-date">${fmtContestDate(h.ratingUpdateTimeSeconds)}</td>
+            <td class="ch-rank">#${h.rank.toLocaleString()}</td>
+            <td class="ch-old" style="color:${cfRatingColor(h.oldRating)}">${h.oldRating}</td>
+            <td class="ch-new" style="color:${cfRatingColor(h.newRating)}">${h.newRating}</td>
+            <td class="ch-delta">${ratingDeltaBadge(delta)}</td>
+          </tr>`;
+          })
+          .join("")}
+      </tbody>
+    </table>`;
+
+  renderCFHistoryPagination(data.length);
+}
+
+function renderCFHistoryPagination(total) {
+  const el = document.getElementById("cf-contest-history-pagination");
+  if (!el) return;
+  const totalPages = Math.ceil(total / CONTESTS_HISTORY_PER_PAGE);
+  if (totalPages <= 1) {
+    el.innerHTML = "";
+    return;
+  }
+  const p = contestsState.cfHistoryPage;
+  let html = "";
+  if (p > 1)
+    html += `<button class="page-btn" onclick="cfHistoryGoPage(${p - 1})">← Prev</button>`;
+  html += `<span class="page-info">Page ${p} / ${totalPages}</span>`;
+  if (p < totalPages)
+    html += `<button class="page-btn" onclick="cfHistoryGoPage(${p + 1})">Next →</button>`;
+  el.innerHTML = `<div class="pagination-wrap">${html}</div>`;
+}
+
+function cfHistoryGoPage(p) {
+  contestsState.cfHistoryPage = p;
+  renderCFContestHistoryTable();
+}
+
+// ─── CF Rating Graph ──────────────────────────────────────────────────────────
+function renderCFRatingGraph() {
+  const el = document.getElementById("cf-rating-graph");
+  if (!el) return;
+  const hist = contestsState.cfContestHistory;
+  if (!hist.length) {
+    el.innerHTML = `<div class="contests-empty">No contest history yet.</div>`;
+    return;
+  }
+
+  const W = 700,
+    H = 220,
+    PAD = { top: 20, right: 20, bottom: 30, left: 50 };
+  const innerW = W - PAD.left - PAD.right;
+  const innerH = H - PAD.top - PAD.bottom;
+
+  const ratings = hist.map((h) => h.newRating);
+  const minR = Math.min(...ratings, 800) - 100;
+  const maxR = Math.max(...ratings) + 100;
+  const times = hist.map((h) => h.ratingUpdateTimeSeconds);
+  const minT = times[0],
+    maxT = times[times.length - 1];
+
+  function xOf(t) {
+    return PAD.left + ((t - minT) / (maxT - minT || 1)) * innerW;
+  }
+  function yOf(r) {
+    return PAD.top + innerH - ((r - minR) / (maxR - minR || 1)) * innerH;
+  }
+
+  // CF rating zone backgrounds
+  const zones = [
+    { min: 800, max: 1200, color: "#80808018" },
+    { min: 1200, max: 1400, color: "#00800018" },
+    { min: 1400, max: 1600, color: "#03a89e18" },
+    { min: 1600, max: 1900, color: "#0000ff18" },
+    { min: 1900, max: 2100, color: "#aa00aa18" },
+    { min: 2100, max: 2400, color: "#ff8c0018" },
+    { min: 2400, max: 4000, color: "#ff000018" },
+  ];
+
+  const zoneRects = zones
+    .map((z) => {
+      const y1 = yOf(Math.min(z.max, maxR));
+      const y2 = yOf(Math.max(z.min, minR));
+      if (y1 >= y2) return "";
+      return `<rect x="${PAD.left}" y="${y1}" width="${innerW}" height="${y2 - y1}" fill="${z.color}"/>`;
+    })
+    .join("");
+
+  // Y-axis guide lines
+  const yTicks = [];
+  const step = Math.ceil((maxR - minR) / 5 / 100) * 100;
+  for (let r = Math.ceil(minR / step) * step; r <= maxR; r += step) {
+    const y = yOf(r);
+    yTicks.push(`
+      <line x1="${PAD.left}" y1="${y}" x2="${PAD.left + innerW}" y2="${y}" stroke="var(--border)" stroke-width="0.5" stroke-dasharray="4,4"/>
+      <text x="${PAD.left - 6}" y="${y + 4}" text-anchor="end" font-size="9" fill="var(--text-muted)" font-family="var(--mono)">${r}</text>
+    `);
+  }
+
+  // Polyline
+  const points = hist
+    .map(
+      (h) =>
+        `${xOf(h.ratingUpdateTimeSeconds).toFixed(1)},${yOf(h.newRating).toFixed(1)}`,
+    )
+    .join(" ");
+  const fillPoints = `${xOf(times[0]).toFixed(1)},${(PAD.top + innerH).toFixed(1)} ${points} ${xOf(times[times.length - 1]).toFixed(1)},${(PAD.top + innerH).toFixed(1)}`;
+
+  // Dots for each contest
+  const dots = hist
+    .map((h, i) => {
+      const cx = xOf(h.ratingUpdateTimeSeconds).toFixed(1);
+      const cy = yOf(h.newRating).toFixed(1);
+      const color = cfRatingColor(h.newRating);
+      const delta = h.newRating - h.oldRating;
+      const tip = `${h.contestName}: ${h.newRating} (${delta > 0 ? "+" : ""}${delta})`;
+      return `<circle cx="${cx}" cy="${cy}" r="3.5" fill="${color}" stroke="var(--bg-2)" stroke-width="1.5" opacity="0.9">
+      <title>${tip}</title>
+    </circle>`;
+    })
+    .join("");
+
+  // Peak marker
+  const peakIdx = ratings.indexOf(Math.max(...ratings));
+  const peakH = hist[peakIdx];
+  const peakX = xOf(peakH.ratingUpdateTimeSeconds).toFixed(1);
+  const peakY = yOf(peakH.newRating).toFixed(1);
+
+  // X axis date labels (up to 6 labels)
+  const labelStep = Math.max(1, Math.floor(hist.length / 6));
+  const xLabels = hist
+    .filter((_, i) => i % labelStep === 0)
+    .map((h) => {
+      const x = xOf(h.ratingUpdateTimeSeconds).toFixed(1);
+      const label = new Date(
+        h.ratingUpdateTimeSeconds * 1000,
+      ).toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+      return `<text x="${x}" y="${PAD.top + innerH + 18}" text-anchor="middle" font-size="9" fill="var(--text-muted)" font-family="var(--mono)">${label}</text>`;
+    })
+    .join("");
+
+  el.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" class="rating-graph-svg" preserveAspectRatio="xMidYMid meet">
+      ${zoneRects}
+      ${yTicks.join("")}
+      <polygon points="${fillPoints}" fill="var(--accent)" opacity="0.08"/>
+      <polyline points="${points}" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linejoin="round"/>
+      ${dots}
+      <circle cx="${peakX}" cy="${peakY}" r="5" fill="#81c784" stroke="var(--bg-2)" stroke-width="1.5">
+        <title>Peak: ${peakH.newRating}</title>
+      </circle>
+      ${xLabels}
+    </svg>
+  `;
+}
+
+// ─── CF Contest Ribbon ────────────────────────────────────────────────────────
+function renderCFContestRibbon() {
+  const el = document.getElementById("cf-contests-ribbon");
+  if (!el) return;
+  const hist = contestsState.cfContestHistory;
+  if (!hist.length) {
+    el.innerHTML = "";
+    return;
+  }
+
+  const ratings = hist.map((h) => h.newRating);
+  const deltas = hist.map((h) => h.newRating - h.oldRating);
+  const bestDelta = Math.max(...deltas);
+  const worstDelta = Math.min(...deltas);
+  const totalContests = hist.length;
+  const wins = deltas.filter((d) => d > 0).length;
+  const current = state.cfUserInfo?.rating || ratings[ratings.length - 1];
+  const peak = Math.max(...ratings);
+
+  el.innerHTML = `
+    <div class="ribbon-item"><div class="ribbon-val" style="color:${cfRatingColor(current)}">${current}</div><div class="ribbon-label">Current</div></div>
+    <div class="ribbon-item"><div class="ribbon-val" style="color:${cfRatingColor(peak)}">${peak}</div><div class="ribbon-label">Peak</div></div>
+    <div class="ribbon-item"><div class="ribbon-val">${totalContests}</div><div class="ribbon-label">Contests</div></div>
+    <div class="ribbon-item"><div class="ribbon-val" style="color:var(--green)">${wins}</div><div class="ribbon-label">Rating ↑</div></div>
+    <div class="ribbon-item"><div class="ribbon-val" style="color:var(--red)">${totalContests - wins}</div><div class="ribbon-label">Rating ↓</div></div>
+    <div class="ribbon-item"><div class="ribbon-val delta-up">+${bestDelta}</div><div class="ribbon-label">Best Gain</div></div>
+    <div class="ribbon-item"><div class="ribbon-val delta-down">${worstDelta}</div><div class="ribbon-label">Worst Loss</div></div>
+  `;
+}
+
+// ─── CF Best Contests ─────────────────────────────────────────────────────────
+function renderCFBestContests() {
+  const el = document.getElementById("cf-best-contests");
+  if (!el) return;
+  const hist = [...contestsState.cfContestHistory];
+  if (!hist.length) {
+    el.innerHTML = `<div class="contests-empty">No contest history.</div>`;
+    return;
+  }
+
+  const best = [...hist]
+    .sort((a, b) => b.newRating - b.oldRating - (a.newRating - a.oldRating))
+    .slice(0, 5);
+  el.innerHTML = best
+    .map((h, i) => {
+      const delta = h.newRating - h.oldRating;
+      const link = `https://codeforces.com/contest/${h.contestId}`;
+      return `<div class="best-contest-row">
+      <span class="best-rank-num">${i + 1}</span>
+      <div class="best-contest-info">
+        <a href="${link}" target="_blank" class="best-contest-name">${h.contestName}</a>
+        <span class="best-contest-meta">Rank #${h.rank} · ${new Date(h.ratingUpdateTimeSeconds * 1000).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>
+      </div>
+      <div class="best-contest-rating">
+        ${ratingDeltaBadge(delta)}
+        <span style="color:${cfRatingColor(h.newRating)};font-size:11px">${h.newRating}</span>
+      </div>
+    </div>`;
+    })
+    .join("");
+}
+
+// ─── CF Rank Distribution ─────────────────────────────────────────────────────
+function renderCFRankDistribution() {
+  const el = document.getElementById("cf-rank-distribution");
+  if (!el) return;
+  const hist = contestsState.cfContestHistory;
+  if (!hist.length) {
+    el.innerHTML = `<div class="contests-empty">No contest history.</div>`;
+    return;
+  }
+
+  const buckets = [
+    { label: "Top 100", max: 100 },
+    { label: "Top 500", max: 500 },
+    { label: "Top 1k", max: 1000 },
+    { label: "Top 5k", max: 5000 },
+    { label: "Top 10k", max: 10000 },
+    { label: "10k+", max: Infinity },
+  ];
+
+  const counts = new Array(buckets.length).fill(0);
+  for (const h of hist) {
+    for (let i = 0; i < buckets.length; i++) {
+      if (h.rank <= buckets[i].max) {
+        counts[i]++;
+        break;
+      }
+    }
+  }
+  const maxCount = Math.max(...counts, 1);
+  el.innerHTML = buckets
+    .map((b, i) => {
+      const pct = Math.round((counts[i] / maxCount) * 100);
+      return `<div class="rank-dist-row">
+      <span class="rank-dist-label">${b.label}</span>
+      <div class="rank-dist-bar-bg"><div class="rank-dist-bar" style="width:${pct}%"></div></div>
+      <span class="rank-dist-count">${counts[i]}</span>
+    </div>`;
+    })
+    .join("");
+}
+
+// ─── CF Improvement Tips ──────────────────────────────────────────────────────
+function renderCFImprovementTips() {
+  const el = document.getElementById("cf-improvement-tips");
+  if (!el) return;
+
+  const tips = [];
+  const hist = contestsState.cfContestHistory;
+  const solved = Object.keys(state.cfSolved).length;
+  const userRating = state.cfUserInfo?.rating || 0;
+
+  if (!hist.length && !solved) {
+    el.innerHTML = `<div class="contests-empty">Solve problems and participate in contests to unlock personalized tips.</div>`;
+    return;
+  }
+
+  // Tip: 3 consecutive losses
+  if (hist.length >= 3) {
+    const recent3 = [...hist].slice(-3).map((h) => h.newRating - h.oldRating);
+    if (recent3.every((d) => d < 0)) {
+      tips.push({
+        icon: "⚠️",
+        text: "You've lost rating in 3 consecutive contests. Stop and upsove problems from those contests — competing more won't fix the underlying gaps.",
+        cls: "tip-warn",
+      });
+    }
+  }
+
+  // Tip: rating stagnation — 5+ contests, net movement < ±50
+  if (hist.length >= 5) {
+    const recent5 = [...hist].slice(-5);
+    const netMove =
+      recent5[recent5.length - 1].newRating - recent5[0].oldRating;
+    if (Math.abs(netMove) < 50) {
+      tips.push({
+        icon: "📊",
+        text: `Your rating has barely moved (${netMove > 0 ? "+" : ""}${netMove}) across your last 5 contests. You've hit a plateau — switch from quantity to quality: pick one weak tag and drill it for 2 weeks.`,
+        cls: "tip-warn",
+      });
+    }
+  }
+
+  // Tip: contest frequency — last contest > 30 days ago
+  if (hist.length) {
+    const lastContestTs = [...hist].slice(-1)[0].ratingUpdateTimeSeconds;
+    const daysSince = Math.floor((Date.now() / 1000 - lastContestTs) / 86400);
+    if (daysSince > 30) {
+      tips.push({
+        icon: "📅",
+        text: `Your last rated contest was ${daysSince} days ago. Regular participation (at least 2× per month) is essential for consistent rating growth.`,
+        cls: "tip-neutral",
+      });
+    }
+  }
+
+  // Tip: target rating band problems
+  if (userRating) {
+    const targetRating = userRating + 200;
+    const metaLoaded = Object.keys(state.cfMeta || {}).length > 0;
+    if (metaLoaded) {
+      const solvable = Object.values(state.cfMeta).filter(
+        (p) =>
+          p.rating >= userRating &&
+          p.rating <= targetRating &&
+          !state.cfSolved[cfProblemKey(p.contestId, p.index)],
+      ).length;
+      tips.push({
+        icon: "🎯",
+        text: `${solvable} unsolved problems rated ${userRating}–${targetRating} are waiting. Solving these is the fastest path to ${cfRatingLabel(targetRating)} territory.`,
+        cls: "tip-info",
+      });
+    } else {
+      tips.push({
+        icon: "🎯",
+        text: `Target problems rated ${userRating}–${targetRating} (just above your current rating). These are your highest-leverage problems right now.`,
+        cls: "tip-info",
+      });
+    }
+  }
+
+  // Tip: difficulty avoidance — avg solved rating vs current rating
+  if (userRating && Object.keys(state.cfMeta || {}).length) {
+    const solvedRatings = Object.keys(state.cfSolved)
+      .map((key) => {
+        const [contestId, index] = key.split("_");
+        return state.cfMeta[key]?.rating || null;
+      })
+      .filter((r) => r != null);
+    if (solvedRatings.length >= 10) {
+      const avgSolved = Math.round(
+        solvedRatings.reduce((s, v) => s + v, 0) / solvedRatings.length,
+      );
+      if (avgSolved < userRating - 200) {
+        tips.push({
+          icon: "📈",
+          text: `Your average solved difficulty (${avgSolved}) is ${userRating - avgSolved} points below your rating. You're grinding easy problems — push into ${userRating}–${userRating + 300} rated problems to actually grow.`,
+          cls: "tip-warn",
+        });
+      }
+    }
+  }
+
+  // Tip: weak tags
+  if (Object.keys(state.cfMeta || {}).length) {
+    const tagStats = {};
+    for (const p of Object.values(state.cfMeta)) {
+      if (!p.rating || p.rating > userRating + 300) continue;
+      const key = cfProblemKey(p.contestId, p.index);
+      const isSolved = !!state.cfSolved[key];
+      for (const tag of p.tags || []) {
+        if (!tagStats[tag]) tagStats[tag] = { total: 0, solved: 0 };
+        tagStats[tag].total++;
+        if (isSolved) tagStats[tag].solved++;
+      }
+    }
+    const weak = Object.entries(tagStats)
+      .filter(([, v]) => v.total >= 10 && v.solved / v.total < 0.3)
+      .sort((a, b) => a[1].solved / a[1].total - b[1].solved / b[1].total)
+      .slice(0, 3)
+      .map(([tag]) => tag);
+    if (weak.length) {
+      tips.push({
+        icon: "📉",
+        text: `Weak tags in your rating range: <strong>${weak.join(", ")}</strong> (< 30% solve rate). One focused week on each will compound into real rating gains.`,
+        cls: "tip-warn",
+      });
+    }
+  }
+
+  // Tip: solve volume — last 30 days only (fix: filter by date)
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const thirtyKey = thirtyDaysAgo.toISOString().slice(0, 10);
+  const recentDays30 = Object.entries(state.cfActivity || {})
+    .filter(([date]) => date >= thirtyKey)
+    .reduce((s, [, v]) => s + v, 0);
+  if (recentDays30 < 20) {
+    tips.push({
+      icon: "📚",
+      text: `Only ${recentDays30} CF problems solved in the last 30 days. Aim for 2–3 problems daily — contest stamina is built through consistent practice, not bursts.`,
+      cls: "tip-neutral",
+    });
+  }
+
+  // Tip: best rank guidance
+  if (hist.length) {
+    const bestRank = Math.min(...hist.map((h) => h.rank));
+    if (bestRank > 2000) {
+      tips.push({
+        icon: "🚀",
+        text: `Best rank so far: #${bestRank.toLocaleString()}. To break top 1000, you need A+B solved within 15 minutes. Practice speed on easy problems before each contest.`,
+        cls: "tip-info",
+      });
+    }
+  }
+
+  if (!tips.length) {
+    tips.push({
+      icon: "✅",
+      text: "Strong form! Keep contesting regularly, upsove after every round, and push into problems just above your rating.",
+      cls: "tip-info",
+    });
+  }
+
+  el.innerHTML = tips
+    .map(
+      (t) => `
+    <div class="tip-card ${t.cls}">
+      <span class="tip-icon">${t.icon}</span>
+      <div class="tip-text">${t.text}</div>
+    </div>
+  `,
+    )
+    .join("");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── ATCODER CONTESTS ─────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function initACContestsSection() {
+  const hasUser = !!state.acUserInfo;
+  document.getElementById("ac-contest-user-panel").style.display = hasUser
+    ? ""
+    : "none";
+  document.getElementById("ac-contest-no-user").style.display = hasUser
+    ? "none"
+    : "";
+
+  if (hasUser) {
+    document.getElementById("ac-contests-user-tag").textContent =
+      `@${state.acUserInfo.handle}`;
+    if (!contestsState.acHistoryLoaded) {
+      await loadACContestHistory();
+    } else {
+      renderACContestHistory();
+      renderACRatingGraph();
+      renderACBestContests();
+      renderACPerfStats();
+      renderACImprovementTips();
+      renderACPersonalRecords();
+      initACUpsolver();
+      initACRatingPredictor();
+      initACRivals();
+      loadSavedACRivals();
+    }
+  }
+
+  if (!contestsState.acLoaded) {
+    await loadACContests();
+  } else {
+    renderACContestLists();
+  }
+}
+
+async function loadACContests(force = false) {
+  if (contestsState.acLoaded && !force) return;
+  setContestLoadingState("ac-upcoming-contests", true);
+  setContestLoadingState("ac-past-contests", true);
+  try {
+    const res = await fetch("/api/contests-proxy?platform=ac");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    contestsState.acContests = await res.json();
+    contestsState.acLoaded = true;
+    renderACContestLists();
+    initNavContestBadge();
+    initACRecommender();
+  } catch (err) {
+    setContestError(
+      "ac-upcoming-contests",
+      `Failed to load contests: ${err.message}`,
+    );
+    setContestError("ac-past-contests", "");
+  }
+}
+
+async function loadACContestHistory() {
+  if (!state.acUsername) return;
+  try {
+    const res = await fetch(
+      `/api/contests-proxy?platform=ac-history&handle=${encodeURIComponent(state.acUsername)}`,
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const rawHistory = await res.json();
+    // kenkoooo history format: array of { ContestScreenName, Place, OldRating, NewRating, Performance, IsRated, ... }
+    contestsState.acContestHistory = rawHistory || [];
+    contestsState.acHistoryFiltered = [
+      ...contestsState.acContestHistory,
+    ].reverse();
+    contestsState.acHistoryLoaded = true;
+    renderACContestHistory();
+    renderACRatingGraph();
+    renderACBestContests();
+    renderACPerfStats();
+    renderACImprovementTips();
+    renderACPersonalRecords();
+    initACUpsolver();
+    initACRatingPredictor();
+    initACRivals();
+    loadSavedACRivals();
+  } catch (err) {
+    console.warn("[contests] AC history load failed:", err.message);
+  }
+}
+
+function renderACContestLists() {
+  const now = Math.floor(Date.now() / 1000);
+
+  // kenkoooo contests: { id, start_epoch_second, duration_second, title, rate_change }
+  const upcoming = contestsState.acContests
+    .filter((c) => c.start_epoch_second > now)
+    .sort((a, b) => a.start_epoch_second - b.start_epoch_second);
+  const live = contestsState.acContests.filter(
+    (c) =>
+      c.start_epoch_second <= now &&
+      c.start_epoch_second + c.duration_second > now,
+  );
+  const past = contestsState.acContests
+    .filter((c) => c.start_epoch_second + c.duration_second <= now)
+    .sort((a, b) => b.start_epoch_second - a.start_epoch_second);
+
+  const liveSection = document.getElementById("ac-live-section");
+  if (live.length) {
+    liveSection.style.display = "";
+    document.getElementById("ac-live-contests").innerHTML = live
+      .map((c) => renderACContestCard(c, "live"))
+      .join("");
+  } else {
+    liveSection.style.display = "none";
+  }
+
+  const upcomingEl = document.getElementById("ac-upcoming-contests");
+  if (upcoming.length) {
+    upcomingEl.innerHTML = upcoming
+      .slice(0, 20)
+      .map((c) => renderACContestCard(c, "upcoming"))
+      .join("");
+  } else {
+    upcomingEl.innerHTML = `<div class="contests-empty">No upcoming AtCoder contests scheduled. Check back soon!</div>`;
+  }
+
+  const pastEl = document.getElementById("ac-past-contests");
+  let pastFiltered = past;
+  if (contestsState.acParticipatedOnly) {
+    if (!state.acUsername) {
+      pastFiltered = [];
+    } else if (!contestsState.acHistoryLoaded) {
+      pastEl.innerHTML = `<div class="contests-empty">Loading your contest history…</div>`;
+      document.getElementById("ac-past-count").textContent = "loading…";
+      document.getElementById("ac-past-more-btn").style.display = "none";
+      return;
+    } else if (contestsState.acContestHistory.length) {
+      const ids = new Set(
+        contestsState.acContestHistory.map((h) =>
+          (h.ContestScreenName || "").toLowerCase(),
+        ),
+      );
+      pastFiltered = past.filter((c) => ids.has((c.id || "").toLowerCase()));
+    } else {
+      // loaded but empty — 0 participations
+      pastFiltered = [];
+    }
+  }
+  const toShow = pastFiltered.slice(0, contestsState.acPastVisible);
+  pastEl.innerHTML = toShow.length
+    ? toShow.map((c) => renderACContestCard(c, "past")).join("")
+    : `<div class="contests-empty">${contestsState.acParticipatedOnly ? "No participated contests found." : "No past contests."}</div>`;
+  document.getElementById("ac-past-count").textContent =
+    contestsState.acParticipatedOnly
+      ? `${pastFiltered.length} participated`
+      : `${past.length} total`;
+  const moreBtn = document.getElementById("ac-past-more-btn");
+  moreBtn.style.display =
+    pastFiltered.length > contestsState.acPastVisible ? "" : "none";
+}
+
+function showMoreACPast() {
+  contestsState.acPastVisible += 20;
+  renderACContestLists();
+}
+
+function renderACContestCard(c, type) {
+  const id = c.id;
+  const cat = acContestCategory(id);
+  const link = `https://atcoder.jp/contests/${id}`;
+  const startMs = c.start_epoch_second;
+  const durStr = fmtDuration(c.duration_second);
+  const rateChange = c.rate_change || "";
+
+  let timeInfo = "";
+  if (type === "upcoming") {
+    timeInfo = `<span class="contest-time-badge upcoming-badge">Starts ${fmtRelativeTime(startMs)} · ${fmtContestDate(startMs)}</span>`;
+  } else if (type === "live") {
+    const endEpoch = startMs + c.duration_second;
+    timeInfo = `<span class="contest-time-badge live-badge">🔴 Ends ${fmtRelativeTime(endEpoch)}</span>`;
+  } else {
+    timeInfo = `<span class="contest-time-badge past-badge">${fmtContestDate(startMs)}</span>`;
+  }
+
+  // Participation badge — all types
+  let userResult = "";
+  if (contestsState.acContestHistory.length) {
+    const entry = contestsState.acContestHistory.find(
+      (h) =>
+        h.ContestScreenName === id ||
+        (h.ContestScreenName || "").toLowerCase() === id.toLowerCase(),
+    );
+    if (entry) {
+      if (type === "past") {
+        const delta = entry.NewRating - entry.OldRating;
+        userResult = `<div class="contest-user-result">
+          <span class="contest-participated-tag">✓ Participated</span>
+          <span class="contest-rank-pill">Rank #${entry.Place}</span>
+          ${entry.IsRated ? ratingDeltaBadge(delta) : `<span class="rating-delta delta-zero">Unrated</span>`}
+          ${entry.IsRated ? `<span class="contest-rating-after">${entry.NewRating}</span>` : ""}
+        </div>`;
+      } else {
+        userResult = `<div class="contest-user-result">
+          <span class="contest-participated-tag">✓ Participated</span>
+        </div>`;
+      }
+    }
+  }
+
+  const clickable =
+    type === "past"
+      ? `onclick="openACContestDetail('${id}')" style="cursor:pointer"`
+      : "";
+  return `<div class="contest-card ${type}-card" ${clickable}>
+    <div class="contest-card-top">
+      <div class="contest-card-name-row">
+        <span class="contest-div-badge ${cat.cls}" title="${cat.fullName}">${cat.text}</span>
+        <a href="${link}" target="_blank" class="contest-name">${c.title}</a>
+        ${rateChange ? `<span class="contest-rate-change">${rateChange}</span>` : ""}
+      </div>
+      <span class="contest-duration">${durStr}</span>
+    </div>
+    <div class="contest-card-bottom">
+      ${timeInfo}
+      ${userResult}
+      <a href="${link}" target="_blank" class="contest-open-btn" onclick="event.stopPropagation()">Open →</a>
+      ${type === "upcoming" ? `<a href="${link}/register" target="_blank" class="contest-register-btn" onclick="event.stopPropagation()">Register</a>` : ""}
+    </div>
+  </div>`;
+}
+
+// ─── AC Contest History Table ─────────────────────────────────────────────────
+function filterACContestHistory(search) {
+  const q = (search || "").toLowerCase();
+  const resultFilter =
+    document.getElementById("ac-contest-result-filter")?.value || "all";
+  const hist = [...contestsState.acContestHistory].reverse();
+
+  contestsState.acHistoryFiltered = hist.filter((h) => {
+    const name = (h.ContestScreenName || "").toLowerCase();
+    if (q && !name.includes(q)) return false;
+    if (resultFilter === "rated" && !h.IsRated) return false;
+    const delta = h.NewRating - h.OldRating;
+    if (resultFilter === "up" && delta <= 0) return false;
+    if (resultFilter === "down" && delta >= 0) return false;
+    return true;
+  });
+
+  contestsState.acHistoryPage = 1;
+  renderACContestHistoryTable();
+}
+
+function renderACContestHistory() {
+  contestsState.acHistoryFiltered = [
+    ...contestsState.acContestHistory,
+  ].reverse();
+  contestsState.acHistoryPage = 1;
+  renderACContestHistoryTable();
+}
+
+function renderACContestHistoryTable() {
+  const el = document.getElementById("ac-contest-history-table");
+  if (!el) return;
+  const data = contestsState.acHistoryFiltered;
+  const page = contestsState.acHistoryPage;
+  const start = (page - 1) * CONTESTS_HISTORY_PER_PAGE;
+  const pageData = data.slice(start, start + CONTESTS_HISTORY_PER_PAGE);
+
+  if (!data.length) {
+    el.innerHTML = `<div class="contests-empty">No contests match your filters.</div>`;
+    renderACHistoryPagination(0);
+    return;
+  }
+
+  el.innerHTML = `
+    <table class="contests-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Contest</th>
+          <th>Rank</th>
+          <th>Performance</th>
+          <th>Old Rating</th>
+          <th>New Rating</th>
+          <th>Change</th>
+          <th>Rated</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${pageData
+          .map((h, i) => {
+            const delta = h.NewRating - h.OldRating;
+            const link = `https://atcoder.jp/contests/${h.ContestScreenName}`;
+            const idx = data.length - start - i;
+            const cat = acContestCategory(h.ContestScreenName || "");
+            return `<tr class="contest-history-row ${h.IsRated && delta > 0 ? "ch-up" : h.IsRated && delta < 0 ? "ch-down" : ""}">
+            <td class="ch-num">${idx}</td>
+            <td class="ch-name">
+              <span class="contest-div-badge ${cat.cls} sm">${cat.text}</span>
+              <a href="${link}" target="_blank">${h.ContestScreenName}</a>
+            </td>
+            <td class="ch-rank">#${(h.Place || 0).toLocaleString()}</td>
+            <td class="ch-perf" style="color:${acDiffColor(h.Performance)}">${h.Performance ?? "—"}</td>
+            <td class="ch-old">${h.IsRated ? `<span style="color:${acDiffColor(h.OldRating)}">${h.OldRating}</span>` : "—"}</td>
+            <td class="ch-new">${h.IsRated ? `<span style="color:${acDiffColor(h.NewRating)}">${h.NewRating}</span>` : "—"}</td>
+            <td class="ch-delta">${h.IsRated ? ratingDeltaBadge(delta) : '<span style="color:var(--text-muted);font-size:10px">N/A</span>'}</td>
+            <td class="ch-rated">${h.IsRated ? '<span class="rated-dot">●</span>' : '<span style="color:var(--text-muted)">—</span>'}</td>
+          </tr>`;
+          })
+          .join("")}
+      </tbody>
+    </table>`;
+
+  renderACHistoryPagination(data.length);
+}
+
+function renderACHistoryPagination(total) {
+  const el = document.getElementById("ac-contest-history-pagination");
+  if (!el) return;
+  const totalPages = Math.ceil(total / CONTESTS_HISTORY_PER_PAGE);
+  if (totalPages <= 1) {
+    el.innerHTML = "";
+    return;
+  }
+  const p = contestsState.acHistoryPage;
+  let html = "";
+  if (p > 1)
+    html += `<button class="page-btn" onclick="acHistoryGoPage(${p - 1})">← Prev</button>`;
+  html += `<span class="page-info">Page ${p} / ${totalPages}</span>`;
+  if (p < totalPages)
+    html += `<button class="page-btn" onclick="acHistoryGoPage(${p + 1})">Next →</button>`;
+  el.innerHTML = `<div class="pagination-wrap">${html}</div>`;
+}
+
+function acHistoryGoPage(p) {
+  contestsState.acHistoryPage = p;
+  renderACContestHistoryTable();
+}
+
+// ─── AC Rating Graph ──────────────────────────────────────────────────────────
+function renderACRatingGraph() {
+  const el = document.getElementById("ac-rating-graph");
+  if (!el) return;
+  const ratedHist = contestsState.acContestHistory.filter((h) => h.IsRated);
+  if (!ratedHist.length) {
+    el.innerHTML = `<div class="contests-empty">No rated contest history yet.</div>`;
+    return;
+  }
+
+  const W = 700,
+    H = 220,
+    PAD = { top: 20, right: 20, bottom: 30, left: 50 };
+  const innerW = W - PAD.left - PAD.right;
+  const innerH = H - PAD.top - PAD.bottom;
+
+  const ratings = ratedHist.map((h) => h.NewRating);
+  const perfs = ratedHist.map((h) => h.Performance || h.NewRating);
+  const minR = Math.min(...ratings, ...perfs, 0) - 100;
+  const maxR = Math.max(...ratings, ...perfs) + 200;
+
+  function xOf(i, total) {
+    return PAD.left + (i / Math.max(total - 1, 1)) * innerW;
+  }
+  function yOf(r) {
+    return PAD.top + innerH - ((r - minR) / (maxR - minR || 1)) * innerH;
+  }
+
+  const ratingPoints = ratedHist
+    .map(
+      (h, i) =>
+        `${xOf(i, ratedHist.length).toFixed(1)},${yOf(h.NewRating).toFixed(1)}`,
+    )
+    .join(" ");
+  const perfPoints = ratedHist
+    .map(
+      (h, i) =>
+        `${xOf(i, ratedHist.length).toFixed(1)},${yOf(h.Performance || h.NewRating).toFixed(1)}`,
+    )
+    .join(" ");
+
+  const dots = ratedHist
+    .map((h, i) => {
+      const cx = xOf(i, ratedHist.length).toFixed(1);
+      const cy = yOf(h.NewRating).toFixed(1);
+      const color = acDiffColor(h.NewRating);
+      return `<circle cx="${cx}" cy="${cy}" r="3" fill="${color}" stroke="var(--bg-2)" stroke-width="1.2"><title>${h.ContestScreenName}: Rating ${h.NewRating}</title></circle>`;
+    })
+    .join("");
+
+  // Y ticks
+  const step = Math.ceil((maxR - minR) / 5 / 100) * 100;
+  const yTicks = [];
+  for (let r = Math.ceil(minR / step) * step; r <= maxR; r += step) {
+    const y = yOf(r);
+    yTicks.push(`
+      <line x1="${PAD.left}" y1="${y}" x2="${PAD.left + innerW}" y2="${y}" stroke="var(--border)" stroke-width="0.5" stroke-dasharray="4,4"/>
+      <text x="${PAD.left - 6}" y="${y + 4}" text-anchor="end" font-size="9" fill="var(--text-muted)" font-family="var(--mono)">${r}</text>
+    `);
+  }
+
+  el.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" class="rating-graph-svg" preserveAspectRatio="xMidYMid meet">
+      ${yTicks.join("")}
+      <polyline points="${perfPoints}" fill="none" stroke="var(--yellow)" stroke-width="1" stroke-dasharray="4,3" opacity="0.5"/>
+      <polyline points="${ratingPoints}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>
+      ${dots}
+    </svg>
+    <div class="rating-graph-legend" style="margin-top:6px">
+      <span class="rg-legend-dot" style="background:var(--accent)"></span><span>Rating</span>
+      <span class="rg-legend-dot" style="background:var(--yellow)"></span><span>Performance</span>
+    </div>
+  `;
+}
+
+// ─── AC Best Contests ─────────────────────────────────────────────────────────
+function renderACBestContests() {
+  const el = document.getElementById("ac-best-contests");
+  if (!el) return;
+  const rated = contestsState.acContestHistory.filter((h) => h.IsRated);
+  if (!rated.length) {
+    el.innerHTML = `<div class="contests-empty">No rated contest history.</div>`;
+    return;
+  }
+
+  const best = [...rated]
+    .sort((a, b) => (b.Performance || 0) - (a.Performance || 0))
+    .slice(0, 5);
+  el.innerHTML = best
+    .map((h, i) => {
+      const link = `https://atcoder.jp/contests/${h.ContestScreenName}`;
+      const delta = h.NewRating - h.OldRating;
+      return `<div class="best-contest-row">
+      <span class="best-rank-num">${i + 1}</span>
+      <div class="best-contest-info">
+        <a href="${link}" target="_blank" class="best-contest-name">${h.ContestScreenName}</a>
+        <span class="best-contest-meta">Rank #${h.Place} · Perf <span style="color:${acDiffColor(h.Performance)}">${h.Performance}</span></span>
+      </div>
+      <div class="best-contest-rating">
+        ${ratingDeltaBadge(delta)}
+        <span style="color:${acDiffColor(h.NewRating)};font-size:11px">${h.NewRating}</span>
+      </div>
+    </div>`;
+    })
+    .join("");
+}
+
+// ─── AC Performance Stats ─────────────────────────────────────────────────────
+function renderACPerfStats() {
+  const el = document.getElementById("ac-perf-stats");
+  if (!el) return;
+  const rated = contestsState.acContestHistory.filter((h) => h.IsRated);
+  const all = contestsState.acContestHistory;
+  if (!all.length) {
+    el.innerHTML = `<div class="contests-empty">No contest history.</div>`;
+    return;
+  }
+
+  const perfs = rated.map((h) => h.Performance).filter((p) => p != null);
+  const avgPerf = perfs.length
+    ? Math.round(perfs.reduce((s, v) => s + v, 0) / perfs.length)
+    : null;
+  const maxPerf = perfs.length ? Math.max(...perfs) : null;
+  const wins = rated.filter((h) => h.NewRating > h.OldRating).length;
+
+  el.innerHTML = `
+    <div class="cf-profile-stats-grid">
+      <div class="cf-profile-stat">
+        <div class="cf-profile-stat-val">${all.length}</div>
+        <div class="cf-profile-stat-label">Total Contests</div>
+      </div>
+      <div class="cf-profile-stat">
+        <div class="cf-profile-stat-val">${rated.length}</div>
+        <div class="cf-profile-stat-label">Rated Contests</div>
+      </div>
+      ${
+        avgPerf != null
+          ? `<div class="cf-profile-stat">
+        <div class="cf-profile-stat-val" style="color:${acDiffColor(avgPerf)}">${avgPerf}</div>
+        <div class="cf-profile-stat-label">Avg Performance</div>
+      </div>`
+          : ""
+      }
+      ${
+        maxPerf != null
+          ? `<div class="cf-profile-stat">
+        <div class="cf-profile-stat-val" style="color:${acDiffColor(maxPerf)}">${maxPerf}</div>
+        <div class="cf-profile-stat-label">Best Performance</div>
+      </div>`
+          : ""
+      }
+      <div class="cf-profile-stat">
+        <div class="cf-profile-stat-val" style="color:var(--green)">${wins}</div>
+        <div class="cf-profile-stat-label">Rating ↑</div>
+      </div>
+      <div class="cf-profile-stat">
+        <div class="cf-profile-stat-val" style="color:var(--red)">${rated.length - wins}</div>
+        <div class="cf-profile-stat-label">Rating ↓</div>
+      </div>
+    </div>
+  `;
+}
+
+// ─── AC Improvement Tips ──────────────────────────────────────────────────────
+function renderACImprovementTips() {
+  const el = document.getElementById("ac-improvement-tips");
+  if (!el) return;
+
+  const tips = [];
+  const rated = contestsState.acContestHistory.filter((h) => h.IsRated);
+  const all = contestsState.acContestHistory;
+  const solved = Object.keys(state.acSolved || {}).length;
+
+  if (!rated.length && !solved) {
+    el.innerHTML = `<div class="contests-empty">Participate in rated AtCoder contests to unlock personalized tips.</div>`;
+    return;
+  }
+
+  // Tip: consecutive rating drops
+  if (rated.length >= 3) {
+    const recent3 = [...rated].slice(-3).map((h) => h.NewRating - h.OldRating);
+    if (recent3.every((d) => d < 0)) {
+      tips.push({
+        icon: "⚠️",
+        text: "Rating dropped in your last 3 rated contests. Upsove every problem you couldn't solve — reading editorials after each contest is the single highest-ROI habit in AtCoder.",
+        cls: "tip-warn",
+      });
+    }
+  }
+
+  // Tip: performance vs rating gap — consistently outperforming means you should contest more
+  if (rated.length >= 5) {
+    const recent5 = [...rated].slice(-5);
+    const avgPerf = Math.round(
+      recent5.reduce((s, h) => s + (h.Performance || 0), 0) / recent5.length,
+    );
+    const currentRating = rated[rated.length - 1].NewRating;
+    if (avgPerf > currentRating + 100) {
+      tips.push({
+        icon: "🚀",
+        text: `Your avg performance (${avgPerf}) is ${avgPerf - currentRating} points above your rating (${currentRating}). You're underrated — contest more frequently to let your rating catch up.`,
+        cls: "tip-info",
+      });
+    }
+
+    // Tip: rating stagnation
+    const netMove =
+      recent5[recent5.length - 1].NewRating - recent5[0].OldRating;
+    if (Math.abs(netMove) < 50) {
+      tips.push({
+        icon: "📊",
+        text: `Rating barely moved (${netMove > 0 ? "+" : ""}${netMove}) across last 5 contests. Plateau detected — identify which problem position (C, D, E) you're consistently failing and drill that level.`,
+        cls: "tip-warn",
+      });
+    }
+  }
+
+  // Tip: ABC vs ARC routing based on avg solved difficulty
+  const solvedDifficulties = Object.keys(state.acSolved || {})
+    .map((id) => state.acMeta?.[id]?.difficulty)
+    .filter((d) => d != null);
+  const avgDiff = solvedDifficulties.length
+    ? Math.round(
+        solvedDifficulties.reduce((s, v) => s + v, 0) /
+          solvedDifficulties.length,
+      )
+    : null;
+
+  if (avgDiff != null) {
+    let recommend = "";
+    if (avgDiff < 800)
+      recommend =
+        "Focus on ABC A/B problems for speed. Aim to solve both within 10 minutes.";
+    else if (avgDiff < 1200)
+      recommend =
+        "ABC C/D problems are your growth zone. These directly translate to rated contest gains.";
+    else if (avgDiff < 1600)
+      recommend =
+        "Push into ABC E/F and ARC A/B. These are where real rating jumps happen.";
+    else
+      recommend =
+        "You're ready for ARC C+ and AGC. Aim for top 200 finishes in ARC.";
+    tips.push({ icon: "🎯", text: recommend, cls: "tip-info" });
+  }
+
+  // Tip: performance variance
+  if (rated.length >= 3) {
+    const perfs = [...rated].slice(-5).map((h) => h.Performance || 0);
+    const avg = Math.round(perfs.reduce((s, v) => s + v, 0) / perfs.length);
+    const variance = Math.round(
+      Math.sqrt(
+        perfs.map((p) => (p - avg) ** 2).reduce((s, v) => s + v, 0) /
+          perfs.length,
+      ),
+    );
+    if (variance > 300) {
+      tips.push({
+        icon: "📉",
+        text: `Performance variance ±${variance} in last 5 contests — very inconsistent. This usually means mental mistakes under pressure. Solve 1–2 problems at your target difficulty every day without a timer first.`,
+        cls: "tip-warn",
+      });
+    }
+  }
+
+  // Tip: unrated participations
+  const unratedCount = all.filter((h) => !h.IsRated).length;
+  if (unratedCount > 3) {
+    tips.push({
+      icon: "⚠️",
+      text: `${unratedCount} unrated participations. Register before the contest starts (not after it begins) — late registration makes you unrated even if you perform well.`,
+      cls: "tip-warn",
+    });
+  }
+
+  // Tip: contest frequency
+  if (rated.length) {
+    const lastTs = rated[rated.length - 1].EndTime
+      ? new Date(rated[rated.length - 1].EndTime).getTime() / 1000
+      : null;
+    if (lastTs) {
+      const daysSince = Math.floor((Date.now() / 1000 - lastTs) / 86400);
+      if (daysSince > 30) {
+        tips.push({
+          icon: "📅",
+          text: `Last rated contest was ${daysSince} days ago. AtCoder holds ABC every weekend — aim for at least 2–3 rated contests per month.`,
+          cls: "tip-neutral",
+        });
+      }
+    }
+  }
+
+  // Tip: solve volume — last 30 days
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const thirtyKey = thirtyDaysAgo.toISOString().slice(0, 10);
+  const recentACSolves = Object.entries(state.acActivity || {})
+    .filter(([date]) => date >= thirtyKey)
+    .reduce((s, [, v]) => s + v, 0);
+  if (recentACSolves < 20) {
+    tips.push({
+      icon: "📚",
+      text: `${recentACSolves} AC problems solved in the last 30 days. Daily practice on AtCoder Problems (virtual contests recommended) builds the speed needed for rated performance.`,
+      cls: "tip-neutral",
+    });
+  }
+
+  if (!tips.length) {
+    tips.push({
+      icon: "✅",
+      text: "Excellent consistency! Keep contesting every weekend, upsove after each round, and push one problem difficulty level higher each month.",
+      cls: "tip-info",
+    });
+  }
+
+  el.innerHTML = tips
+    .map(
+      (t) => `
+    <div class="tip-card ${t.cls}">
+      <span class="tip-icon">${t.icon}</span>
+      <div class="tip-text">${t.text}</div>
+    </div>
+  `,
+    )
+    .join("");
+}
+
+// ─── Loading / Error helpers ──────────────────────────────────────────────────
+function setContestLoadingState(elId, loading) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (loading) {
+    el.innerHTML = `<div class="contests-loading"><span class="spinner"></span> Loading…</div>`;
+  }
+}
+
+function setContestError(elId, msg) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (msg) el.innerHTML = `<div class="contests-error">⚠️ ${msg}</div>`;
+  else el.innerHTML = "";
+}
+
+// ─── Participated filter toggles ──────────────────────────────────────────────
+function toggleCFParticipatedFilter() {
+  if (!state.cfUsername) {
+    alert("Connect your Codeforces account first.");
+    return;
+  }
+  contestsState.cfParticipatedOnly = !contestsState.cfParticipatedOnly;
+  contestsState.cfPastVisible = 10;
+  const btn = document.getElementById("cf-participated-filter");
+  if (btn) btn.classList.toggle("active", contestsState.cfParticipatedOnly);
+  if (contestsState.cfParticipatedOnly && !contestsState.cfHistoryLoaded) {
+    renderCFContestLists(); // show "loading…" immediately
+    loadCFContestHistory().then(() => renderCFContestLists());
+  } else {
+    renderCFContestLists();
+  }
+}
+function toggleACParticipatedFilter() {
+  if (!state.acUsername) {
+    alert("Connect your AtCoder account first.");
+    return;
+  }
+  contestsState.acParticipatedOnly = !contestsState.acParticipatedOnly;
+  contestsState.acPastVisible = 10;
+  const btn = document.getElementById("ac-participated-filter");
+  if (btn) btn.classList.toggle("active", contestsState.acParticipatedOnly);
+  if (contestsState.acParticipatedOnly && !contestsState.acHistoryLoaded) {
+    renderACContestLists();
+    loadACContestHistory().then(() => renderACContestLists());
+  } else {
+    renderACContestLists();
+  }
+}
+
+// ─── Contest detail modal ─────────────────────────────────────────────────────
+function closeContestDetail() {
+  document.getElementById("contest-detail-overlay").style.display = "none";
+}
+
+function openCFContestDetail(contestId) {
+  const c = contestsState.cfContests.find((x) => x.id === contestId);
+  if (!c) return;
+  const entry = contestsState.cfContestHistory.find(
+    (h) => h.contestId === contestId,
+  );
+  const startMs = c.startTimeSeconds * 1000;
+  const div = cfContestDivLabel(c.name);
+  const link = `https://codeforces.com/contest/${contestId}`;
+
+  document.getElementById("contest-detail-title").textContent = c.name;
+  document.getElementById("contest-detail-subtitle").innerHTML =
+    `${fmtContestDate(c.startTimeSeconds)} · ${fmtDuration(c.durationSeconds)}` +
+    (div
+      ? ` · <span class="contest-div-badge ${div.cls}">${div.text}</span>`
+      : "");
+
+  let body = "";
+  if (entry) {
+    const delta = entry.newRating - entry.oldRating;
+    const deltaStr = (delta >= 0 ? "+" : "") + delta;
+    const deltaColor =
+      delta > 0 ? "var(--color-positive)" : delta < 0 ? "var(--color-negative)" : "var(--text-muted)";
+    body += `
+      <div class="cd-participated-banner">✓ You participated in this contest</div>
+      <div class="cd-stats-grid">
+        <div class="cd-stat"><div class="cd-stat-val">#${entry.rank.toLocaleString()}</div><div class="cd-stat-label">Rank</div></div>
+        <div class="cd-stat"><div class="cd-stat-val" style="color:${deltaColor}">${deltaStr}</div><div class="cd-stat-label">Rating Δ</div></div>
+        <div class="cd-stat"><div class="cd-stat-val" style="color:${cfRatingColor(entry.oldRating)}">${entry.oldRating}</div><div class="cd-stat-label">Rating Before</div></div>
+        <div class="cd-stat"><div class="cd-stat-val" style="color:${cfRatingColor(entry.newRating)}">${entry.newRating}</div><div class="cd-stat-label">Rating After</div></div>
+      </div>
+      <div class="cd-meta-row">
+        <span class="cd-meta-item">📅 ${new Date(entry.ratingUpdateTimeSeconds * 1000).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</span>
+        <span class="cd-meta-item">🏆 ${cfRatingLabel(entry.newRating)}</span>
+      </div>`;
+  } else {
+    body += `<div class="cd-no-participation">You did not participate in this contest.</div>`;
+  }
+  body += `<div class="cd-actions">
+    <a href="${link}" target="_blank" class="btn-primary" style="text-decoration:none;font-size:13px">Open Contest →</a>
+    <a href="${link}/standings" target="_blank" class="btn-secondary" style="text-decoration:none;font-size:13px">Standings</a>
+    ${entry ? `<a href="https://codeforces.com/contest/${contestId}/submission/${state.cfUsername}" target="_blank" class="btn-secondary" style="text-decoration:none;font-size:13px">My Submissions</a>` : ""}
+  </div>`;
+
+  document.getElementById("contest-detail-body").innerHTML = body;
+  document.getElementById("contest-detail-overlay").style.display = "flex";
+}
+
+function openACContestDetail(contestId) {
+  const c = contestsState.acContests.find((x) => x.id === contestId);
+  if (!c) return;
+  const entry = contestsState.acContestHistory.find(
+    (h) =>
+      (h.ContestScreenName || "").toLowerCase() === contestId.toLowerCase(),
+  );
+  const link = `https://atcoder.jp/contests/${contestId}`;
+  const cat = acContestCategory(contestId);
+
+  document.getElementById("contest-detail-title").textContent = c.title;
+  document.getElementById("contest-detail-subtitle").innerHTML =
+    `${fmtContestDate(c.start_epoch_second)} · ${fmtDuration(c.duration_second)} · <span class="contest-div-badge ${cat.cls}">${cat.text}</span>`;
+
+  let body = "";
+  if (entry) {
+    const delta = entry.IsRated ? entry.NewRating - entry.OldRating : null;
+    const deltaStr = delta != null ? (delta >= 0 ? "+" : "") + delta : "N/A";
+    const deltaColor =
+      delta > 0 ? "var(--color-positive)" : delta < 0 ? "var(--color-negative)" : "var(--text-muted)";
+    body += `
+      <div class="cd-participated-banner">✓ You participated in this contest</div>
+      <div class="cd-stats-grid">
+        <div class="cd-stat"><div class="cd-stat-val">#${(entry.Place || 0).toLocaleString()}</div><div class="cd-stat-label">Rank</div></div>
+        <div class="cd-stat"><div class="cd-stat-val" style="color:${acDiffColor(entry.Performance)}">${entry.Performance ?? "—"}</div><div class="cd-stat-label">Performance</div></div>
+        ${
+          entry.IsRated
+            ? `
+        <div class="cd-stat"><div class="cd-stat-val" style="color:${deltaColor}">${deltaStr}</div><div class="cd-stat-label">Rating Δ</div></div>
+        <div class="cd-stat"><div class="cd-stat-val" style="color:${acDiffColor(entry.OldRating)}">${entry.OldRating}</div><div class="cd-stat-label">Before</div></div>
+        <div class="cd-stat"><div class="cd-stat-val" style="color:${acDiffColor(entry.NewRating)}">${entry.NewRating}</div><div class="cd-stat-label">After</div></div>
+        `
+            : `<div class="cd-stat"><div class="cd-stat-val" style="color:var(--text-muted)">Unrated</div><div class="cd-stat-label">Contest Type</div></div>`
+        }
+      </div>`;
+  } else {
+    body += `<div class="cd-no-participation">You did not participate in this contest.</div>`;
+  }
+  body += `<div class="cd-actions">
+    <a href="${link}" target="_blank" class="btn-primary" style="text-decoration:none;font-size:13px">Open Contest →</a>
+    <a href="${link}/standings" target="_blank" class="btn-secondary" style="text-decoration:none;font-size:13px">Standings</a>
+    ${entry ? `<a href="${link}/submissions?f.User=${state.acUsername}" target="_blank" class="btn-secondary" style="text-decoration:none;font-size:13px">My Submissions</a>` : ""}
+  </div>`;
+
+  document.getElementById("contest-detail-body").innerHTML = body;
+  document.getElementById("contest-detail-overlay").style.display = "flex";
+}
+
+
+window.addEventListener("hashchange", handleHashChange);
 document.addEventListener("DOMContentLoaded", init);
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── NAV CONTEST BADGE ────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+function initNavContestBadge() {
+  if (contestsState.navBadgeTimer) clearInterval(contestsState.navBadgeTimer);
+  updateNavBadge();
+  contestsState.navBadgeTimer = setInterval(updateNavBadge, 60000);
+}
+function updateNavBadge() {
+  const badge = document.getElementById("nav-contest-badge");
+  if (!badge) return;
+  const now = Math.floor(Date.now() / 1000);
+  const all = [
+    ...(contestsState.cfContests || []).map((c) => ({ name: c.name, _start: c.startTimeSeconds, _plat: "CF" })),
+    ...(contestsState.acContests || []).map((c) => ({ name: c.title, _start: c.start_epoch_second, _plat: "AC" })),
+  ].filter((c) => c._start > now).sort((a, b) => a._start - b._start);
+  if (!all.length) { badge.style.display = "none"; return; }
+  const next = all[0];
+  const diff = next._start - now;
+  const h = Math.floor(diff / 3600), m = Math.floor((diff % 3600) / 60);
+  const label = h > 48 ? `${Math.floor(h / 24)}d` : h > 0 ? `${h}h ${m}m` : `${m}m`;
+  badge.style.display = "flex";
+  badge.title = `Next: ${next.name} in ${label}`;
+  badge.innerHTML = `<span class="nav-badge-dot"></span><span>${next._plat} · ${label}</span>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── CF PERSONAL RECORDS ──────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+function renderCFPersonalRecords() {
+  const panel = document.getElementById("cf-records-panel");
+  const el = document.getElementById("cf-personal-records");
+  if (!el) return;
+  const hist = contestsState.cfContestHistory;
+  if (!hist.length) { if (panel) panel.style.display = "none"; return; }
+  if (panel) panel.style.display = "";
+  const deltas = hist.map((h) => h.newRating - h.oldRating);
+  const bestDelta = Math.max(...deltas), worstDelta = Math.min(...deltas);
+  const bestRank = Math.min(...hist.map((h) => h.rank));
+  const peakRating = Math.max(...hist.map((h) => h.newRating));
+  const currentRating = hist[hist.length - 1].newRating;
+  let maxStreak = 0, cur = 0;
+  for (const d of deltas) { if (d > 0) { cur++; maxStreak = Math.max(maxStreak, cur); } else cur = 0; }
+  let currentStreak = 0;
+  for (let i = deltas.length - 1; i >= 0; i--) { if (deltas[i] > 0) currentStreak++; else break; }
+  const bestH = hist[deltas.indexOf(bestDelta)];
+  const worstH = hist[deltas.indexOf(worstDelta)];
+  const bestRankH = hist.find((h) => h.rank === bestRank);
+  const records = [
+    { icon: "🏆", label: "Best Rank Ever", val: `#${bestRank.toLocaleString()}`, sub: (bestRankH?.contestName || "").slice(0, 32) },
+    { icon: "📈", label: "Best Rating Gain", val: `+${bestDelta}`, sub: (bestH?.contestName || "").slice(0, 32), color: "var(--color-positive)" },
+    { icon: "📉", label: "Worst Drop", val: `${worstDelta}`, sub: (worstH?.contestName || "").slice(0, 32), color: "var(--color-negative)" },
+    { icon: "⭐", label: "Peak Rating", val: peakRating, sub: cfRatingLabel(peakRating), color: cfRatingColor(peakRating) },
+    { icon: "🔥", label: "Best Win Streak", val: maxStreak, sub: "consecutive gains" },
+    { icon: "⚡", label: "Current Streak", val: currentStreak, sub: currentStreak > 0 ? "ongoing" : "no streak" },
+    { icon: "🎯", label: "Total Contests", val: hist.length, sub: `${deltas.filter((d) => d > 0).length}W · ${deltas.filter((d) => d < 0).length}L` },
+    { icon: "📊", label: "Current Rating", val: currentRating, sub: cfRatingLabel(currentRating), color: cfRatingColor(currentRating) },
+  ];
+  el.innerHTML = records.map((r) => `<div class="pr-card">
+    <div class="pr-icon">${r.icon}</div>
+    <div class="pr-val"${r.color ? ` style="color:${r.color}"` : ""}>${r.val}</div>
+    <div class="pr-label">${r.label}</div>
+    ${r.sub ? `<div class="pr-sub">${r.sub}</div>` : ""}
+  </div>`).join("");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── AC PERSONAL RECORDS ──────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+function renderACPersonalRecords() {
+  const panel = document.getElementById("ac-records-panel");
+  const el = document.getElementById("ac-personal-records");
+  if (!el) return;
+  const rated = contestsState.acContestHistory.filter((h) => h.IsRated);
+  const all = contestsState.acContestHistory;
+  if (!all.length) { if (panel) panel.style.display = "none"; return; }
+  if (panel) panel.style.display = "";
+  const deltas = rated.map((h) => h.NewRating - h.OldRating);
+  const perfs = rated.map((h) => h.Performance || 0).filter(Boolean);
+  const bestDelta = deltas.length ? Math.max(...deltas) : 0;
+  const worstDelta = deltas.length ? Math.min(...deltas) : 0;
+  const bestRank = Math.min(...all.map((h) => h.Place || Infinity));
+  const peakRating = rated.length ? Math.max(...rated.map((h) => h.NewRating)) : 0;
+  const currentRating = rated.length ? rated[rated.length - 1].NewRating : 0;
+  const bestPerf = perfs.length ? Math.max(...perfs) : 0;
+  const avgPerf = perfs.length ? Math.round(perfs.reduce((s, v) => s + v, 0) / perfs.length) : 0;
+  let maxStreak = 0, cur = 0;
+  for (const d of deltas) { if (d > 0) { cur++; maxStreak = Math.max(maxStreak, cur); } else cur = 0; }
+  let currentStreak = 0;
+  for (let i = deltas.length - 1; i >= 0; i--) { if (deltas[i] > 0) currentStreak++; else break; }
+  const records = [
+    { icon: "🏆", label: "Best Rank", val: bestRank === Infinity ? "—" : `#${bestRank.toLocaleString()}` },
+    { icon: "🚀", label: "Best Performance", val: bestPerf || "—", sub: "single contest", color: bestPerf ? acDiffColor(bestPerf) : undefined },
+    { icon: "📊", label: "Avg Performance", val: avgPerf || "—", sub: `over ${rated.length} rated`, color: avgPerf ? acDiffColor(avgPerf) : undefined },
+    { icon: "⭐", label: "Peak Rating", val: peakRating || "—", sub: peakRating ? acDiffLabel(peakRating) : "", color: peakRating ? acDiffColor(peakRating) : undefined },
+    { icon: "📈", label: "Best Rating Gain", val: deltas.length ? `+${bestDelta}` : "—", color: "var(--color-positive)" },
+    { icon: "📉", label: "Worst Drop", val: deltas.length ? `${worstDelta}` : "—", color: "var(--color-negative)" },
+    { icon: "🔥", label: "Best Win Streak", val: maxStreak, sub: "consecutive gains" },
+    { icon: "🎯", label: "Total Contests", val: all.length, sub: `${rated.length} rated · ${all.length - rated.length} unrated` },
+  ];
+  el.innerHTML = records.map((r) => `<div class="pr-card">
+    <div class="pr-icon">${r.icon}</div>
+    <div class="pr-val"${r.color ? ` style="color:${r.color}"` : ""}>${r.val}</div>
+    <div class="pr-label">${r.label}</div>
+    ${r.sub ? `<div class="pr-sub">${r.sub}</div>` : ""}
+  </div>`).join("");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── CF UPSOLVER ──────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+function initCFUpsolver() {
+  const panel = document.getElementById("cf-upsolver-panel");
+  const sel = document.getElementById("cf-upsolver-contest-select");
+  if (!panel || !sel) return;
+  const hist = contestsState.cfContestHistory;
+  if (!hist.length) { panel.style.display = "none"; return; }
+  panel.style.display = "";
+  sel.innerHTML = `<option value="">Select a contest you participated in…</option>` +
+    [...hist].reverse().slice(0, 50).map((h) =>
+      `<option value="${h.contestId}">${h.contestName} — ${new Date(h.ratingUpdateTimeSeconds * 1000).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</option>`
+    ).join("");
+}
+function renderCFUpsolver(contestId) {
+  const el = document.getElementById("cf-upsolver-body");
+  if (!el || !contestId) { if (el) el.innerHTML = ""; return; }
+  contestId = parseInt(contestId);
+  const entry = contestsState.cfContestHistory.find((h) => h.contestId === contestId);
+  if (!entry) { el.innerHTML = `<div class="contests-empty">No data for this contest.</div>`; return; }
+  const problems = Object.values(state.cfMeta || {}).filter((p) => p.contestId === contestId).sort((a, b) => (a.index || "").localeCompare(b.index || ""));
+  const delta = entry.newRating - entry.oldRating;
+  const deltaColor = delta > 0 ? "var(--color-positive)" : delta < 0 ? "var(--color-negative)" : "var(--text-muted)";
+  const solvedCount = problems.filter((p) => state.cfSolved[cfProblemKey(p.contestId, p.index)]).length;
+  if (!problems.length) {
+    el.innerHTML = `<div class="upsolver-summary">
+      <span>Rank <strong>#${entry.rank.toLocaleString()}</strong></span>
+      <span style="color:${deltaColor}"><strong>${delta > 0 ? "+" : ""}${delta}</strong></span>
+      <span>${entry.oldRating} → <span style="color:${cfRatingColor(entry.newRating)}">${entry.newRating}</span></span>
+    </div><div class="contests-empty">No cf-meta loaded — run <code>node fetch-cf-metadata.js</code> first.</div>`;
+    return;
+  }
+  let html = `<div class="upsolver-summary">
+    <span>Rank <strong>#${entry.rank.toLocaleString()}</strong></span>
+    <span style="color:${deltaColor}"><strong>${delta > 0 ? "+" : ""}${delta}</strong> rating</span>
+    <span>${entry.oldRating} → <span style="color:${cfRatingColor(entry.newRating)}">${entry.newRating}</span></span>
+    <span style="color:var(--text-muted)">${solvedCount}/${problems.length} solved</span>
+  </div><div class="upsolver-problems">`;
+  for (const p of problems) {
+    const key = cfProblemKey(p.contestId, p.index);
+    const solved = !!state.cfSolved[key];
+    const link = `https://codeforces.com/contest/${p.contestId}/problem/${p.index}`;
+    html += `<div class="upsolver-problem ${solved ? "upsolved" : "unsolved"}">
+      <span class="upsolver-idx">${p.index}</span>
+      <a href="${link}" target="_blank" class="upsolver-name" onclick="event.stopPropagation()">${p.name}</a>
+      ${p.rating ? `<span class="upsolver-rating" style="color:${cfRatingColor(p.rating)}">${p.rating}</span>` : ""}
+      <span class="upsolver-status">${solved ? "✓ Solved" : "⟳ Upsolve"}</span>
+    </div>`;
+  }
+  const unsolved = problems.filter((p) => !state.cfSolved[cfProblemKey(p.contestId, p.index)]).length;
+  html += `</div>${unsolved === 0 ? `<div class="upsolver-complete">🎉 All problems solved!</div>` : `<div class="upsolver-footer">${unsolved} problem${unsolved > 1 ? "s" : ""} left to upsolve</div>`}`;
+  el.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── AC UPSOLVER ──────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+function initACUpsolver() {
+  const panel = document.getElementById("ac-upsolver-panel");
+  const sel = document.getElementById("ac-upsolver-contest-select");
+  if (!panel || !sel) return;
+  const hist = contestsState.acContestHistory;
+  if (!hist.length) { panel.style.display = "none"; return; }
+  panel.style.display = "";
+  sel.innerHTML = `<option value="">Select a contest you participated in…</option>` +
+    [...hist].reverse().slice(0, 50).map((h) =>
+      `<option value="${h.ContestScreenName}">${h.ContestScreenName}${h.IsRated ? ` · Rank #${h.Place}` : " (unrated)"}</option>`
+    ).join("");
+}
+function renderACUpsolver(contestId) {
+  const el = document.getElementById("ac-upsolver-body");
+  if (!el || !contestId) { if (el) el.innerHTML = ""; return; }
+  const entry = contestsState.acContestHistory.find((h) => (h.ContestScreenName || "").toLowerCase() === contestId.toLowerCase());
+  const contest = contestsState.acContests.find((c) => (c.id || "").toLowerCase() === contestId.toLowerCase());
+  const link = `https://atcoder.jp/contests/${contestId}`;
+  // Find problems in this contest from acMeta
+  const problems = Object.values(state.acMeta || {}).filter((p) => (p.contestId || "").toLowerCase() === contestId.toLowerCase()).sort((a, b) => (a.id || "").localeCompare(b.id || ""));
+  let html = "";
+  if (entry) {
+    const delta = entry.IsRated ? entry.NewRating - entry.OldRating : null;
+    const deltaColor = delta > 0 ? "var(--color-positive)" : delta < 0 ? "var(--color-negative)" : "var(--text-muted)";
+    const solvedCount = problems.filter((p) => state.acSolved[p.id]).length;
+    html += `<div class="upsolver-summary">
+      <span>Rank <strong>#${(entry.Place || 0).toLocaleString()}</strong></span>
+      ${entry.Performance != null ? `<span style="color:${acDiffColor(entry.Performance)}">Perf <strong>${entry.Performance}</strong></span>` : ""}
+      ${delta !== null ? `<span style="color:${deltaColor}"><strong>${delta > 0 ? "+" : ""}${delta}</strong> rating</span>` : "<span style='color:var(--text-muted)'>Unrated</span>"}
+      ${problems.length ? `<span style="color:var(--text-muted)">${solvedCount}/${problems.length} solved</span>` : ""}
+    </div>`;
+  } else {
+    html += `<div class="cd-no-participation">You did not participate in this contest.</div>`;
+  }
+  if (!problems.length) {
+    html += `<div class="contests-empty">No problem data for this contest in ac-meta. Run <code>node fetch-atcoder-metadata.js</code> first.</div>`;
+  } else {
+    html += `<div class="upsolver-problems">`;
+    for (const p of problems) {
+      const solved = !!state.acSolved[p.id];
+      const plink = `https://atcoder.jp/contests/${contestId}/tasks/${p.id}`;
+      html += `<div class="upsolver-problem ${solved ? "upsolved" : "unsolved"}">
+        <span class="upsolver-idx">${p.id.replace(contestId + "_", "").toUpperCase()}</span>
+        <a href="${plink}" target="_blank" class="upsolver-name" onclick="event.stopPropagation()">${p.title}</a>
+        ${p.difficulty != null ? `<span class="upsolver-rating" style="color:${acDiffColor(p.difficulty)}">${p.difficulty}</span>` : ""}
+        <span class="upsolver-status">${solved ? "✓ Solved" : "⟳ Upsolve"}</span>
+      </div>`;
+    }
+    const unsolved = problems.filter((p) => !state.acSolved[p.id]).length;
+    html += `</div>${unsolved === 0 ? `<div class="upsolver-complete">🎉 All problems solved!</div>` : `<div class="upsolver-footer">${unsolved} problem${unsolved > 1 ? "s" : ""} left to upsolve</div>`}`;
+  }
+  html += `<div class="cd-actions" style="margin-top:12px">
+    <a href="${link}" target="_blank" class="btn-primary" style="text-decoration:none;font-size:13px">Open Contest →</a>
+    <a href="${link}/submissions?f.User=${state.acUsername || ""}" target="_blank" class="btn-secondary" style="text-decoration:none;font-size:13px">My Submissions</a>
+  </div>`;
+  el.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── CF RECOMMENDER ───────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+function initCFRecommender() {
+  const panel = document.getElementById("cf-recommender-panel");
+  if (!panel) return;
+  if (!Object.keys(state.cfMeta || {}).length) { panel.style.display = "none"; return; }
+  panel.style.display = "";
+  renderCFRecommender();
+}
+function renderCFRecommender() {
+  const el = document.getElementById("cf-recommender-body");
+  if (!el) return;
+  const userRating = state.cfUserInfo?.rating || 1200;
+  const tagStats = {};
+  for (const p of Object.values(state.cfMeta || {})) {
+    if (!p.rating || p.rating > userRating + 400) continue;
+    const key = cfProblemKey(p.contestId, p.index);
+    const solved = !!state.cfSolved[key];
+    for (const tag of p.tags || []) {
+      if (!tagStats[tag]) tagStats[tag] = { total: 0, solved: 0 };
+      tagStats[tag].total++;
+      if (solved) tagStats[tag].solved++;
+    }
+  }
+  const weakTags = Object.entries(tagStats)
+    .filter(([, v]) => v.total >= 5 && v.solved / v.total < 0.4)
+    .sort((a, b) => a[1].solved / a[1].total - b[1].solved / b[1].total)
+    .slice(0, 4).map(([tag]) => tag);
+  const targetMin = Math.max(800, userRating - 50), targetMax = userRating + 300;
+  const candidates = Object.values(state.cfMeta || {}).filter((p) => {
+    if (!p.rating || p.rating < targetMin || p.rating > targetMax) return false;
+    return !state.cfSolved[cfProblemKey(p.contestId, p.index)];
+  });
+  const shuffle = (arr) => arr.sort(() => Math.random() - 0.5);
+  const weak = shuffle(candidates.filter((p) => (p.tags || []).some((t) => weakTags.includes(t)))).slice(0, 6);
+  const normal = shuffle(candidates.filter((p) => !(p.tags || []).some((t) => weakTags.includes(t)))).slice(0, 6);
+  const picks = [...weak, ...normal];
+  if (!picks.length) { el.innerHTML = `<div class="contests-empty">No recommendations yet — sync CF data to populate.</div>`; return; }
+  el.innerHTML = `
+    ${weakTags.length ? `<div class="recommender-tags-row">Targeting weak tags: ${weakTags.map((t) => `<span class="rec-tag">${t}</span>`).join("")}</div>` : ""}
+    <div class="recommender-grid">${picks.map((p) => {
+      const link = `https://codeforces.com/contest/${p.contestId}/problem/${p.index}`;
+      const isWeak = (p.tags || []).some((t) => weakTags.includes(t));
+      return `<a href="${link}" target="_blank" class="rec-problem-card${isWeak ? " rec-weak" : ""}">
+        <div class="rec-top"><span class="rec-idx">${p.contestId}${p.index}</span>${isWeak ? `<span class="rec-weak-badge">weak tag</span>` : ""}</div>
+        <div class="rec-name">${p.name}</div>
+        <div class="rec-meta"><span style="color:${cfRatingColor(p.rating)}">${p.rating}</span>${(p.tags || []).slice(0, 2).map((t) => `<span class="rec-tag-small">${t}</span>`).join("")}</div>
+      </a>`;
+    }).join("")}</div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── AC RECOMMENDER ───────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+function initACRecommender() {
+  const panel = document.getElementById("ac-recommender-panel");
+  if (!panel) return;
+  if (!Object.keys(state.acMeta || {}).length) { panel.style.display = "none"; return; }
+  panel.style.display = "";
+  renderACRecommender();
+}
+function renderACRecommender() {
+  const el = document.getElementById("ac-recommender-body");
+  if (!el) return;
+  const rated = contestsState.acContestHistory.filter((h) => h.IsRated);
+  const userRating = rated.length ? rated[rated.length - 1].NewRating : 0;
+  const targetMin = Math.max(0, (userRating || 800) - 100);
+  const targetMax = (userRating || 800) + 400;
+  const candidates = Object.values(state.acMeta || {}).filter((p) => {
+    if (p.difficulty == null) return false;
+    if (p.difficulty < targetMin || p.difficulty > targetMax) return false;
+    return !state.acSolved[p.id];
+  });
+  const shuffle = (arr) => arr.sort(() => Math.random() - 0.5);
+  const picks = shuffle(candidates).slice(0, 12);
+  if (!picks.length) { el.innerHTML = `<div class="contests-empty">No recommendations — sync AC data first.</div>`; return; }
+  const label = userRating ? `Targeting difficulty ${targetMin}–${targetMax} (around your rating ${userRating})` : "Targeting beginner-friendly problems";
+  el.innerHTML = `
+    <div class="recommender-tags-row">${label}</div>
+    <div class="recommender-grid">${picks.map((p) => {
+      const link = `https://atcoder.jp/contests/${p.contestId}/tasks/${p.id}`;
+      return `<a href="${link}" target="_blank" class="rec-problem-card">
+        <div class="rec-top"><span class="rec-idx">${p.id}</span></div>
+        <div class="rec-name">${p.title}</div>
+        <div class="rec-meta"><span style="color:${acDiffColor(p.difficulty)}">${p.difficulty}</span></div>
+      </a>`;
+    }).join("")}</div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── CF RATING PREDICTOR ──────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+function initCFRatingPredictor() {
+  const panel = document.getElementById("cf-predictor-panel");
+  if (!panel) return;
+  if (!contestsState.cfContestHistory.length || !contestsState.cfContests.length) { panel.style.display = "none"; return; }
+  panel.style.display = "";
+  renderCFRatingPredictor();
+}
+function renderCFRatingPredictor() {
+  const el = document.getElementById("cf-predictor-body");
+  if (!el) return;
+  const hist = contestsState.cfContestHistory;
+  if (!hist.length) { el.innerHTML = `<div class="contests-empty">Participate in at least one contest to unlock.</div>`; return; }
+  const now = Math.floor(Date.now() / 1000);
+  const upcoming = contestsState.cfContests.filter((c) => c.startTimeSeconds > now).sort((a, b) => a.startTimeSeconds - b.startTimeSeconds).slice(0, 3);
+  if (!upcoming.length) { el.innerHTML = `<div class="contests-empty">No upcoming CF contests found.</div>`; return; }
+  const recentDeltas = hist.slice(-10).map((h) => h.newRating - h.oldRating);
+  const avgDelta = Math.round(recentDeltas.reduce((s, v) => s + v, 0) / recentDeltas.length);
+  const trend = recentDeltas.slice(-3).reduce((s, v) => s + v, 0) > 0 ? "📈 Positive" : "📉 Negative";
+  const userRating = state.cfUserInfo?.rating || hist[hist.length - 1].newRating;
+  el.innerHTML = `
+    <div class="predictor-context">Last ${recentDeltas.length} contests · Avg Δ <strong style="color:${avgDelta >= 0 ? "var(--color-positive)" : "var(--color-negative)"}">${avgDelta > 0 ? "+" : ""}${avgDelta}</strong> · Trend: ${trend}</div>
+    <div class="predictor-grid">${upcoming.map((c) => {
+      const div = cfContestDivLabel(c.name);
+      const mult = div?.text === "Div. 1" ? 0.6 : (div?.text === "Div. 3" || div?.text === "Div. 4") ? 1.3 : 1.0;
+      const pd = Math.round(avgDelta * mult);
+      const pr = userRating + pd;
+      const link = `https://codeforces.com/contest/${c.id}`;
+      return `<div class="predictor-card">
+        <div class="predictor-card-top">${div ? `<span class="contest-div-badge ${div.cls}">${div.text}</span>` : ""}
+          <a href="${link}" target="_blank" class="predictor-name" onclick="event.stopPropagation()">${c.name}</a></div>
+        <div class="predictor-stats">
+          <div class="predictor-stat"><div class="predictor-stat-val" style="color:${pd >= 0 ? "var(--color-positive)" : "var(--color-negative)"}">${pd > 0 ? "+" : ""}${pd}</div><div class="predictor-stat-label">Expected Δ</div></div>
+          <div class="predictor-stat"><div class="predictor-stat-val" style="color:${cfRatingColor(pr)}">${pr}</div><div class="predictor-stat-label">Predicted</div></div>
+          <div class="predictor-stat"><div class="predictor-stat-val">${fmtRelativeTime(c.startTimeSeconds)}</div><div class="predictor-stat-label">Starts</div></div>
+        </div>
+        <div class="predictor-disclaimer">Based on your last ${recentDeltas.length}-contest trend. Actual results vary.</div>
+      </div>`;
+    }).join("")}</div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── AC PERFORMANCE PREDICTOR ─────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+function initACRatingPredictor() {
+  const panel = document.getElementById("ac-predictor-panel");
+  if (!panel) return;
+  const rated = contestsState.acContestHistory.filter((h) => h.IsRated);
+  if (!rated.length || !contestsState.acContests.length) { panel.style.display = "none"; return; }
+  panel.style.display = "";
+  renderACRatingPredictor();
+}
+function renderACRatingPredictor() {
+  const el = document.getElementById("ac-predictor-body");
+  if (!el) return;
+  const rated = contestsState.acContestHistory.filter((h) => h.IsRated);
+  if (!rated.length) { el.innerHTML = `<div class="contests-empty">Participate in rated contests to unlock.</div>`; return; }
+  const now = Math.floor(Date.now() / 1000);
+  const upcoming = contestsState.acContests.filter((c) => c.start_epoch_second > now).sort((a, b) => a.start_epoch_second - b.start_epoch_second).slice(0, 3);
+  if (!upcoming.length) { el.innerHTML = `<div class="contests-empty">No upcoming AC contests found.</div>`; return; }
+  const recentPerfs = rated.slice(-10).map((h) => h.Performance || 0).filter(Boolean);
+  const avgPerf = recentPerfs.length ? Math.round(recentPerfs.reduce((s, v) => s + v, 0) / recentPerfs.length) : 0;
+  const recentDeltas = rated.slice(-10).map((h) => h.NewRating - h.OldRating);
+  const avgDelta = recentDeltas.length ? Math.round(recentDeltas.reduce((s, v) => s + v, 0) / recentDeltas.length) : 0;
+  const trend = recentDeltas.slice(-3).reduce((s, v) => s + v, 0) > 0 ? "📈 Positive" : "📉 Negative";
+  const currentRating = rated[rated.length - 1].NewRating;
+  el.innerHTML = `
+    <div class="predictor-context">Last ${recentDeltas.length} rated · Avg Perf <strong style="color:${acDiffColor(avgPerf)}">${avgPerf}</strong> · Avg Δ <strong style="color:${avgDelta >= 0 ? "var(--color-positive)" : "var(--color-negative)"}">${avgDelta > 0 ? "+" : ""}${avgDelta}</strong> · Trend: ${trend}</div>
+    <div class="predictor-grid">${upcoming.map((c) => {
+      const cat = acContestCategory(c.id);
+      const perfMult = cat.text === "AGC" ? 1.1 : cat.text === "ARC" ? 1.05 : 1.0;
+      const predictedPerf = Math.round(avgPerf * perfMult);
+      const predictedDelta = Math.round(avgDelta * perfMult);
+      const predictedRating = currentRating + predictedDelta;
+      const link = `https://atcoder.jp/contests/${c.id}`;
+      return `<div class="predictor-card">
+        <div class="predictor-card-top"><span class="contest-div-badge ${cat.cls}">${cat.text}</span>
+          <a href="${link}" target="_blank" class="predictor-name" onclick="event.stopPropagation()">${c.title}</a></div>
+        <div class="predictor-stats">
+          <div class="predictor-stat"><div class="predictor-stat-val" style="color:${acDiffColor(predictedPerf)}">${predictedPerf || "—"}</div><div class="predictor-stat-label">Pred. Perf</div></div>
+          <div class="predictor-stat"><div class="predictor-stat-val" style="color:${predictedDelta >= 0 ? "var(--color-positive)" : "var(--color-negative)"}">${predictedDelta > 0 ? "+" : ""}${predictedDelta}</div><div class="predictor-stat-label">Expected Δ</div></div>
+          <div class="predictor-stat"><div class="predictor-stat-val" style="color:${acDiffColor(predictedRating)}">${predictedRating}</div><div class="predictor-stat-label">Predicted</div></div>
+          <div class="predictor-stat"><div class="predictor-stat-val">${fmtRelativeTime(c.start_epoch_second)}</div><div class="predictor-stat-label">Starts</div></div>
+        </div>
+        <div class="predictor-disclaimer">Based on your last ${recentDeltas.length}-contest trend. Actual results vary.</div>
+      </div>`;
+    }).join("")}</div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── CF RIVALS ────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+function initCFRivals() {
+  const panel = document.getElementById("cf-rivals-panel");
+  if (panel) { panel.style.display = ""; renderCFRivals(); }
+}
+async function addCFRival() {
+  const input = document.getElementById("cf-rival-input");
+  const handle = (input?.value || "").trim();
+  if (!handle) return;
+  if (contestsState.cfRivals.find((r) => r.handle.toLowerCase() === handle.toLowerCase())) { input.value = ""; return; }
+  input.value = "";
+  const el = document.getElementById("cf-rivals-body");
+  const lid = `cfrl-${Date.now()}`;
+  if (el) el.insertAdjacentHTML("afterbegin", `<div class="rivals-loading" id="${lid}">⏳ Loading @${handle}…</div>`);
+  try {
+    const [hr, ir] = await Promise.all([
+      fetch(`/api/contests-proxy?platform=cf-history&handle=${encodeURIComponent(handle)}`),
+      fetch(`https://codeforces.com/api/user.info?handles=${encodeURIComponent(handle)}`),
+    ]);
+    if (!hr.ok) throw new Error("Handle not found");
+    const history = await hr.json();
+    const info = (await ir.json()).result?.[0] || {};
+    contestsState.cfRivals.push({ handle, history, rating: info.rating || 0 });
+    const saved = JSON.parse(localStorage.getItem("cf_rivals") || "[]");
+    if (!saved.find((r) => r.handle === handle)) saved.push({ handle });
+    localStorage.setItem("cf_rivals", JSON.stringify(saved));
+  } catch (e) {
+    document.getElementById(lid)?.remove();
+    if (el) el.insertAdjacentHTML("afterbegin", `<div class="contests-error" style="font-size:12px;margin-bottom:8px">⚠️ @${handle}: ${e.message}</div>`);
+    return;
+  }
+  renderCFRivals();
+}
+function removeCFRival(handle) {
+  contestsState.cfRivals = contestsState.cfRivals.filter((r) => r.handle !== handle);
+  localStorage.setItem("cf_rivals", JSON.stringify(
+    JSON.parse(localStorage.getItem("cf_rivals") || "[]").filter((r) => r.handle !== handle)
+  ));
+  renderCFRivals();
+}
+async function loadSavedCFRivals() {
+  if (contestsState.cfRivalsLoaded) return;
+  contestsState.cfRivalsLoaded = true;
+  const saved = JSON.parse(localStorage.getItem("cf_rivals") || "[]");
+  for (const { handle } of saved) {
+    if (contestsState.cfRivals.find((r) => r.handle === handle)) continue;
+    try {
+      const [hr, ir] = await Promise.all([
+        fetch(`/api/contests-proxy?platform=cf-history&handle=${encodeURIComponent(handle)}`),
+        fetch(`https://codeforces.com/api/user.info?handles=${encodeURIComponent(handle)}`),
+      ]);
+      if (!hr.ok) continue;
+      const history = await hr.json();
+      const info = (await ir.json()).result?.[0] || {};
+      contestsState.cfRivals.push({ handle, history, rating: info.rating || 0 });
+      renderCFRivals(); // progressive render
+    } catch (_) {}
+    await new Promise((r) => setTimeout(r, 300)); // rate-limit: 300ms between requests
+  }
+  renderCFRivals();
+}
+function renderCFRivals() {
+  const el = document.getElementById("cf-rivals-body");
+  if (!el) return;
+  const userRating = state.cfUserInfo?.rating || 0;
+  const colors = ["#4fc3f7", "#81c784", "#ffb74d", "#f06292", "#ce93d8", "#80cbc4"];
+  const me = state.cfUsername && userRating ? [{ handle: state.cfUsername, rating: userRating, history: contestsState.cfContestHistory, isYou: true }] : [];
+  const all = [...me, ...contestsState.cfRivals].sort((a, b) => (b.rating || 0) - (a.rating || 0));
+  if (!contestsState.cfRivals.length && !me.length) { el.innerHTML = `<div class="contests-empty">Add a rival's CF handle to compare side by side.</div>`; return; }
+  const allRatings = all.flatMap((e) => (e.history || []).map((h) => h.newRating || 0)).filter(Boolean);
+  const maxR = allRatings.length ? Math.max(...allRatings) : 2000, minR = allRatings.length ? Math.min(...allRatings) : 800;
+  const W = 500, H = 110, pad = 16;
+  let svgLines = "";
+  all.forEach((entry, i) => {
+    const hist = entry.history || [];
+    if (hist.length < 2) return;
+    const color = colors[i % colors.length];
+    const pts = hist.map((h, j) => {
+      const x = pad + (j / (hist.length - 1)) * (W - pad * 2);
+      const y = H - pad - ((h.newRating - minR) / Math.max(maxR - minR, 100)) * (H - pad * 2);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(" ");
+    svgLines += `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="${entry.isYou ? 2.5 : 1.5}" opacity="0.9" stroke-linejoin="round"/>`;
+  });
+  const graph = all.some((e) => (e.history || []).length >= 2) ? `<svg viewBox="0 0 ${W} ${H}" class="rivals-graph" preserveAspectRatio="none">${svgLines}</svg>` : "";
+  el.innerHTML = graph + `<div class="rivals-list">${all.map((entry, i) => {
+    const color = colors[i % colors.length];
+    const diff = userRating && !entry.isYou ? entry.rating - userRating : null;
+    return `<div class="rival-row">
+      <span class="rival-color-dot" style="background:${color}"></span>
+      <a href="https://codeforces.com/profile/${escHtml(entry.handle)}" target="_blank" class="rival-handle" onclick="event.stopPropagation()">${entry.isYou ? "👤 " : ""}${escHtml(entry.handle)}</a>
+      <span class="rival-rating" style="color:${cfRatingColor(entry.rating || 0)}">${entry.rating || "—"}</span>
+      <span class="rival-label">${cfRatingLabel(entry.rating || 0)}</span>
+      ${diff !== null ? `<span class="rival-diff" style="color:${diff > 0 ? 'var(--color-negative)' : 'var(--color-positive)'}">${diff > 0 ? "+" : ""}${diff}</span>` : ""}
+      ${!entry.isYou ? `<button class="rival-remove-btn" onclick="removeCFRival('${entry.handle}')">✕</button>` : ""}
+    </div>`;
+  }).join("")}</div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── AC RIVALS ────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+function initACRivals() {
+  const panel = document.getElementById("ac-rivals-panel");
+  if (panel) { panel.style.display = ""; renderACRivals(); }
+}
+async function addACRival() {
+  const input = document.getElementById("ac-rival-input");
+  const handle = (input?.value || "").trim();
+  if (!handle) return;
+  if (contestsState.acRivals.find((r) => r.handle.toLowerCase() === handle.toLowerCase())) { input.value = ""; return; }
+  input.value = "";
+  const el = document.getElementById("ac-rivals-body");
+  const lid = `acrl-${Date.now()}`;
+  if (el) el.insertAdjacentHTML("afterbegin", `<div class="rivals-loading" id="${lid}">⏳ Loading @${handle}…</div>`);
+  try {
+    const hr = await fetch(`/api/contests-proxy?platform=ac-history&handle=${encodeURIComponent(handle)}`);
+    if (!hr.ok) throw new Error("Handle not found");
+    const history = await hr.json();
+    const rated = history.filter((h) => h.IsRated);
+    const rating = rated.length ? rated[rated.length - 1].NewRating : 0;
+    contestsState.acRivals.push({ handle, history, rating });
+    const saved = JSON.parse(localStorage.getItem("ac_rivals") || "[]");
+    if (!saved.find((r) => r.handle === handle)) saved.push({ handle });
+    localStorage.setItem("ac_rivals", JSON.stringify(saved));
+  } catch (e) {
+    document.getElementById(lid)?.remove();
+    if (el) el.insertAdjacentHTML("afterbegin", `<div class="contests-error" style="font-size:12px;margin-bottom:8px">⚠️ @${handle}: ${e.message}</div>`);
+    return;
+  }
+  renderACRivals();
+}
+function removeACRival(handle) {
+  contestsState.acRivals = contestsState.acRivals.filter((r) => r.handle !== handle);
+  localStorage.setItem("ac_rivals", JSON.stringify(
+    JSON.parse(localStorage.getItem("ac_rivals") || "[]").filter((r) => r.handle !== handle)
+  ));
+  renderACRivals();
+}
+async function loadSavedACRivals() {
+  if (contestsState.acRivalsLoaded) return;
+  contestsState.acRivalsLoaded = true;
+  const saved = JSON.parse(localStorage.getItem("ac_rivals") || "[]");
+  for (const { handle } of saved) {
+    if (contestsState.acRivals.find((r) => r.handle === handle)) continue;
+    try {
+      const hr = await fetch(`/api/contests-proxy?platform=ac-history&handle=${encodeURIComponent(handle)}`);
+      if (!hr.ok) continue;
+      const history = await hr.json();
+      const rated = history.filter((h) => h.IsRated);
+      const rating = rated.length ? rated[rated.length - 1].NewRating : 0;
+      contestsState.acRivals.push({ handle, history, rating });
+      renderACRivals(); // progressive render
+    } catch (_) {}
+    await new Promise((r) => setTimeout(r, 300)); // rate-limit: 300ms between requests
+  }
+  renderACRivals();
+}
+function renderACRivals() {
+  const el = document.getElementById("ac-rivals-body");
+  if (!el) return;
+  const rated = contestsState.acContestHistory.filter((h) => h.IsRated);
+  const myRating = rated.length ? rated[rated.length - 1].NewRating : 0;
+  const colors = ["#4fc3f7", "#81c784", "#ffb74d", "#f06292", "#ce93d8", "#80cbc4"];
+  const me = state.acUsername && myRating ? [{ handle: state.acUsername, rating: myRating, history: contestsState.acContestHistory, isYou: true }] : [];
+  const all = [...me, ...contestsState.acRivals].sort((a, b) => (b.rating || 0) - (a.rating || 0));
+  if (!contestsState.acRivals.length && !me.length) { el.innerHTML = `<div class="contests-empty">Add a rival's AtCoder handle to compare side by side.</div>`; return; }
+  // Build rating graph using NewRating from history
+  const getRating = (h) => h.NewRating || h.newRating || 0;
+  const allRatings = all.flatMap((e) => (e.history || []).filter((h) => h.IsRated !== false).map(getRating)).filter(Boolean);
+  const maxR = allRatings.length ? Math.max(...allRatings) : 1600, minR = allRatings.length ? Math.min(...allRatings) : 400;
+  const W = 500, H = 110, pad = 16;
+  let svgLines = "";
+  all.forEach((entry, i) => {
+    const hist = (entry.history || []).filter((h) => getRating(h) > 0);
+    if (hist.length < 2) return;
+    const color = colors[i % colors.length];
+    const pts = hist.map((h, j) => {
+      const x = pad + (j / (hist.length - 1)) * (W - pad * 2);
+      const y = H - pad - ((getRating(h) - minR) / Math.max(maxR - minR, 100)) * (H - pad * 2);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(" ");
+    svgLines += `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="${entry.isYou ? 2.5 : 1.5}" opacity="0.9" stroke-linejoin="round"/>`;
+  });
+  const graph = all.some((e) => (e.history || []).length >= 2) ? `<svg viewBox="0 0 ${W} ${H}" class="rivals-graph" preserveAspectRatio="none">${svgLines}</svg>` : "";
+  el.innerHTML = graph + `<div class="rivals-list">${all.map((entry, i) => {
+    const color = colors[i % colors.length];
+    const diff = myRating && !entry.isYou ? entry.rating - myRating : null;
+    return `<div class="rival-row">
+      <span class="rival-color-dot" style="background:${color}"></span>
+      <a href="https://atcoder.jp/users/${escHtml(entry.handle)}" target="_blank" class="rival-handle" onclick="event.stopPropagation()">${entry.isYou ? "👤 " : ""}${escHtml(entry.handle)}</a>
+      <span class="rival-rating" style="color:${acDiffColor(entry.rating || 0)}">${entry.rating || "—"}</span>
+      <span class="rival-label">${acDiffLabel(entry.rating || 0)}</span>
+      ${diff !== null ? `<span class="rival-diff" style="color:${diff > 0 ? 'var(--color-negative)' : 'var(--color-positive)'}">${diff > 0 ? "+" : ""}${diff}</span>` : ""}
+      ${!entry.isYou ? `<button class="rival-remove-btn" onclick="removeACRival('${escHtml(entry.handle)}')">✕</button>` : ""}
+    </div>`;
+  }).join("")}</div>`;
+}
