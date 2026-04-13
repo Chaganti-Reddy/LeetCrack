@@ -7,3 +7,13 @@
   from = "/api/github-oauth"
   to = "/.netlify/functions/github-oauth"
   status = 200
+
+[[redirects]]
+  from = "/api/ac-sync"
+  to = "/.netlify/functions/ac-sync"
+  status = 200
+
+[[redirects]]
+  from = "/api/contests-proxy"
+  to = "/.netlify/functions/contests-proxy"
+  status = 200
