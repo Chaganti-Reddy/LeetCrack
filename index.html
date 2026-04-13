@@ -7,7 +7,12 @@
   <title>AlgoTrack — Multi-Platform Problem Tracker</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="style.css">
-  <script>window.GITHUB_CLIENT_ID = "REPLACE_GITHUB_CLIENT_ID";</script>
+  <!-- Supabase JS SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script>
+    window.SUPABASE_URL = "https://ziwaxepqjpxljbbcxnqd.supabase.co";
+    window.SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inppd2F4ZXBxanB4bGpiYmN4bnFkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwNjQ2NzcsImV4cCI6MjA5MTY0MDY3N30._K0LSSs-ZtuLI1mLRq-DIxa5Gpl47586-NUZQwtboEQ";
+  </script>
 </head>
 
 <body>
@@ -21,8 +26,12 @@
         <button class="nav-btn active" id="nav-tracker" onclick="showPage('tracker')">Problems</button>
         <button class="nav-btn" id="nav-profile" onclick="showPage('profile')">Profile</button>
         <button class="nav-btn" id="nav-insights" onclick="showPage('insights')">Insights</button>
+        <button class="nav-btn" id="nav-contests" onclick="showPage('contests')">Contests</button>
+        <div id="nav-contest-badge" class="nav-contest-badge" onclick="showPage('contests')" style="display:none"></div>
       </div>
       <div class="nav-actions">
+        <div id="interview-countdown" class="interview-countdown"></div>
+        <button class="nav-icon-btn" onclick="openWeeklyDigest()" title="Weekly Digest">📊</button>
         <button class="nav-icon-btn" onclick="openRandomPicker()" title="Random Problem (R)">🎲</button>
         <button id="theme-toggle" class="theme-toggle" title="Toggle theme">☀️</button>
       </div>
@@ -47,6 +56,7 @@
           </svg>
           Codeforces
         </button>
+        <button class="platform-tab" id="platform-tab-ac" onclick="switchPlatform('ac')">🔵 AtCoder</button>
       </div>
 
       <!-- LC Content -->
@@ -96,6 +106,11 @@
             <input type="text" id="search-input" placeholder="Search problems or companies… ( / )" autocomplete="off">
           </div>
 
+          <div id="lc-curated-row" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+            <span style="font-size:11px;color:var(--text-muted);line-height:28px;margin-right:2px;">📋 Curated:</span>
+            <button class="curated-pill" data-platform="lc" data-list="blind75" onclick="setCuratedList('lc','blind75')">Blind 75</button>
+            <button class="curated-pill" data-platform="lc" data-list="neetcode150" onclick="setCuratedList('lc','neetcode150')">NeetCode 150</button>
+          </div>
           <div id="filter-difficulty-pills" class="diff-pills">
             <button class="pill pill-diff pill-easy" data-diff="easy">Easy</button>
             <button class="pill pill-diff pill-medium" data-diff="medium">Medium</button>
@@ -277,6 +292,12 @@
           <option value="unsolved">Unsolved</option>
           <option value="solved">Solved ✓</option>
         </select>
+        <div id="cf-curated-row" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px;">
+          <span style="font-size:11px;color:var(--text-muted);line-height:28px;margin-right:2px;">📋 Curated:</span>
+          <button class="curated-pill" data-platform="cf" data-list="cf_a2oj_800" onclick="setCuratedList('cf','cf_a2oj_800')">A2OJ 800</button>
+          <button class="curated-pill" data-platform="cf" data-list="cf_a2oj_1200" onclick="setCuratedList('cf','cf_a2oj_1200')">A2OJ 1200</button>
+          <button class="curated-pill" data-platform="cf" data-list="cf_a2oj_1600" onclick="setCuratedList('cf','cf_a2oj_1600')">A2OJ 1600</button>
+        </div>
         <div class="filter-pills-group">
           <button class="pill filter-pill" id="cf-filter-starred-btn" onclick="toggleCFStarredFilter()" title="Show bookmarked only">★ Starred</button>
           <button class="pill filter-pill" id="cf-filter-review-btn" onclick="toggleCFReviewFilter()" title="Due for SM2 review">🔁 Review</button>
@@ -307,6 +328,86 @@
         <span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> switch pages</span>
       </div>
     </div> <!-- end cf-tracker-content -->
+
+    <!-- AC Content -->
+    <div id="ac-tracker-content" style="display:none">
+      <div class="cf-sync-bar">
+        <div id="ac-connect-area" class="cf-connect-area">
+          <input id="ac-username-input" class="lc-input" placeholder="AtCoder username…" style="width:200px">
+          <button id="ac-sync-btn" class="btn-primary" onclick="syncACUser()">Sync</button>
+        </div>
+        <div id="ac-connected-area" style="display:none"></div>
+      </div>
+      <div id="ac-stats-bar" class="stats-bar"></div>
+      <div class="filters-row">
+        <div class="search-wrap">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input type="text" id="ac-search-input" placeholder="Search problems…" oninput="setACSearch(this.value)" autocomplete="off">
+        </div>
+        <div class="cf-rating-filter">
+          <span class="filter-label">Difficulty:</span>
+          <select id="ac-min-diff" class="cf-rating-select" onchange="setACDiffFilter('min',this.value)">
+            <option value="0">0</option>
+            <option value="400">400</option>
+            <option value="800">800</option>
+            <option value="1200">1200</option>
+            <option value="1600">1600</option>
+            <option value="2000">2000</option>
+            <option value="2400">2400</option>
+            <option value="2800">2800</option>
+            <option value="3200">3200</option>
+          </select>
+          <span style="color:var(--text-muted);font-size:12px">–</span>
+          <select id="ac-max-diff" class="cf-rating-select" onchange="setACDiffFilter('max',this.value)">
+            <option value="400">400</option>
+            <option value="800">800</option>
+            <option value="1200">1200</option>
+            <option value="1600">1600</option>
+            <option value="2000">2000</option>
+            <option value="2400">2400</option>
+            <option value="2800">2800</option>
+            <option value="3200">3200</option>
+            <option value="4000" selected>4000</option>
+          </select>
+        </div>
+        <select class="filter-dropdown-btn" id="ac-status-select" onchange="setACStatusFilter(this.value)">
+          <option value="all">All Status</option>
+          <option value="unsolved">Unsolved</option>
+          <option value="solved">Solved ✓</option>
+        </select>
+        <div id="ac-curated-row" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px;">
+          <span style="font-size:11px;color:var(--text-muted);line-height:28px;margin-right:2px;">📋 Curated:</span>
+          <button class="curated-pill" data-platform="ac" data-list="ac_typical90" onclick="setCuratedList('ac','ac_typical90')">Typical 90</button>
+          <button class="curated-pill" data-platform="ac" data-list="ac_beginner" onclick="setCuratedList('ac','ac_beginner')">Beginner Series</button>
+        </div>
+        <div class="filter-pills-group">
+          <button class="pill filter-pill" id="ac-filter-starred-btn" onclick="toggleACStarredFilter()" title="Show bookmarked only">★ Starred</button>
+          <button class="pill filter-pill" id="ac-filter-review-btn" onclick="toggleACReviewFilter()" title="Due for SM2 review">🔁 Review</button>
+        </div>
+        <button id="ac-clear-filters" onclick="clearACFilters()"
+          style="display:none;background:transparent;border:1px solid var(--border);color:var(--text-muted);padding:8px 14px;border-radius:var(--radius);font-size:12px;font-family:var(--mono);cursor:pointer;transition:border-color .15s,color .15s">✕ Clear</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="col-status">✓</th>
+              <th class="col-title">Problem</th>
+              <th class="col-diff">Difficulty</th>
+              <th class="col-contest">Contest</th>
+            </tr>
+          </thead>
+          <tbody id="ac-tbody"></tbody>
+        </table>
+      </div>
+      <div id="ac-pagination"></div>
+      <div class="keyboard-hint">
+        <span>Press <kbd>/</kbd> to search</span>
+        <span><kbd>R</kbd> random problem</span>
+        <span><kbd>S</kbd> sync accounts</span>
+        <span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> switch pages</span>
+      </div>
+    </div> <!-- end ac-tracker-content -->
 
     </div>
   </div>
@@ -370,13 +471,13 @@
             <div class="streak-emoji">🏆</div>
             <div class="streak-number-sm" id="total-solved-profile">0</div>
             <div class="streak-label">Total Solved</div>
-            <div style="font-size:9px;color:var(--text-dim);margin-top:2px">LC + CF</div>
+            <div style="font-size:9px;color:var(--text-dim);margin-top:2px">LC + CF + AC</div>
           </div>
         </div>
 
         <div class="section-block">
           <div class="section-title">Solve Activity — Last 52 Weeks <span
-              style="font-size:9px;color:var(--text-dim);font-weight:400;letter-spacing:0;text-transform:none">LC + CF
+              style="font-size:9px;color:var(--text-dim);font-weight:400;letter-spacing:0;text-transform:none">LC + CF + AC
               combined</span></div>
           <div id="heatmap" class="heatmap"></div>
           <div class="heatmap-legend"><span>Less</span>
@@ -398,6 +499,7 @@
             </svg>
             Codeforces
           </button>
+          <button class="profile-plat-tab" id="profile-tab-ac" onclick="switchProfilePlatform('ac')">🔵 AtCoder</button>
         </div>
         
         <!-- ── LC Profile Section ── -->
@@ -407,6 +509,7 @@
             <div id="profile-lc-badge" class="profile-lc-badge"></div>
             <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
               <button class="btn-export" onclick="exportProgress()">⬇ Export LC</button>
+              <button class="btn-export" onclick="exportLCFilteredCSV()" title="Export current filtered view as CSV">⬇ Filtered CSV</button>
               <button class="btn-export" onclick="triggerImport()">⬆ Import LC</button>
               <button class="btn-full-sync" onclick="openFullSyncModal()"
                 title="Import your complete LeetCode history using session cookie">⚡ Full History Sync</button>
@@ -470,6 +573,7 @@
                 <div id="profile-cf-badge" class="profile-lc-badge"></div>
                 <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
                   <button class="btn-export" onclick="exportCFProgress()">⬇ Export CF</button>
+                  <button class="btn-export" onclick="exportCFFilteredCSV()" title="Export current filtered view as CSV">⬇ Filtered CSV</button>
                   <button class="btn-export" onclick="triggerImport()">⬆ Import CF</button>
                 </div>
               </div>
@@ -496,6 +600,32 @@
               </div>
             </div>
 
+            <!-- ── AC Profile Section ── -->
+            <div id="profile-ac-section" style="display:none">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+                <div id="profile-ac-badge" class="profile-lc-badge"></div>
+                <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+                  <button class="btn-export" onclick="exportACProgress()">⬇ Export AC</button>
+                  <button class="btn-export" onclick="exportACFilteredCSV()" title="Export current filtered view as CSV">⬇ Filtered CSV</button>
+                </div>
+              </div>
+
+              <div class="section-block">
+                <div class="section-title">AtCoder Stats</div>
+                <div id="profile-ac-stats"></div>
+              </div>
+
+              <div class="section-block">
+                <div class="section-title">Solved by Difficulty Band</div>
+                <div id="profile-ac-diff-dist" class="company-coverage"></div>
+              </div>
+
+              <div class="section-block">
+                <div class="section-title">Recently Solved on AtCoder</div>
+                <div id="ac-recent-solves" class="recent-list"></div>
+              </div>
+            </div>
+
       </div>
     </div>
   </div>
@@ -514,6 +644,7 @@
     </svg>
     Codeforces
   </button>
+  <button class="profile-plat-tab" id="insights-tab-ac" onclick="switchInsightsPlatform('ac')">🔵 AtCoder</button>
 </div>
 
 <!-- ── LC Insights Section ── -->
@@ -640,6 +771,40 @@
         </div>
       </div>
 
+      <!-- ── AC Insights Section ── -->
+      <div id="insights-ac-section" style="display:none">
+        <div class="insights-ribbon" id="ac-insights-ribbon"></div>
+        <div class="insights-grid">
+          <div class="insights-card insights-card-wide">
+            <div class="insights-card-header"><span class="insights-card-icon">📊</span>
+              <div>
+                <div class="insights-card-title">Difficulty Distribution</div>
+                <div class="insights-card-sub">Problems by difficulty band — total vs solved</div>
+              </div>
+            </div>
+            <div id="ac-insights-rating-chart"></div>
+          </div>
+          <div class="insights-card">
+            <div class="insights-card-header"><span class="insights-card-icon">🎯</span>
+              <div>
+                <div class="insights-card-title">Solve Rate by Difficulty</div>
+                <div class="insights-card-sub">How many you've solved in each band</div>
+              </div>
+            </div>
+            <div id="ac-insights-solve-rate" class="insights-solve-rate"></div>
+          </div>
+          <div class="insights-card">
+            <div class="insights-card-header"><span class="insights-card-icon">📈</span>
+              <div>
+                <div class="insights-card-title">Weekly AtCoder Activity</div>
+                <div class="insights-card-sub">Problems solved per week (last 12 weeks)</div>
+              </div>
+            </div>
+            <div id="ac-insights-weekly"></div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -697,6 +862,8 @@
               d="M7.5 3A4.5 4.5 0 0 0 3 7.5v9A4.5 4.5 0 0 0 7.5 21h9a4.5 4.5 0 0 0 4.5-4.5v-9A4.5 4.5 0 0 0 16.5 3h-9zm0 1.5h9A3 3 0 0 1 19.5 7.5v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9a3 3 0 0 1 3-3z" />
           </svg>
           Codeforces</button>
+        <button id="random-tab-ac" onclick="switchRandomPlatform('ac')"
+          style="background:none;border:none;border-bottom:2px solid transparent;padding:8px 16px;font-size:12px;font-weight:600;font-family:var(--mono);color:var(--text-muted);cursor:pointer;margin-bottom:-1px;transition:color .15s,border-color .15s">🔵 AtCoder</button>
       </div>
       <div id="random-problem-content" class="random-problem-content"></div>
       <div class="random-modal-footer">
@@ -715,20 +882,28 @@
       </div>
       <div class="onboarding-steps">
         <div class="onboarding-step">
-          <div class="onboarding-step-icon">✓</div>
+          <div class="onboarding-step-icon">🔐</div>
           <div>
-            <div class="onboarding-step-title">Track your solves</div>
-            <div class="onboarding-step-desc">Check the box next to any problem to mark it solved. Your progress saves
-              automatically.</div>
+            <div class="onboarding-step-title">Sign in with GitHub</div>
+            <div class="onboarding-step-desc">Your progress syncs to the cloud automatically. Sign in once and access your data from
+              any device.</div>
           </div>
         </div>
         <div class="onboarding-step">
-          <div class="onboarding-step-icon">⏱</div>
+          <div class="onboarding-step-icon">🔗</div>
           <div>
-            <div class="onboarding-step-title">Quick-log your time instantly</div>
-            <div class="onboarding-step-desc">When you solve a problem, a toast pops up with an inline time input — no modal needed.
-              Type your minutes and hit OK.</div>
+            <div class="onboarding-step-title">Connect your accounts</div>
+            <div class="onboarding-step-desc">Link LeetCode, Codeforces, and AtCoder from your Profile page. AlgoTrack will sync
+              your solved problems automatically.</div>
             </div>
+            </div>
+            <div class="onboarding-step">
+              <div class="onboarding-step-icon">✓</div>
+              <div>
+                <div class="onboarding-step-title">Track solves across all platforms</div>
+                <div class="onboarding-step-desc">Problems you solve on LC, CF, and AC appear as solved here. You can also manually
+                  mark any problem solved.</div>
+              </div>
             </div>
         <div class="onboarding-step">
           <div class="onboarding-step-icon">↺</div>
@@ -744,14 +919,6 @@
             <div class="onboarding-step-title">Filter by company &amp; pattern</div>
             <div class="onboarding-step-desc">Use the Companies dropdown to target your dream company. The Patterns dropdown filters
               by algorithm category (e.g. DP, Sliding Window).</div>
-          </div>
-        </div>
-        <div class="onboarding-step">
-          <div class="onboarding-step-icon">🎯</div>
-          <div>
-            <div class="onboarding-step-title">Interview Readiness Score</div>
-            <div class="onboarding-step-desc">Your Profile page shows a 0–100 readiness gauge based on top-company coverage, solve
-              volume, difficulty balance, and streak consistency.</div>
           </div>
         </div>
         <div class="onboarding-step">
@@ -797,6 +964,380 @@
       <div class="modal-actions">
         <button class="btn-secondary" onclick="closeFullSyncModal()">Cancel</button>
         <button class="btn-primary" onclick="runFullHistorySync()">Sync Full History</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+      CONTESTS PAGE — index.html PATCHES
+      ═══════════════════════════════════════════════════════════════════════
+    
+    PATCH 1: Inside <div class="nav-links"> add this button after nav-insights:
+    ─────────────────────────────────────────────────────────────────────────
+         <button class="nav-btn" id="nav-contests" onclick="showPage('contests')">Contests</button>
+    
+    PATCH 2: Add this entire block just before <script src="app.js"></script>
+    ─────────────────────────────────────────────────────────────────────────
+    -->
+  
+  <!-- ── CONTESTS PAGE ────────────────────────────────────────────────────── -->
+  <div id="page-contests" class="page">
+    <div class="app-wrapper contests-wrapper">
+  
+      <!-- Platform tabs -->
+      <div class="contests-plat-tabs">
+        <button class="contests-plat-tab active" id="ctab-cf" onclick="switchContestPlatform('cf')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px">
+            <path
+              d="M7.5 3A4.5 4.5 0 0 0 3 7.5v9A4.5 4.5 0 0 0 7.5 21h9a4.5 4.5 0 0 0 4.5-4.5v-9A4.5 4.5 0 0 0 16.5 3h-9zm0 1.5h9A3 3 0 0 1 19.5 7.5v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9a3 3 0 0 1 3-3z" />
+          </svg>
+          Codeforces
+        </button>
+        <button class="contests-plat-tab" id="ctab-ac" onclick="switchContestPlatform('ac')">🔵 AtCoder</button>
+      </div>
+  
+      <!-- ═══ CODEFORCES CONTESTS ═══ -->
+      <div id="contests-cf-section">
+  
+        <!-- User contest history (only if CF connected) -->
+        <div id="cf-contest-user-panel" style="display:none">
+          <div class="section-block">
+            <div class="section-title-row">
+              <span class="section-title">📈 Your Rating History</span>
+              <span class="contests-user-tag" id="cf-contests-user-tag"></span>
+            </div>
+  
+            <!-- Rating stats ribbon -->
+            <div class="contests-ribbon" id="cf-contests-ribbon"></div>
+  
+            <!-- Rating graph (SVG drawn via JS) -->
+            <div class="rating-graph-wrap">
+              <div class="rating-graph-header">
+                <span class="rating-graph-title">Rating over time</span>
+                <div class="rating-graph-legend">
+                  <span class="rg-legend-dot" style="background:#4fc3f7"></span><span>Current</span>
+                  <span class="rg-legend-dot" style="background:#81c784"></span><span>Peak</span>
+                </div>
+              </div>
+              <div id="cf-rating-graph" class="rating-graph-container"></div>
+            </div>
+  
+            <!-- Contest history table -->
+            <div class="section-title" style="margin-top:20px">Contest History</div>
+            <div class="contests-history-controls">
+              <input type="text" id="cf-contest-search" class="contest-search-input" placeholder="Search contests…"
+                oninput="filterCFContestHistory(this.value)" autocomplete="off">
+              <select id="cf-contest-result-filter" class="contest-filter-select"
+                onchange="filterCFContestHistory(document.getElementById('cf-contest-search').value)">
+                <option value="all">All Results</option>
+                <option value="up">Rating Up ↑</option>
+                <option value="down">Rating Down ↓</option>
+                <option value="good">Top 25%</option>
+              </select>
+            </div>
+            <div id="cf-contest-history-table" class="contests-history-table"></div>
+            <div id="cf-contest-history-pagination" class="contests-pagination"></div>
+          </div>
+  
+          <!-- Performance breakdown -->
+          <div class="contests-insight-grid">
+            <div class="section-block">
+              <div class="section-title">🏆 Best Performances</div>
+              <div id="cf-best-contests" class="contests-best-list"></div>
+            </div>
+            <div class="section-block">
+              <div class="section-title">📉 Rank Distribution</div>
+              <div id="cf-rank-distribution" class="contests-rank-dist"></div>
+            </div>
+            <div class="section-block">
+              <div class="section-title">💡 Where to Improve</div>
+              <div id="cf-improvement-tips" class="contests-tips"></div>
+            </div>
+          </div>
+
+          <!-- CF Personal Records -->
+          <div class="section-block" id="cf-records-panel" style="display:none">
+            <div class="section-title">🏅 Personal Records</div>
+            <div id="cf-personal-records" class="pr-grid"></div>
+          </div>
+
+          <!-- CF Post-Contest Upsolver -->
+          <div class="section-block" id="cf-upsolver-panel" style="display:none">
+            <div class="section-title">⟳ Post-Contest Upsolver</div>
+            <div class="upsolver-select-row">
+              <select id="cf-upsolver-contest-select" class="contest-filter-select" onchange="renderCFUpsolver(this.value)" style="flex:1;max-width:420px">
+                <option value="">Select a contest you participated in…</option>
+              </select>
+            </div>
+            <div id="cf-upsolver-body"></div>
+          </div>
+
+          <!-- CF Rating Predictor -->
+          <div class="section-block" id="cf-predictor-panel" style="display:none">
+            <div class="section-title">🔮 Rating Predictor</div>
+            <div id="cf-predictor-body"></div>
+          </div>
+
+          <!-- CF Rivals Tracker -->
+          <div class="section-block" id="cf-rivals-panel">
+            <div class="section-title-row">
+              <span class="section-title">⚔️ Rivals Tracker</span>
+            </div>
+            <div class="rivals-add-row">
+              <input type="text" id="cf-rival-input" class="contest-search-input" placeholder="Add rival CF handle…" autocomplete="off" onkeydown="if(event.key==='Enter')addCFRival()" style="flex:1;max-width:260px">
+              <button class="btn-primary" onclick="addCFRival()" style="font-size:12px;padding:6px 14px">Add Rival</button>
+            </div>
+            <div id="cf-rivals-body"></div>
+          </div>
+
+        </div>
+  
+        <!-- No user connected state -->
+        <div id="cf-contest-no-user" class="contests-no-user" style="display:none">
+          <div class="contests-no-user-icon">📊</div>
+          <div class="contests-no-user-title">Connect Codeforces to see your contest history</div>
+          <div class="contests-no-user-sub">Your rating trajectory, rank history, and personalized improvement tips appear
+            here once you sync.</div>
+          <button class="btn-primary" onclick="switchPlatform('cf'); showPage('tracker')">→ Connect Codeforces</button>
+        </div>
+
+        <!-- CF Problem Recommender -->
+        <div class="section-block" id="cf-recommender-panel" style="display:none">
+          <div class="section-title-row">
+            <span class="section-title">🎯 What to Solve Next</span>
+            <button class="contests-refresh-btn" onclick="renderCFRecommender()">⟳ Refresh</button>
+          </div>
+          <div id="cf-recommender-body"></div>
+        </div>
+
+        <!-- Upcoming contests (always shown) -->
+        <div class="section-block">
+          <div class="section-title-row">
+            <span class="section-title">🚀 Upcoming Contests</span>
+            <button class="contests-refresh-btn" id="cf-contests-refresh" onclick="loadCFContests(true)">⟳
+              Refresh</button>
+          </div>
+          <div id="cf-upcoming-contests" class="contests-list"></div>
+        </div>
+  
+        <!-- Active / live contests -->
+        <div class="section-block" id="cf-live-section" style="display:none">
+          <div class="section-title-row">
+            <span class="section-title live-indicator">🔴 Live Now</span>
+          </div>
+          <div id="cf-live-contests" class="contests-list"></div>
+        </div>
+  
+        <!-- Recent past contests -->
+        <div class="section-block">
+          <div class="section-title-row">
+            <span class="section-title">📋 Recent Past Contests</span>
+            <div style="display:flex;align-items:center;gap:8px">
+              <button class="contests-participated-filter" id="cf-participated-filter"
+                onclick="toggleCFParticipatedFilter()">✓ Participated</button>
+              <span id="cf-past-count" class="contests-count-badge"></span>
+            </div>
+          </div>
+          <div id="cf-past-contests" class="contests-list"></div>
+          <button id="cf-past-more-btn" class="contests-more-btn" onclick="showMoreCFPast()" style="display:none">Show
+            more</button>
+        </div>
+  
+      </div><!-- /contests-cf-section -->
+  
+      <!-- ═══ ATCODER CONTESTS ═══ -->
+      <div id="contests-ac-section" style="display:none">
+  
+        <!-- User contest history (only if AC connected) -->
+        <div id="ac-contest-user-panel" style="display:none">
+          <div class="section-block">
+            <div class="section-title-row">
+              <span class="section-title">📈 Your AtCoder Contest History</span>
+              <span class="contests-user-tag" id="ac-contests-user-tag"></span>
+            </div>
+  
+            <!-- AC rating graph -->
+            <div class="rating-graph-wrap">
+              <div class="rating-graph-header">
+                <span class="rating-graph-title">Performance over time</span>
+              </div>
+              <div id="ac-rating-graph" class="rating-graph-container"></div>
+            </div>
+  
+            <!-- AC Contest History table -->
+            <div class="section-title" style="margin-top:20px">Contest History</div>
+            <div class="contests-history-controls">
+              <input type="text" id="ac-contest-search" class="contest-search-input" placeholder="Search contests…"
+                oninput="filterACContestHistory(this.value)" autocomplete="off">
+              <select id="ac-contest-result-filter" class="contest-filter-select"
+                onchange="filterACContestHistory(document.getElementById('ac-contest-search').value)">
+                <option value="all">All Results</option>
+                <option value="rated">Rated Only</option>
+                <option value="up">Performance Up ↑</option>
+                <option value="down">Performance Down ↓</option>
+              </select>
+            </div>
+            <div id="ac-contest-history-table" class="contests-history-table"></div>
+            <div id="ac-contest-history-pagination" class="contests-pagination"></div>
+          </div>
+  
+          <!-- AC performance insights -->
+          <div class="contests-insight-grid">
+            <div class="section-block">
+              <div class="section-title">🏆 Best Performances</div>
+              <div id="ac-best-contests" class="contests-best-list"></div>
+            </div>
+            <div class="section-block">
+              <div class="section-title">📊 Performance Stats</div>
+              <div id="ac-perf-stats" class="contests-perf-stats"></div>
+            </div>
+            <div class="section-block">
+              <div class="section-title">💡 Where to Improve</div>
+              <div id="ac-improvement-tips" class="contests-tips"></div>
+            </div>
+          </div>
+<!-- AC Personal Records -->
+<div class="section-block" id="ac-records-panel" style="display:none">
+  <div class="section-title">🏅 Personal Records</div>
+  <div id="ac-personal-records" class="pr-grid"></div>
+</div>
+
+<!-- AC Post-Contest Upsolver -->
+<div class="section-block" id="ac-upsolver-panel" style="display:none">
+  <div class="section-title">⟳ Post-Contest Upsolver</div>
+  <div class="upsolver-select-row">
+    <select id="ac-upsolver-contest-select" class="contest-filter-select" onchange="renderACUpsolver(this.value)"
+      style="flex:1;max-width:420px">
+      <option value="">Select a contest you participated in…</option>
+    </select>
+  </div>
+  <div id="ac-upsolver-body"></div>
+</div>
+
+<!-- AC Rating Predictor -->
+<div class="section-block" id="ac-predictor-panel" style="display:none">
+  <div class="section-title">🔮 Performance Predictor</div>
+  <div id="ac-predictor-body"></div>
+</div>
+
+<!-- AC Rivals Tracker -->
+<div class="section-block" id="ac-rivals-panel">
+  <div class="section-title-row">
+    <span class="section-title">⚔️ Rivals Tracker</span>
+  </div>
+  <div class="rivals-add-row">
+    <input type="text" id="ac-rival-input" class="contest-search-input" placeholder="Add rival AtCoder handle…"
+      autocomplete="off" onkeydown="if(event.key==='Enter')addACRival()" style="flex:1;max-width:260px">
+    <button class="btn-primary" onclick="addACRival()" style="font-size:12px;padding:6px 14px">Add Rival</button>
+  </div>
+  <div id="ac-rivals-body"></div>
+</div>
+
+        </div>
+  
+        <!-- No user connected state -->
+        <div id="ac-contest-no-user" class="contests-no-user" style="display:none">
+          <div class="contests-no-user-icon">📊</div>
+          <div class="contests-no-user-title">Connect AtCoder to see your contest history</div>
+          <div class="contests-no-user-sub">Performance trajectory, ranked contest history, and tips appear here once you
+            sync.</div>
+          <button class="btn-primary" onclick="switchPlatform('ac'); showPage('tracker')">→ Connect AtCoder</button>
+        </div>
+  
+        <!-- AC Problem Recommender -->
+        <div class="section-block" id="ac-recommender-panel" style="display:none">
+          <div class="section-title-row">
+            <span class="section-title">🎯 What to Solve Next</span>
+            <button class="contests-refresh-btn" onclick="renderACRecommender()">⟳ Refresh</button>
+          </div>
+          <div id="ac-recommender-body"></div>
+        </div>
+
+        <!-- AC Upcoming -->
+        <div class="section-block">
+          <div class="section-title-row">
+            <span class="section-title">🚀 Upcoming AtCoder Contests</span>
+            <button class="contests-refresh-btn" id="ac-contests-refresh" onclick="loadACContests(true)">⟳
+              Refresh</button>
+          </div>
+          <div id="ac-upcoming-contests" class="contests-list"></div>
+        </div>
+  
+        <!-- AC Live -->
+        <div class="section-block" id="ac-live-section" style="display:none">
+          <div class="section-title-row">
+            <span class="section-title live-indicator">🔴 Live Now</span>
+          </div>
+          <div id="ac-live-contests" class="contests-list"></div>
+        </div>
+  
+        <!-- AC Past -->
+        <div class="section-block">
+          <div class="section-title-row">
+            <span class="section-title">📋 Recent Past AtCoder Contests</span>
+            <div style="display:flex;align-items:center;gap:8px">
+              <button class="contests-participated-filter" id="ac-participated-filter" onclick="toggleACParticipatedFilter()">✓ Participated</button>
+              <span id="ac-past-count" class="contests-count-badge"></span>
+            </div>
+          </div>
+          <div id="ac-past-contests" class="contests-list"></div>
+          <button id="ac-past-more-btn" class="contests-more-btn" onclick="showMoreACPast()" style="display:none">Show
+            more</button>
+        </div>
+  
+      </div><!-- /contests-ac-section -->
+  
+    </div>
+
+    <!-- Contest detail modal -->
+<div id="contest-detail-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeContestDetail()">
+  <div class="modal contest-detail-modal" onclick="event.stopPropagation()">
+    <div class="contest-detail-header">
+      <div>
+        <div class="modal-title" id="contest-detail-title"></div>
+        <div class="contest-detail-subtitle" id="contest-detail-subtitle"></div>
+      </div>
+      <button class="sp-close-btn" onclick="closeContestDetail()">✕</button>
+    </div>
+    <div id="contest-detail-body" class="contest-detail-body"></div>
+  </div>
+</div>
+  </div><!-- /page-contests -->
+
+
+  <!-- CF Note Modal -->
+  <div id="cf-note-modal-overlay" class="modal-overlay" style="display:none" onclick="closeCFNoteModal()">
+    <div class="modal note-modal" onclick="event.stopPropagation()">
+      <div class="modal-title" id="cf-note-modal-title">CF Problem Notes</div>
+      <input type="hidden" id="cf-note-modal-key">
+      <textarea id="cf-note-textarea" class="note-textarea" placeholder="Add your notes, approach, or key insights..." rows="8"></textarea>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeCFNoteModal()">Cancel</button>
+        <button class="btn-primary" onclick="saveCFNote()">Save Note</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AC Note Modal -->
+  <div id="ac-note-modal-overlay" class="modal-overlay" style="display:none" onclick="closeACNoteModal()">
+    <div class="modal note-modal" onclick="event.stopPropagation()">
+      <div class="modal-title" id="ac-note-modal-title">AC Problem Notes</div>
+      <input type="hidden" id="ac-note-modal-key">
+      <textarea id="ac-note-textarea" class="note-textarea" placeholder="Add your notes, approach, or key insights..." rows="8"></textarea>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeACNoteModal()">Cancel</button>
+        <button class="btn-primary" onclick="saveACNote()">Save Note</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Weekly Digest Modal -->
+  <div id="weekly-digest-overlay" class="modal-overlay" style="display:none" onclick="closeWeeklyDigest()">
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:400px">
+      <div class="modal-title">📊 Weekly Digest</div>
+      <div id="weekly-digest-body"></div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeWeeklyDigest()">Close</button>
       </div>
     </div>
   </div>
