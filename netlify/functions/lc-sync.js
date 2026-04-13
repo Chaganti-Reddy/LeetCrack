@@ -125,7 +125,22 @@ exports.handler = async (event) => {
         };
       const count = data.data?.recentAcSubmissionList?.length ?? 0;
       console.log(`[lc-sync] returned ${count} submissions (no session)`);
-      return { statusCode: 200, headers, body: JSON.stringify(data.data) };
+      const avatarRes = await fetch("https://leetcode.com/graphql", {
+        method: "POST",
+        headers: lcHeaders,
+        body: JSON.stringify({
+          query: `query($username: String!) { matchedUser(username: $username) { profile { userAvatar } } }`,
+          variables: { username },
+        }),
+      });
+      const avatarData = await avatarRes.json();
+      const userAvatar =
+        avatarData?.data?.matchedUser?.profile?.userAvatar || null;
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ ...data.data, userAvatar }),
+      };
     }
   } catch (err) {
     console.log("[lc-sync] error:", err.message);
