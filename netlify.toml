@@ -1,16 +1,16 @@
 [build]
   publish = "."
-  command = "node generate-manifest.js && sed -i \"s|REPLACE_GITHUB_CLIENT_ID|$GITHUB_CLIENT_ID|g\" index.html"
+  command = "node generate-manifest.js"
   functions = "netlify/functions"
-
-[[redirects]]
-  from = "/api/github-oauth"
-  to = "/.netlify/functions/github-oauth"
-  status = 200
 
 [[redirects]]
   from = "/api/ac-sync"
   to = "/.netlify/functions/ac-sync"
+  status = 200
+
+[[redirects]]
+  from = "/api/lc-sync"
+  to = "/.netlify/functions/lc-sync"
   status = 200
 
 [[redirects]]
