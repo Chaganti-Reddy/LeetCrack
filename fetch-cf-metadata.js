@@ -31,13 +31,11 @@ async function main() {
 
   const { problems, problemStatistics } = data.result;
 
-  // Build solveCount map from statistics
   const solveCount = {};
   for (const s of problemStatistics || []) {
     solveCount[`${s.contestId}_${s.index}`] = s.solvedCount;
   }
 
-  // Filter: only rated problems (skip unrated/gym)
   const rated = problems.filter(p => p.rating && p.contestId < 100000);
 
   const result = {};

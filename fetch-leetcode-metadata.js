@@ -19,8 +19,6 @@ const OUTPUT_FILE = path.join(__dirname, "data", "leetcode-meta.json");
 const DELAY_MS = 400;
 const isUpdate = process.argv.includes("--update");
 
-// ─── GraphQL helper ──────────────────────────────────────────────────────────
-
 async function gql(query, variables = {}, retries = 3) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
@@ -59,8 +57,6 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-// ─── File helpers ────────────────────────────────────────────────────────────
-
 function loadExisting() {
   if (fs.existsSync(OUTPUT_FILE)) {
     try {
@@ -82,10 +78,7 @@ function fmt(rate) {
   return (n > 1 ? n.toFixed(1) : (n * 100).toFixed(1)) + "%";
 }
 
-// ─── Step 1: fetch full problem list ─────────────────────────────────────────
-
 async function fetchProblemList() {
-  // Attempt A: current API shape (works as of early 2025)
   try {
     console.log("   Trying questionList query...");
     const all = [];
@@ -171,7 +164,6 @@ async function fetchProblemList() {
     console.log(`   Attempt B failed: ${err.message}`);
   }
 
-  // Attempt C: allQuestions (legacy, returns everything at once)
   try {
     console.log("   Trying allQuestions query...");
     const data = await gql(
@@ -186,8 +178,6 @@ async function fetchProblemList() {
   return null;
 }
 
-// ─── Step 2: fetch tags for one problem ──────────────────────────────────────
-
 async function fetchTags(titleSlug) {
   const data = await gql(
     `query($titleSlug: String!) {
@@ -197,8 +187,6 @@ async function fetchTags(titleSlug) {
   );
   return data?.question?.topicTags?.map((t) => t.name) || [];
 }
-
-// ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
   console.log("─".repeat(60));
@@ -280,7 +268,6 @@ async function main() {
     await sleep(DELAY_MS);
   }
 
-  // add premium stubs
   for (const p of allProblems) {
     if (!p.isPaidOnly) continue;
     const id = String(p.questionFrontendId);
