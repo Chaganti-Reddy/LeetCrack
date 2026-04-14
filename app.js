@@ -1,56 +1,249 @@
 "use strict";
 
-// ─── Config ────────────────────────────────────────────────────────────────────
-// Supabase — set these in your environment / window globals
-const SUPABASE_URL  = window.SUPABASE_URL  || "YOUR_SUPABASE_URL";
+const SUPABASE_URL = window.SUPABASE_URL || "YOUR_SUPABASE_URL";
 const SUPABASE_ANON = window.SUPABASE_ANON || "YOUR_SUPABASE_ANON_KEY";
-
 const ITEMS_PER_PAGE = 20;
-const CACHE_KEY      = "leet_csv_cache_v2";   // localStorage — persists across sessions
-const CACHE_HASH_KEY = "leet_csv_cache_hash";  // stores manifest hash for invalidation
+const CACHE_KEY = "leet_csv_cache_v2";
+const CACHE_HASH_KEY = "leet_csv_cache_hash";
 
-// Remove the old sessionStorage-based cache from previous versions
-try { sessionStorage.removeItem("leet_csv_cache"); } catch (_) {}
+try {
+  sessionStorage.removeItem("leet_csv_cache");
+} catch (_) {}
 
-/** Call from console or dev tooling to force a full reload on next page load */
 function clearLCCache() {
   localStorage.removeItem(CACHE_KEY);
   localStorage.removeItem(CACHE_HASH_KEY);
   console.log("[cache] LC question cache cleared — reload to re-fetch");
 }
 
-
-// ─── XSS sanitizer ────────────────────────────────────────────────────────────
 function escHtml(str) {
   return String(str)
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 const COMPANY_PRIORITY = [
-  "google","amazon","microsoft","meta","apple","netflix","uber","linkedin",
-  "twitter","airbnb","bloomberg","salesforce","adobe","oracle","nvidia","tesla",
-  "stripe","snapchat","tiktok","bytedance","goldman_sachs","morgan_stanley",
-  "atlassian","shopify","dropbox","lyft","pinterest","doordash","coinbase","robinhood"
+  "google",
+  "amazon",
+  "microsoft",
+  "meta",
+  "apple",
+  "netflix",
+  "uber",
+  "linkedin",
+  "twitter",
+  "airbnb",
+  "bloomberg",
+  "salesforce",
+  "adobe",
+  "oracle",
+  "nvidia",
+  "tesla",
+  "stripe",
+  "snapchat",
+  "tiktok",
+  "bytedance",
+  "goldman_sachs",
+  "morgan_stanley",
+  "atlassian",
+  "shopify",
+  "dropbox",
+  "lyft",
+  "pinterest",
+  "doordash",
+  "coinbase",
+  "robinhood",
 ];
-// backward-compat alias
-const PRIORITY_RANK = Object.fromEntries(COMPANY_PRIORITY.map((c,i) => [c, i+1]));
+const PRIORITY_RANK = Object.fromEntries(
+  COMPANY_PRIORITY.map((c, i) => [c, i + 1]),
+);
 
 const SM2_INTERVALS = [1, 3, 7, 14, 30, 90];
 
-// ─── Curated Problem Lists ────────────────────────────────────────────────────
 const CURATED_LISTS = {
   // LeetCode
-  blind75: new Set([1,2,3,11,15,19,20,21,23,33,39,49,51,53,55,56,62,70,72,76,79,84,91,98,100,101,102,104,105,121,124,125,128,133,141,143,144,152,153,190,191,200,206,207,208,213,217,226,230,235,238,242,261,268,269,271,277,278,283,286,295,297,300,322,323,329,338,340,344,347,371,378,380,395,412,416,417,424,435,438,448,543,567,647,678,684,695,739,743,763,778,787,820,844,876,973,994]),
-  neetcode150: new Set([1,2,3,11,15,17,19,20,21,23,33,36,39,40,42,43,45,46,48,49,51,53,54,55,56,57,62,70,72,73,74,76,78,79,84,85,90,91,97,98,100,101,102,104,105,106,110,121,124,125,127,128,130,131,133,136,138,141,143,144,145,150,152,153,167,188,190,191,198,200,202,206,207,208,210,211,212,213,215,217,226,230,235,236,238,239,242,261,268,269,271,272,277,278,283,286,295,297,300,309,312,322,323,329,338,340,344,347,355,371,374,378,380,386,394,395,406,407,412,416,417,421,424,435,437,438,448,480,502,518,543,547,560,567,572,605,621,647,678,684,685,695,703,704,739,743,746,763,778,787,802,815,820,844,853,875,876,901,907,912,947,953,968,973,978,994,997,1046,1048,1143,1448,1584,1899,2013,2104])
-,
-  // CF — A2OJ-style difficulty ladders (contestId_index as string keys)
-  cf_a2oj_800: new Set(["4A","71A","158A","118A","1A","231A","263A","282A","339A","581A","677A","734A","791A","977A","1030A","1064A"]),
-  cf_a2oj_1200: new Set(["1B","158B","160B","200B","230B","263B","381A","476A","552B","580B","677B","734B","822B","977B","1030B","1217B"]),
-  cf_a2oj_1600: new Set(["2B","28C","91B","159D","226C","300B","380C","381B","460B","558C","598C","652C","682C","813B","915C","1092D"]),
-  // AC typical90 — problem IDs from AtCoder Problems
-  ac_typical90: new Set(["typical90_a","typical90_b","typical90_c","typical90_d","typical90_e","typical90_f","typical90_g","typical90_h","typical90_i","typical90_j","typical90_k","typical90_l","typical90_m","typical90_n","typical90_o","typical90_p","typical90_q","typical90_r","typical90_s","typical90_t","typical90_u","typical90_v","typical90_w","typical90_x","typical90_y","typical90_z","typical90_ab","typical90_ac","typical90_ad","typical90_ae"]),
-  ac_beginner: new Set(["abc001_a","abc001_b","abc001_c","abc001_d","abc002_a","abc002_b","abc002_c","abc002_d","abc003_a","abc003_b","abc003_c","abc003_d","abc004_a","abc004_b","abc004_c","abc004_d","abc005_a","abc005_b","abc005_c","abc005_d","abc006_a","abc006_b","abc006_c","abc006_d"]),
+  blind75: new Set([
+    1, 2, 3, 11, 15, 19, 20, 21, 23, 33, 39, 49, 51, 53, 55, 56, 62, 70, 72, 76,
+    79, 84, 91, 98, 100, 101, 102, 104, 105, 121, 124, 125, 128, 133, 141, 143,
+    144, 152, 153, 190, 191, 200, 206, 207, 208, 213, 217, 226, 230, 235, 238,
+    242, 261, 268, 269, 271, 277, 278, 283, 286, 295, 297, 300, 322, 323, 329,
+    338, 340, 344, 347, 371, 378, 380, 395, 412, 416, 417, 424, 435, 438, 448,
+    543, 567, 647, 678, 684, 695, 739, 743, 763, 778, 787, 820, 844, 876, 973,
+    994,
+  ]),
+  neetcode150: new Set([
+    1, 2, 3, 11, 15, 17, 19, 20, 21, 23, 33, 36, 39, 40, 42, 43, 45, 46, 48, 49,
+    51, 53, 54, 55, 56, 57, 62, 70, 72, 73, 74, 76, 78, 79, 84, 85, 90, 91, 97,
+    98, 100, 101, 102, 104, 105, 106, 110, 121, 124, 125, 127, 128, 130, 131,
+    133, 136, 138, 141, 143, 144, 145, 150, 152, 153, 167, 188, 190, 191, 198,
+    200, 202, 206, 207, 208, 210, 211, 212, 213, 215, 217, 226, 230, 235, 236,
+    238, 239, 242, 261, 268, 269, 271, 272, 277, 278, 283, 286, 295, 297, 300,
+    309, 312, 322, 323, 329, 338, 340, 344, 347, 355, 371, 374, 378, 380, 386,
+    394, 395, 406, 407, 412, 416, 417, 421, 424, 435, 437, 438, 448, 480, 502,
+    518, 543, 547, 560, 567, 572, 605, 621, 647, 678, 684, 685, 695, 703, 704,
+    739, 743, 746, 763, 778, 787, 802, 815, 820, 844, 853, 875, 876, 901, 907,
+    912, 947, 953, 968, 973, 978, 994, 997, 1046, 1048, 1143, 1448, 1584, 1899,
+    2013, 2104,
+  ]),
+  striver_sde: new Set([
+    1, 2, 4, 15, 18, 21, 23, 25, 26, 31, 33, 37, 39, 40, 42, 46, 48, 49, 50, 51,
+    53, 54, 56, 60, 61, 62, 72, 73, 74, 75, 78, 84, 88, 90, 94, 98, 101, 102,
+    103, 105, 106, 108, 110, 114, 116, 118, 121, 124, 128, 131, 133, 138, 141,
+    142, 144, 145, 146, 151, 155, 160, 165, 169, 200, 206, 207, 208, 210, 215,
+    225, 229, 230, 232, 234, 235, 236, 237, 239, 242, 273, 287, 295, 297, 300,
+    322, 416, 460, 485, 493, 496, 503, 540, 543, 653, 662, 703, 733, 785, 863,
+    876, 901, 987, 994, 1008,
+  ]),
+  lc_top_150: new Set([
+    1, 3, 11, 12, 13, 14, 15, 17, 19, 20, 21, 22, 23, 25, 26, 27, 28, 30, 33,
+    34, 35, 36, 39, 42, 45, 46, 48, 49, 50, 52, 53, 54, 55, 56, 57, 58, 61, 63,
+    64, 66, 67, 68, 69, 70, 71, 72, 73, 74, 76, 77, 79, 80, 82, 86, 88, 92, 97,
+    98, 100, 101, 102, 103, 104, 105, 106, 112, 114, 117, 120, 121, 122, 123,
+    124, 125, 127, 128, 129, 130, 133, 134, 135, 136, 137, 138, 139, 141, 146,
+    148, 149, 150, 151, 153, 155, 162, 167, 169, 172, 173, 188, 189, 190, 191,
+    198, 199, 200, 201, 202, 205, 207, 208, 209, 210, 211, 212, 215, 219, 221,
+    222, 224, 226, 228, 230, 236, 238, 242, 274, 289, 290, 295, 300, 322, 373,
+    380, 383, 392, 399, 427, 433, 452, 502, 530, 637, 909, 918,
+  ]),
+
+  cf_a2oj_800: new Set([
+    "4A",
+    "71A",
+    "158A",
+    "118A",
+    "1A",
+    "231A",
+    "263A",
+    "282A",
+    "339A",
+    "581A",
+    "677A",
+    "734A",
+    "791A",
+    "977A",
+    "1030A",
+    "1064A",
+  ]),
+  cf_a2oj_1200: new Set([
+    "1B",
+    "158B",
+    "160B",
+    "200B",
+    "230B",
+    "263B",
+    "381A",
+    "476A",
+    "552B",
+    "580B",
+    "677B",
+    "734B",
+    "822B",
+    "977B",
+    "1030B",
+    "1217B",
+  ]),
+  striver_cp_sheet: new Set([
+    "263A",
+    "110A",
+    "281A",
+    "236A",
+    "112A",
+    "118A",
+    "282A",
+    "158A",
+    "160A",
+    "69A",
+    "58A",
+    "96A",
+    "122A",
+    "479A",
+    "546A",
+    "617A",
+    "791A",
+    "977A",
+    "1030A",
+    "705A",
+    "136A",
+    "266B",
+    "59A",
+    "271A",
+    "467A",
+    "116A",
+    "41A",
+    "677A",
+    "734A",
+    "266A",
+    "61A",
+    "486A",
+    "200B",
+    "155A",
+    "144A",
+    "141A",
+    "443A",
+    "520A",
+    "785A",
+    "996A",
+  ]),
+
+  ac_typical90: new Set([
+    "typical90_a",
+    "typical90_b",
+    "typical90_c",
+    "typical90_d",
+    "typical90_e",
+    "typical90_f",
+    "typical90_g",
+    "typical90_h",
+    "typical90_i",
+    "typical90_j",
+    "typical90_k",
+    "typical90_l",
+    "typical90_m",
+    "typical90_n",
+    "typical90_o",
+    "typical90_p",
+    "typical90_q",
+    "typical90_r",
+    "typical90_s",
+    "typical90_t",
+    "typical90_u",
+    "typical90_v",
+    "typical90_w",
+    "typical90_x",
+    "typical90_y",
+    "typical90_z",
+  ]),
+  ac_edu_dp: new Set([
+    "dp_a",
+    "dp_b",
+    "dp_c",
+    "dp_d",
+    "dp_e",
+    "dp_f",
+    "dp_g",
+    "dp_h",
+    "dp_i",
+    "dp_j",
+    "dp_k",
+    "dp_l",
+    "dp_m",
+    "dp_n",
+    "dp_o",
+    "dp_p",
+    "dp_q",
+    "dp_r",
+    "dp_s",
+    "dp_t",
+    "dp_u",
+    "dp_v",
+    "dp_w",
+    "dp_x",
+    "dp_y",
+    "dp_z",
+  ]),
 };
 
 function setCuratedList(platform, listKey) {
@@ -69,45 +262,105 @@ function setCuratedList(platform, listKey) {
   }
 }
 
+function renderCuratedDropdown(platform) {
+  const containerId = `${platform}-curated-container`;
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  const options = {
+    lc: [
+      ["", "All Problems"],
+      ["blind75", "Blind 75"],
+      ["neetcode150", "NeetCode 150"],
+      ["striver_sde", "Striver SDE"],
+      ["lc_top_150", "Top 150"],
+    ],
+    cf: [
+      ["", "All Problems"],
+      ["cf_a2oj_800", "A2OJ 800"],
+      ["cf_a2oj_1200", "A2OJ 1200"],
+      ["striver_cp_sheet", "Striver CP"],
+    ],
+    ac: [
+      ["", "All Problems"],
+      ["ac_typical90", "Typical 90"],
+      ["ac_edu_dp", "Edu DP"],
+      ["ac_beginner", "Beginner"],
+    ],
+  };
+
+  const active =
+    platform === "lc"
+      ? state.curatedList
+      : platform === "cf"
+        ? state.cfCuratedList
+        : state.acCuratedList;
+
+  container.innerHTML = `
+    <div class="curated-row">
+      <span style="font-size:10px; color:var(--text-muted); font-weight:700; white-space:nowrap">📋 LIST:</span>
+      <select onchange="setCuratedList('${platform}', this.value)" class="contest-filter-select" style="min-width:140px">
+        ${options[platform].map(([val, label]) => `<option value="${val}" ${active === val ? "selected" : ""}>${label}</option>`).join("")}
+      </select>
+    </div>
+  `;
+}
+
 function updateCuratedPills(platform) {
-  const active = platform === "lc" ? state.curatedList
-               : platform === "cf" ? state.cfCuratedList
-               : state.acCuratedList;
-  document.querySelectorAll(`.curated-pill[data-platform="${platform}"]`).forEach(btn => {
-    btn.classList.toggle("active", btn.dataset.list === active);
-  });
+  const active =
+    platform === "lc"
+      ? state.curatedList
+      : platform === "cf"
+        ? state.cfCuratedList
+        : state.acCuratedList;
+  document
+    .querySelectorAll(`.curated-pill[data-platform="${platform}"]`)
+    .forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.list === active);
+    });
 }
 
 function renderCuratedRow(platform) {
-  const pills = platform === "lc"
-    ? [["blind75","Blind 75"],["neetcode150","NeetCode 150"]]
-    : platform === "cf"
-    ? [["cf_a2oj_800","A2OJ 800"],["cf_a2oj_1200","A2OJ 1200"],["cf_a2oj_1600","A2OJ 1600"]]
-    : [["ac_typical90","Typical 90"],["ac_beginner","Beginner Series"]];
-  const active = platform === "lc" ? state.curatedList
-               : platform === "cf" ? state.cfCuratedList
-               : state.acCuratedList;
+  const pills =
+    platform === "lc"
+      ? [
+          ["blind75", "Blind 75"],
+          ["neetcode150", "NeetCode 150"],
+        ]
+      : platform === "cf"
+        ? [
+            ["cf_a2oj_800", "A2OJ 800"],
+            ["cf_a2oj_1200", "A2OJ 1200"],
+            ["cf_a2oj_1600", "A2OJ 1600"],
+          ]
+        : [
+            ["ac_typical90", "Typical 90"],
+            ["ac_beginner", "Beginner Series"],
+          ];
+  const active =
+    platform === "lc"
+      ? state.curatedList
+      : platform === "cf"
+        ? state.cfCuratedList
+        : state.acCuratedList;
   return `<div class="curated-row" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
     <span style="font-size:11px;color:var(--text-muted);line-height:28px;margin-right:2px;">📋 Curated:</span>
-    ${pills.map(([key,label]) => `<button class="curated-pill${active===key?" active":""}" data-platform="${platform}" data-list="${key}" onclick="setCuratedList('${platform}','${key}')">${label}</button>`).join("")}
+    ${pills.map(([key, label]) => `<button class="curated-pill${active === key ? " active" : ""}" data-platform="${platform}" data-list="${key}" onclick="setCuratedList('${platform}','${key}')">${label}</button>`).join("")}
   </div>`;
 }
 
-
-
-// ─── State ─────────────────────────────────────────────────────────────────────
 const state = {
   questions: [],
   filtered: [],
-  solved: {}, // id -> dateStr
-  activity: {}, // dateStr -> count
-  bookmarks: {}, // id -> true
-  notes: {}, // id -> string  (manual enrichment, kept)
-  reviewData: {}, // id -> { intervalIdx, nextReviewDate, reps, lastReviewed }
-  user: null, // Supabase user object
-  lcUsername: null, // LeetCode username
+  solved: {},
+  activity: {},
+  bookmarks: {},
+  notes: {},
+  reviewData: {},
+  user: null,
+  lcUsername: null, 
   lcUserInfo: null,
-  lcSyncing: false, // sync in progress flag
+  lcSyncing: false,
   page: 1,
   companies: [],
   allTags: [],
@@ -126,15 +379,15 @@ const state = {
   coverageExpanded: false,
   expandedRows: new Set(),
   studyPlanCompany: null,
-  curatedList: null,   // "blind75" | "neetcode150" | null
-  cfCuratedList: null, // "a2oj_ladder" | "cf_edu" | null
-  acCuratedList: null, // "typical90" | "ac_beginner" | null
+  curatedList: null, 
+  cfCuratedList: null,
+  acCuratedList: null,
   activePlatform: "lc",
   cfMeta: {},
   cfSolved: {},
   cfActivity: {},
   cfBookmarks: {},
-  cfNotes: {},   // key -> string
+  cfNotes: {},
   cfReviewData: {},
   cfUsername: null,
   cfUserInfo: null,
@@ -149,12 +402,11 @@ const state = {
   },
   cfPage: 1,
   cfFiltered: [],
-  // ── AtCoder ──
   acMeta: {},
   acSolved: {},
   acActivity: {},
   acBookmarks: {},
-  acNotes: {},   // id -> string
+  acNotes: {},
   acReviewData: {},
   acUsername: null,
   acUserInfo: null,
@@ -168,15 +420,20 @@ const state = {
   },
   acPage: 1,
   acFiltered: [],
-  interviewDate: null,   // ISO date string e.g. "2025-09-01"
+  interviewDate: null,
+  readinessCompany: "all",
+  compareRival: null,
 };
 
-// ─── Hash Routing ──────────────────────────────────────────────────────────────
 const PAGES = ["tracker", "profile", "insights", "contests"];
 
 function activatePage(name) {
-  document.querySelectorAll(".page").forEach((p) => p.classList.remove("active"));
-  document.querySelectorAll(".nav-btn").forEach((b) => b.classList.remove("active"));
+  document
+    .querySelectorAll(".page")
+    .forEach((p) => p.classList.remove("active"));
+  document
+    .querySelectorAll(".nav-btn")
+    .forEach((b) => b.classList.remove("active"));
   document.getElementById(`page-${name}`)?.classList.add("active");
   document.getElementById(`nav-${name}`)?.classList.add("active");
 }
@@ -287,7 +544,6 @@ function initRouting() {
   }
 }
 
-// ─── Theme ─────────────────────────────────────────────────────────────────────
 function initTheme() {
   const saved = localStorage.getItem("theme") || "dark";
   applyTheme(saved, false);
@@ -303,7 +559,6 @@ function toggleTheme() {
   applyTheme(current === "dark" ? "light" : "dark");
 }
 
-// ─── Supabase Auth ────────────────────────────────────────────────────────────
 let _supabase = null;
 function getSupabase() {
   if (!_supabase) {
@@ -342,14 +597,12 @@ async function logout() {
   state.acNotes = {};
   state.acReviewData = {};
   state.acUserInfo = null;
-  // Keep theme; clear everything else
   localStorage.removeItem("leet_local");
   localStorage.removeItem("lc_last_sync");
   localStorage.removeItem("cf_rivals");
   localStorage.removeItem("ac_rivals");
   renderAuthArea();
   renderProfilePage();
-  // Reset CF tracker UI
   const cfConnectArea = document.getElementById("cf-connect-area");
   const cfConnectedArea = document.getElementById("cf-connected-area");
   if (cfConnectArea) cfConnectArea.style.display = "";
@@ -359,7 +612,6 @@ async function logout() {
   }
   renderCFStats();
   applyCFFilters();
-  // Reset AC tracker UI
   const acConnectArea = document.getElementById("ac-connect-area");
   const acConnectedArea = document.getElementById("ac-connected-area");
   if (acConnectArea) acConnectArea.style.display = "";
@@ -369,11 +621,9 @@ async function logout() {
   }
   renderACStats();
   applyACFilters();
-  // Reset LC tracker UI
   renderLCHeader();
 }
 
-// ─── Supabase Progress Storage ────────────────────────────────────────────────
 function buildProgressPayload() {
   return {
     user_id: state.user?.id,
@@ -407,46 +657,49 @@ function buildProgressPayload() {
 
 function applyProgressData(data) {
   if (!data) return;
-  // migrate old boolean solved values
-  if (data.solved) {
-    for (const id in data.solved) {
-      if (data.solved[id] === true) data.solved[id] = "2024-01-01";
+
+  const oldHandles = {
+    lc: state.lcUsername,
+    cf: state.cfUsername,
+    ac: state.acUsername,
+  };
+
+  const mergeSolves = (local, remote) => {
+    const merged = { ...remote };
+    for (const id in local) {
+      if (!merged[id] || local[id] > merged[id]) merged[id] = local[id];
     }
-  }
-  state.solved = data.solved || {};
+    return merged;
+  };
+
+  state.solved = mergeSolves(state.solved, data.solved || {});
+  state.cfSolved = mergeSolves(state.cfSolved, data.cf_solved || {});
+  state.acSolved = mergeSolves(state.acSolved, data.ac_solved || {});
+
   state.activity = data.activity || {};
+  state.cfActivity = data.cf_activity || {};
+  state.acActivity = data.ac_activity || {};
   state.bookmarks = data.bookmarks || {};
   state.notes = data.notes || {};
   state.reviewData = data.review_data || {};
-  state.cfSolved = data.cf_solved || {};
-  state.cfActivity = data.cf_activity || {};
   state.cfBookmarks = data.cf_bookmarks || {};
   state.cfNotes = data.cf_notes || {};
   state.cfReviewData = data.cf_review_data || {};
   state.cfUserInfo = data.cf_user_info || null;
-  state.acSolved = data.ac_solved || {};
-  state.acActivity = data.ac_activity || {};
   state.acBookmarks = data.ac_bookmarks || {};
   state.acNotes = data.ac_notes || {};
   state.acReviewData = data.ac_review_data || {};
-  if (data.ac_user_info) state.acUserInfo = data.ac_user_info;
-  if (data.lc_last_sync)
-    localStorage.setItem("lc_last_sync", data.lc_last_sync);
-  // Restore rivals to localStorage so the contests page can load them
-  if (Array.isArray(data.cf_rivals) && data.cf_rivals.length) {
-    localStorage.setItem("cf_rivals", JSON.stringify(data.cf_rivals));
-  }
-  if (Array.isArray(data.ac_rivals) && data.ac_rivals.length) {
-    localStorage.setItem("ac_rivals", JSON.stringify(data.ac_rivals));
-  }
-  // Usernames — only apply if not already set from a fresher source
-  if (data.lc_username && !state.lcUsername)
-    state.lcUsername = data.lc_username;
-  if (data.cf_username && !state.cfUsername)
-    state.cfUsername = data.cf_username;
-  if (data.ac_username && !state.acUsername)
-    state.acUsername = data.ac_username;
-  if (data.interview_date) state.interviewDate = data.interview_date;
+  state.acUserInfo = data.ac_user_info || null;
+  state.interviewDate = data.interview_date || null;
+
+  if (data.lc_username) state.lcUsername = data.lc_username;
+  if (data.cf_username) state.cfUsername = data.cf_username;
+  if (data.ac_username) state.acUsername = data.ac_username;
+
+  if (state.lcUsername && !oldHandles.lc && !state.lcSyncing)
+    syncLeetCode(true);
+  if (state.cfUsername && !oldHandles.cf) syncCFSilent();
+  if (state.acUsername && !oldHandles.ac) syncACSilent();
 }
 
 async function loadProgressFromSupabase() {
@@ -463,20 +716,24 @@ async function loadProgressFromSupabase() {
   if (data) applyProgressData(data);
 }
 
-// Debounced remote save — avoids hammering Supabase on rapid state changes
 let _saveTimer = null;
 async function saveProgress() {
-  // Always write to local cache immediately for offline resilience
+  const payload = buildProgressPayload();
   try {
-    localStorage.setItem("leet_local", JSON.stringify(buildProgressPayload()));
-  } catch (_) {}
+    localStorage.setItem("leet_local", JSON.stringify(payload));
+  } catch (e) {
+    if (e.name === "QuotaExceededError") {
+      localStorage.removeItem("leet_csv_cache_v2");
+      localStorage.removeItem("leet_csv_cache_hash");
+      localStorage.setItem("leet_local", JSON.stringify(payload));
+    }
+  }
   if (!state.user) return;
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(async () => {
     const { error } = await getSupabase()
       .from("users_progress")
-      .upsert(buildProgressPayload(), { onConflict: "user_id" });
-    if (error) console.warn("[supabase] save error:", error.message);
+      .upsert(payload, { onConflict: "user_id" });
   }, 800);
 }
 
@@ -488,7 +745,6 @@ function loadLocalProgress() {
   renderCountdown();
 }
 
-// ─── Export / Import ───────────────────────────────────────────────────────────
 function exportProgress() {
   const data = {
     exportedAt: new Date().toISOString(),
@@ -566,7 +822,6 @@ function handleImportFile(e) {
   e.target.value = "";
 }
 
-// ─── LeetCode Sync ─────────────────────────────────────────────────────────────
 function openLCModal() {
   const modal = document.getElementById("lc-modal-overlay");
   const input = document.getElementById("lc-username-input");
@@ -600,9 +855,7 @@ async function saveLCUsername() {
   localStorage.setItem("lc_username", username);
   closeLCModal();
   renderAuthArea();
-  // save to gist so it persists across devices
   saveProgress();
-  // immediately kick off a sync
   await syncLeetCode();
   renderLCHeader();
 }
@@ -677,7 +930,6 @@ async function runFullHistorySync() {
     if (submissions.length === 0)
       throw new Error("No submissions found — check your session cookie");
 
-    // Build slug → earliest timestamp map from LC submissions
     const slugMap = new Map();
     submissions.forEach((s) => {
       const slug = s.titleSlug.toLowerCase();
@@ -685,7 +937,6 @@ async function runFullHistorySync() {
       if (!existing || s.timestamp < existing) slugMap.set(slug, s.timestamp);
     });
 
-    // Build slug → id map from metaMap (O(1) lookups, no slug extraction per question)
     const slugToId = new Map();
     Object.entries(state.metaMap).forEach(([id, meta]) => {
       if (meta.slug) slugToId.set(meta.slug.toLowerCase(), parseInt(id));
@@ -699,7 +950,7 @@ async function runFullHistorySync() {
 
     slugMap.forEach((timestamp, slug) => {
       const id = slugToId.get(slug);
-      if (!id) return; // not in tracker
+      if (!id) return;
       matched++;
       const lcDate = dateStr(new Date(parseInt(timestamp) * 1000));
       newSolved[id] = lcDate;
@@ -806,7 +1057,6 @@ function updateSyncBtn(syncing) {
   btn.textContent = syncing ? "⏳ Syncing…" : "⟳ Sync";
 }
 
-// ─── Sync All Platforms ────────────────────────────────────────────────────────
 async function syncAll() {
   const lcConnected = !!state.lcUsername;
   const cfConnected = !!state.cfUsername;
@@ -905,7 +1155,6 @@ function getLastSyncLabel() {
   return `${Math.floor(diff / 1440)}d ago`;
 }
 
-// ─── Toast ─────────────────────────────────────────────────────────────────────
 let _toastTimer = null;
 function showToast(msg, type = "success") {
   let toast = document.getElementById("toast");
@@ -922,9 +1171,7 @@ function showToast(msg, type = "success") {
   }, 3500);
 }
 
-// ─── Streak ────────────────────────────────────────────────────────────────────
 function calcStreaks() {
-  // merge LC + CF activity
   const merged = {};
   Object.entries(state.activity).forEach(([d, v]) => {
     merged[d] = (merged[d] || 0) + v;
@@ -970,11 +1217,9 @@ function addCFTagFilter(tag) {
   if (!state.cfFilters.tags.includes(tag)) {
     state.cfFilters.tags.push(tag);
   }
-  // scroll to top of CF list so the filter is visible
   renderCF();
 }
 
-// ─── SM2 Spaced Repetition ─────────────────────────────────────────────────────
 function getNextReviewDate(id) {
   return state.reviewData[id]?.nextReviewDate || null;
 }
@@ -1004,7 +1249,6 @@ function initSM2OnSolve(id) {
   };
 }
 
-// ─── Bookmarks ─────────────────────────────────────────────────────────────────
 function toggleBookmark(id) {
   if (state.bookmarks[id]) delete state.bookmarks[id];
   else state.bookmarks[id] = true;
@@ -1016,7 +1260,6 @@ function toggleBookmark(id) {
   saveProgress();
 }
 
-// ─── Notes Modal ───────────────────────────────────────────────────────────────
 function openNoteModal(id) {
   const q = state.questions.find((x) => x.id === id);
   document.getElementById("note-modal-title").textContent =
@@ -1040,7 +1283,6 @@ async function saveNote() {
   saveProgress();
 }
 
-// ─── CF Notes Modal ───────────────────────────────────────────────────────────
 function openCFNoteModal(key, name) {
   document.getElementById("cf-note-modal-title").textContent =
     name || "Problem";
@@ -1062,7 +1304,6 @@ async function saveCFNote() {
   saveProgress();
 }
 
-// ─── AC Notes Modal ───────────────────────────────────────────────────────────
 function openACNoteModal(id, title) {
   document.getElementById("ac-note-modal-title").textContent =
     title || "Problem";
@@ -1092,22 +1333,19 @@ function refreshDataDependentPages() {
   renderStats();
 }
 
-// ─── Random Problem Picker ─────────────────────────────────────────────────────
 function openRandomPicker() {
   document.getElementById("random-modal-overlay").style.display = "flex";
   state.randomPlatform = state.activePlatform || "lc";
   updateRandomPickerTabs();
-  // Auto-pick on first open
   pickRandom();
 }
 function closeRandomPicker() {
   document.getElementById("random-modal-overlay").style.display = "none";
-  state.randomPickCache = {}; // clear so next open auto-picks fresh
+  state.randomPickCache = {};
 }
 function switchRandomPlatform(platform) {
   state.randomPlatform = platform;
   updateRandomPickerTabs();
-  // If this platform already has a cached pick, restore it; otherwise show prompt
   const cached = state.randomPickCache?.[platform];
   const content = document.getElementById("random-problem-content");
   if (cached && content) {
@@ -1147,7 +1385,6 @@ function pickRandom() {
   } else {
     pickRandomLC(content);
   }
-  // Cache the rendered HTML for this platform so tab switching restores it
   if (content) state.randomPickCache[platform] = content.innerHTML;
 }
 
@@ -1212,7 +1449,6 @@ function pickRandomCF(content) {
     </div>`;
 }
 
-// ─── Study Plan Modal ──────────────────────────────────────────────────────────
 function openStudyPlan(company) {
   state.studyPlanCompany = company;
   const qs = state.questions
@@ -1270,7 +1506,6 @@ function closeStudyPlan() {
   state.studyPlanCompany = null;
 }
 
-// ─── Expandable company tags ───────────────────────────────────────────────────
 function toggleRowExpand(id) {
   if (state.expandedRows.has(id)) state.expandedRows.delete(id);
   else state.expandedRows.add(id);
@@ -1298,7 +1533,6 @@ function buildCompanyTags(q) {
   return tags + btn;
 }
 
-// ─── Load Metadata (Tags) ──────────────────────────────────────────────────────
 async function loadMetadata() {
   try {
     const res = await fetch("data/leetcode-meta.json");
@@ -1314,7 +1548,6 @@ async function loadMetadata() {
   } catch (_) {}
 }
 
-// ─── Codeforces ────────────────────────────────────────────────────────────────
 async function loadCFMeta() {
   try {
     const res = await fetch("data/cf-meta.json");
@@ -1344,6 +1577,7 @@ function switchPlatform(platform) {
   if (platform === "ac") renderACTable();
   if (platform === "lc") renderLCHeader();
   window.location.hash = `tracker/${platform}`;
+  renderCuratedDropdown(platform);
 }
 
 function cfProblemKey(contestId, index) {
@@ -1381,7 +1615,6 @@ function applyCFFilters() {
   const sq = search.toLowerCase();
 
   state.cfFiltered = Object.values(state.cfMeta).filter((p) => {
-    // Include unrated only when minRating is at default floor (800)
     if (!p.rating) {
       if (minRating > 800) return false;
     } else {
@@ -1403,7 +1636,6 @@ function applyCFFilters() {
       if (!solved) return false;
       if (!isCFReviewDue(key)) return false;
     }
-    // Curated list filter
     if (state.cfCuratedList) {
       const probId = p.index ? `${p.contestId}${p.index}` : p.id || "";
       if (!CURATED_LISTS[state.cfCuratedList]?.has(probId)) return false;
@@ -1411,7 +1643,6 @@ function applyCFFilters() {
     return true;
   });
 
-  // Sort: rated problems near user's target first (unsolved priority); unrated at end
   if (userRating) {
     const target = userRating + 200;
     state.cfFiltered.sort((a, b) => {
@@ -1420,7 +1651,6 @@ function applyCFFilters() {
       const aSolved = !!state.cfSolved[aKey];
       const bSolved = !!state.cfSolved[bKey];
       if (aSolved !== bSolved) return aSolved ? 1 : -1;
-      // Push unrated to end
       if (!a.rating && !b.rating) return 0;
       if (!a.rating) return 1;
       if (!b.rating) return -1;
@@ -1622,7 +1852,6 @@ async function syncCFUser() {
   btn.textContent = "Syncing…";
   btn.disabled = true;
   try {
-    // Fetch user info
     const infoRes = await fetch(
       `https://codeforces.com/api/user.info?handles=${handle}`,
     );
@@ -1632,7 +1861,6 @@ async function syncCFUser() {
     state.cfUsername = handle;
     localStorage.setItem("cf_username", handle);
 
-    // Fetch all submissions
     const statusRes = await fetch(
       `https://codeforces.com/api/user.status?handle=${handle}&from=1&count=10000`,
     );
@@ -1640,7 +1868,6 @@ async function syncCFUser() {
     if (statusData.status !== "OK")
       throw new Error("Could not fetch submissions");
 
-    // Build solved map from accepted submissions
     const newSolved = {};
     const newActivity = {};
     statusData.result
@@ -1650,7 +1877,6 @@ async function syncCFUser() {
         const d = dateStr(new Date(s.creationTimeSeconds * 1000));
         if (!newSolved[key] || d < newSolved[key]) newSolved[key] = d; // keep earliest
       });
-    // Build activity from solved dates
     Object.values(newSolved).forEach((d) => {
       newActivity[d] = (newActivity[d] || 0) + 1;
     });
@@ -1761,19 +1987,16 @@ async function disconnectCF() {
   state.cfSolved = {};
   state.cfActivity = {};
 
-  // Clear Contest-specific state
   contestsState.cfContestHistory = [];
   contestsState.cfHistoryFiltered = [];
   contestsState.cfHistoryLoaded = false;
 
   localStorage.removeItem("cf_username");
-  // Wipe the contest caches
   clearContestCache("cfHistory");
-  clearContestCache(`cfHistory_${state.cfUsername}`); // Clear specific handle cache
+  clearContestCache(`cfHistory_${state.cfUsername}`);
 
-  await saveProgress(); // Updates Supabase to reflect no CF account linked
+  await saveProgress(); 
 
-  // UI Reset
   document.getElementById("cf-connect-area").style.display = "";
   const connectedArea = document.getElementById("cf-connected-area");
   connectedArea.style.display = "none";
@@ -1794,7 +2017,6 @@ async function initCF() {
   if (savedHandle && !state.cfUsername) {
     state.cfUsername = savedHandle;
   }
-  // Set default filter based on user rating
   if (state.cfUserInfo?.rating) {
     const r = state.cfUserInfo.rating;
     state.cfFilters.minRating = Math.max(800, r - 300);
@@ -1803,7 +2025,6 @@ async function initCF() {
   applyCFFilters();
   renderCFFilterUI();
   updateCFClearBtn();
-  // If username saved, fetch fresh user info and restore connected UI
   if (state.cfUsername && !state.cfUserInfo) {
     try {
       const res = await fetch(
@@ -1818,7 +2039,6 @@ async function initCF() {
         if (connectedArea) connectedArea.style.display = "";
         renderCFConnectedArea();
         renderCFStats();
-        // Update filter defaults now that we have rating
         if (state.cfUserInfo.rating) {
           const r = state.cfUserInfo.rating;
           state.cfFilters.minRating = Math.max(800, r - 300);
@@ -1829,7 +2049,6 @@ async function initCF() {
       }
     } catch (_) {}
   } else if (state.cfUsername && state.cfUserInfo) {
-    // Already have info (restored from gist) — just show connected area
     const connectArea = document.getElementById("cf-connect-area");
     const connectedArea = document.getElementById("cf-connected-area");
     if (connectArea) connectArea.style.display = "none";
@@ -1840,7 +2059,6 @@ async function initCF() {
 }
 
 function renderCFFilterUI() {
-  // Populate tag filter
   const allCFTags = new Set();
   Object.values(state.cfMeta).forEach((p) =>
     p.tags?.forEach((t) => allCFTags.add(t)),
@@ -1854,18 +2072,15 @@ function renderCFFilterUI() {
         .map((t) => `<option value="${t}">${t}</option>`)
         .join("");
   }
-  // Set rating select values
   const minEl = document.getElementById("cf-min-rating");
   const maxEl = document.getElementById("cf-max-rating");
   if (minEl) minEl.value = state.cfFilters.minRating;
   if (maxEl) maxEl.value = state.cfFilters.maxRating;
-  // Set search input if exists
   const searchEl = document.getElementById("cf-search-input");
   if (searchEl) searchEl.value = state.cfFilters.search;
 }
 
 function updateCFRatingLabel() {
-  // No-op: label removed, selects now show values directly
 }
 
 function setCFRating(which, val) {
@@ -1964,9 +2179,7 @@ function clearCFFilters() {
   updateCFClearBtn();
 }
 
-// ─── CSV Parsing ───────────────────────────────────────────────────────────────
 async function loadAllCSVs() {
-  // ── Step 1: fetch manifest (tiny ~200 bytes) ─────────────────────────────
   let csvFiles = [];
   let manifestText = "";
   try {
@@ -1981,8 +2194,6 @@ async function loadAllCSVs() {
     return;
   }
 
-  // ── Step 2: check localStorage cache via manifest hash ───────────────────
-  // The manifest lists every CSV file — if it hasn't changed, data is fresh.
   const manifestHash = manifestText.trim();
   const storedHash = localStorage.getItem(CACHE_HASH_KEY);
 
@@ -1998,19 +2209,16 @@ async function loadAllCSVs() {
           console.log(
             `[cache] hit — ${questions.length} questions from localStorage`,
           );
-          // Load metadata in background (needed for tags/insights) without blocking
           loadMetadata().then(() => renderPatternDropdown());
           return;
         }
       }
     } catch (_) {
-      /* corrupted cache — fall through to full load */
     }
   }
 
-  // ── Step 3: cache miss — load metadata + all CSVs in parallel ────────────
   console.log("[cache] miss — fetching CSVs + metadata");
-  await loadMetadata(); // must resolve before CSV merge for tags/slugs
+  await loadMetadata();
 
   const map = {};
   await Promise.all(
@@ -2067,7 +2275,6 @@ async function loadAllCSVs() {
   state.questions.forEach((q) => q.companies.forEach((c) => cs.add(c)));
   state.companies = [...cs].sort();
 
-  // ── Step 4: persist to localStorage with manifest hash as cache key ───────
   try {
     localStorage.setItem(
       CACHE_KEY,
@@ -2081,7 +2288,6 @@ async function loadAllCSVs() {
       `[cache] saved ${state.questions.length} questions to localStorage`,
     );
   } catch (_) {
-    // localStorage quota (~5 MB) exceeded — evict old cache and retry once
     try {
       localStorage.removeItem(CACHE_KEY);
       localStorage.removeItem(CACHE_HASH_KEY);
@@ -2128,28 +2334,96 @@ function csvSplit(line) {
   return out;
 }
 
-// ─── Filter UI ─────────────────────────────────────────────────────────────────
 function renderFilterUI() {
   renderDiffPills();
   renderCompanyDropdown();
   renderPatternDropdown();
 }
 function renderDiffPills() {
-  const wrap = document.getElementById("filter-difficulty-pills");
-  ["Easy", "Medium", "Hard"].forEach((d) => {
-    const btn = wrap.querySelector(`[data-diff="${d.toLowerCase()}"]`);
-    if (btn)
-      btn.classList.toggle(
-        "active",
-        state.filters.difficulties.includes(d.toLowerCase()),
-      );
-  });
+  renderDiffCheckboxList();
 }
+
+let diffDropdownOpen = false;
+
+function toggleDiffDropdown() {
+  const dd = document.getElementById("diff-dropdown");
+  const btn = document.getElementById("diff-filter-btn");
+  const isOpen = diffDropdownOpen;
+  closeAllDropdowns();
+  if (!isOpen) {
+    diffDropdownOpen = true;
+    dd.style.display = "block";
+    btn.classList.add("active");
+    renderDiffCheckboxList();
+    setTimeout(
+      () =>
+        document.addEventListener("click", closeDiffDropdownOutside, {
+          once: true,
+        }),
+      0,
+    );
+  }
+}
+
+function closeDiffDropdownOutside(e) {
+  const wrap = document.getElementById("diff-filter-wrap");
+  if (wrap && !wrap.contains(e.target)) {
+    diffDropdownOpen = false;
+    document.getElementById("diff-dropdown").style.display = "none";
+    document.getElementById("diff-filter-btn").classList.remove("active");
+  } else if (diffDropdownOpen) {
+    setTimeout(
+      () =>
+        document.addEventListener("click", closeDiffDropdownOutside, {
+          once: true,
+        }),
+      0,
+    );
+  }
+}
+
+function renderDiffCheckboxList() {
+  const list = document.getElementById("diff-checkbox-list");
+  if (!list) return;
+  const diffs = ["Easy", "Medium", "Hard"];
+  
+  list.innerHTML = diffs.map((d) => {
+    const val = d.toLowerCase();
+    const checked = state.filters.difficulties.includes(val);
+    return `
+      <label class="company-checkbox-item ${checked ? "checked" : ""}">
+        <input type="checkbox" ${checked ? "checked" : ""} onchange="toggleDiffFilter('${val}')" onclick="event.stopPropagation()">
+        <span>${d}</span>
+      </label>
+    `;
+  }).join("");
+
+  const count = state.filters.difficulties.length;
+  const countEl = document.getElementById("diff-filter-count");
+  const btn = document.getElementById("diff-filter-btn");
+
+  if (countEl) {
+    countEl.textContent = count;
+    countEl.style.display = count ? "inline-flex" : "none";
+  }
+  
+  if (btn) {
+    btn.classList.toggle("active", count > 0);
+  }
+}
+
+function clearDiffFilters() {
+  state.filters.difficulties = [];
+  renderDiffCheckboxList();
+  applyFilters();
+}
+
 function toggleDiffFilter(diff) {
   const idx = state.filters.difficulties.indexOf(diff);
   if (idx === -1) state.filters.difficulties.push(diff);
   else state.filters.difficulties.splice(idx, 1);
-  renderDiffPills();
+
+  renderDiffCheckboxList(); 
   applyFilters();
 }
 function toggleStarredFilter() {
@@ -2167,7 +2441,6 @@ function toggleReviewFilter() {
   applyFilters();
 }
 
-// ─── Pattern Dropdown ──────────────────────────────────────────────────────────
 let patternDropdownOpen = false;
 function renderPatternDropdown() {
   const wrap = document.getElementById("pattern-filter-wrap");
@@ -2255,7 +2528,6 @@ function toggleCFTagFilter(tag) {
   const idx = state.cfFilters.tags.indexOf(tag);
   if (idx === -1) state.cfFilters.tags.push(tag);
   else state.cfFilters.tags.splice(idx, 1);
-  // Sync the tag select dropdown to "custom" state
   const sel = document.getElementById("cf-tag-select");
   if (sel)
     sel.value =
@@ -2264,7 +2536,6 @@ function toggleCFTagFilter(tag) {
 }
 
 function toggleACTagFilter(tag) {
-  // AC has no tag filter in state yet — add to acFilters.tags
   if (!state.acFilters.tags) state.acFilters.tags = [];
   const idx = state.acFilters.tags.indexOf(tag);
   if (idx === -1) state.acFilters.tags.push(tag);
@@ -2280,13 +2551,18 @@ function updatePatternFilterCount() {
   el.style.display = count ? "inline-flex" : "none";
 }
 
-// ─── All Dropdowns ─────────────────────────────────────────────────────────────
 function closeAllDropdowns() {
   const cdd = document.getElementById("company-dropdown");
   const cbtn = document.getElementById("company-filter-btn");
   if (cdd) cdd.style.display = "none";
   if (cbtn) cbtn.classList.remove("active");
   companyDropdownOpen = false;
+
+  const ddd = document.getElementById("diff-dropdown");
+  const dbtn = document.getElementById("diff-filter-btn");
+  if (ddd) ddd.style.display = "none";
+  if (dbtn) dbtn.classList.remove("active");
+  diffDropdownOpen = false;
 
   const pdd = document.getElementById("pattern-dropdown");
   const pbtn = document.getElementById("pattern-filter-btn");
@@ -2303,7 +2579,6 @@ function closeAllDropdowns() {
   if (sortdd) sortdd.style.display = "none";
 }
 
-// ─── Company Dropdown ──────────────────────────────────────────────────────────
 let companyDropdownOpen = false;
 function toggleCompanyDropdown() {
   const dd = document.getElementById("company-dropdown");
@@ -2392,7 +2667,6 @@ function renderCompanyDropdown() {
   renderCompanyCheckboxList("");
 }
 
-// ─── Filters ───────────────────────────────────────────────────────────────────
 function applyFilters() {
   const { search, difficulties, companies, patterns, status, starred, review } =
     state.filters;
@@ -2497,7 +2771,6 @@ function setStatusFilter(value) {
   applyFilters();
 }
 
-// ─── Sort ──────────────────────────────────────────────────────────────────────
 function applySort() {
   const { sortCol, sortDir } = state;
   state.filtered.sort((a, b) => {
@@ -2600,7 +2873,6 @@ function updateSortHeaders() {
   });
 }
 
-// ─── Render: Table ─────────────────────────────────────────────────────────────
 function renderTable() {
   const tbody = document.getElementById("questions-tbody");
   const start = (state.page - 1) * ITEMS_PER_PAGE;
@@ -2680,7 +2952,6 @@ function goPage(p) {
   renderTable();
 }
 
-// ─── Render: Stats bar ─────────────────────────────────────────────────────────
 function renderStats() {
   const all = state.questions;
   const solved = Object.keys(state.solved).length;
@@ -2700,7 +2971,6 @@ function renderStats() {
   document.getElementById("progress-bar-fill").style.width = pct + "%";
 }
 
-// ─── Render: Auth Area ─────────────────────────────────────────────────────────
 function renderAuthArea() {
   const el = document.getElementById("auth-area");
   if (!el) return;
@@ -2718,7 +2988,6 @@ function renderAuthArea() {
     if (acConnectedAuth) parts.push(`AC (${state.acUsername})`);
     syncTooltip = parts.length ? `Sync ${parts.join(" + ")}` : "";
 
-    // Supabase stores GitHub profile in user_metadata
     const avatarUrl = state.user.user_metadata?.avatar_url || "";
     const login = state.user.user_metadata?.user_name || state.user.email || "";
 
@@ -2744,11 +3013,9 @@ function renderAuthArea() {
     showPage(activePage);
 }
 
-// ─── Sync Banner (shown on tracker page when LC not connected) ─────────────────
 function renderSyncBanner() {
   const existing = document.getElementById("lc-sync-banner");
   if (existing) existing.remove();
-  // Only show when GitHub logged in but LC not connected
   if (!state.user || state.lcUsername) return;
   const mainContent = document.getElementById("main-content");
   if (!mainContent) return;
@@ -2764,7 +3031,6 @@ function renderSyncBanner() {
   mainContent.insertBefore(banner, mainContent.firstChild);
 }
 
-// ─── Onboarding ────────────────────────────────────────────────────────────────
 function checkOnboarding() {
   const done = localStorage.getItem("onboarding_done");
   if (
@@ -2780,7 +3046,6 @@ function closeOnboarding() {
   localStorage.setItem("onboarding_done", "1");
 }
 
-// ─── Keyboard Shortcuts ────────────────────────────────────────────────────────
 function initKeyboardShortcuts() {
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
@@ -2831,11 +3096,6 @@ function initKeyboardShortcuts() {
   });
 }
 
-// ─── Interview Readiness Score ─────────────────────────────────────────────────
-
-// ─── Interview Countdown ──────────────────────────────────────────────────────
-
-// ─── Weekly Digest Modal ──────────────────────────────────────────────────────
 function openWeeklyDigest() {
   const now = new Date();
   const days = Array.from({ length: 7 }, (_, i) => {
@@ -2918,42 +3178,43 @@ function renderCountdown() {
 }
 
 function calcReadinessScore() {
+  const filterCompany = state.readinessCompany || "all";
   const solvedIds = new Set(Object.keys(state.solved).map(Number));
-  const totalSolved = solvedIds.size;
-  const top5 = ["google", "amazon", "meta", "microsoft", "apple"];
-  let top5Score = 0;
-  for (const company of top5) {
-    const qs = state.questions.filter((q) => q.companies.includes(company));
-    const s = qs.filter((q) => solvedIds.has(q.id)).length;
-    top5Score += (qs.length ? s / qs.length : 0) * 8;
+
+  let targetPool = state.questions;
+  if (filterCompany !== "all") {
+    targetPool = state.questions.filter((q) =>
+      q.companies.includes(filterCompany),
+    );
   }
-  const VOLUME_GOAL = 400;
-  const volumeScore = Math.min(35, (totalSolved / VOLUME_GOAL) * 35);
-  const easy = [...solvedIds].filter(
-    (id) => state.questions.find((q) => q.id === id)?.difficulty === "Easy",
+
+  const totalPool = targetPool.length || 1;
+  const solvedPool = targetPool.filter((q) => solvedIds.has(q.id)).length;
+
+  const coverageScore = (solvedPool / Math.min(totalPool, 100)) * 40;
+
+  const hardSolved = targetPool.filter(
+    (q) => q.difficulty === "Hard" && solvedIds.has(q.id),
   ).length;
-  const medium = [...solvedIds].filter(
-    (id) => state.questions.find((q) => q.id === id)?.difficulty === "Medium",
+  const medSolved = targetPool.filter(
+    (q) => q.difficulty === "Medium" && solvedIds.has(q.id),
   ).length;
-  const hard = [...solvedIds].filter(
-    (id) => state.questions.find((q) => q.id === id)?.difficulty === "Hard",
-  ).length;
-  const hasBalance = easy > 10 && medium > 20 && hard > 5;
-  const balanceScore = hasBalance
-    ? 15
-    : Math.min(15, easy * 0.3 + medium * 0.5 + hard * 1.5);
-  const { current, totalDays } = calcStreaks();
-  const consistencyScore = Math.min(10, current * 0.5 + totalDays * 0.1);
+  const qualityScore = Math.min(40, hardSolved * 5 + medSolved * 1.5);
+
+  const { current } = calcStreaks();
+  const consistencyScore = Math.min(20, current * 2);
+
   const total = Math.min(
     100,
-    Math.round(top5Score + volumeScore + balanceScore + consistencyScore),
+    Math.round(coverageScore + qualityScore + consistencyScore),
   );
+
   return {
     total,
     breakdown: {
-      top5: Math.round(top5Score),
-      volume: Math.round(volumeScore),
-      balance: Math.round(balanceScore),
+      top5: Math.round(coverageScore), 
+      volume: Math.round(qualityScore),
+      balance: 15,
       consistency: Math.round(consistencyScore),
     },
   };
@@ -3036,7 +3297,6 @@ function renderReadinessGauge(score) {
     </div>`;
 }
 
-// ─── Weekly Chart ──────────────────────────────────────────────────────────────
 function renderWeeklyChart() {
   const el = document.getElementById("insights-weekly");
   if (!el) return;
@@ -3098,7 +3358,6 @@ function renderWeeklyChart() {
     </div>`;
 }
 
-// ─── Notes Search ──────────────────────────────────────────────────────────────
 function renderNotesSearch(query = "") {
   const el = document.getElementById("notes-search-results");
   if (!el) return;
@@ -3150,7 +3409,6 @@ function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// ─── Render: Profile Page ──────────────────────────────────────────────────────
 function renderProfilePage() {
   const guestEl = document.getElementById("profile-guest");
   const contentEl = document.getElementById("profile-content");
@@ -3162,7 +3420,6 @@ function renderProfilePage() {
   if (guestEl) guestEl.style.display = "none";
   if (contentEl) contentEl.style.display = "block";
 
-  // ── GitHub identity (always shown, generic) ──
   document.getElementById("profile-avatar").src =
     state.user.user_metadata?.avatar_url || "";
   document.getElementById("profile-name").textContent =
@@ -3172,7 +3429,6 @@ function renderProfilePage() {
     "";
   document.getElementById("profile-handle").textContent =
     "@" + (state.user.user_metadata?.user_name || state.user.email || "");
-  // ── Combined streak & heatmap (cross-platform) ──
   const { current, longest, totalDays } = calcStreaks();
   animateNumber("streak-number", current);
   animateNumber("longest-streak", longest);
@@ -3215,7 +3471,6 @@ function renderProfilePage() {
 
   renderHeatmap();
 
-  // ── Platform sub-tabs ──
   const activeTab = state.profilePlatform || "lc";
   renderProfilePlatformTabs(activeTab);
 }
@@ -3223,7 +3478,6 @@ function renderProfilePage() {
 function renderProfilePlatformTabs(platform) {
   state.profilePlatform = platform;
 
-  // Update tab buttons
   const lcTab = document.getElementById("profile-tab-lc");
   const cfTab = document.getElementById("profile-tab-cf");
   const acTab = document.getElementById("profile-tab-ac");
@@ -3231,7 +3485,6 @@ function renderProfilePlatformTabs(platform) {
   if (cfTab) cfTab.classList.toggle("active", platform === "cf");
   if (acTab) acTab.classList.toggle("active", platform === "ac");
 
-  // Show/hide sections
   const lcSection = document.getElementById("profile-lc-section");
   const cfSection = document.getElementById("profile-cf-section");
   const acSection = document.getElementById("profile-ac-section");
@@ -3245,12 +3498,13 @@ function renderProfilePlatformTabs(platform) {
 }
 
 function switchProfilePlatform(platform) {
-  window.location.hash = `profile/${platform}`; // ← add this line
+  window.location.hash = `profile/${platform}`; 
   renderProfilePlatformTabs(platform);
 }
 
 function renderProfileLC() {
-  // LC connect badge
+  const selector = document.getElementById("readiness-company-filter");
+  if (selector) selector.value = state.readinessCompany;
   const lcBadge = document.getElementById("profile-lc-badge");
   if (lcBadge) {
     if (state.lcUsername) {
@@ -3263,7 +3517,6 @@ function renderProfileLC() {
     }
   }
 
-  // Difficulty bars
   const solvedIds = new Set(Object.keys(state.solved).map(Number));
   const solved = state.questions.filter((q) => solvedIds.has(q.id));
   const byDiff = (d) => ({
@@ -3276,17 +3529,9 @@ function renderProfileLC() {
   setDiffBar("bar-easy", "count-easy", easy.s, easy.t);
   setDiffBar("bar-medium", "count-medium", medium.s, medium.t);
   setDiffBar("bar-hard", "count-hard", hard.s, hard.t);
-
-  // Readiness gauge
   renderReadinessGauge(calcReadinessScore());
-
-  // Company coverage
   renderCompanyCoverage(solvedIds);
-
-  // Recent solves (LC)
   renderLCRecentSolves();
-
-  // Notes search
   renderNotesSearch();
 }
 
@@ -3321,7 +3566,6 @@ function renderLCRecentSolves() {
 }
 
 function renderProfileCF() {
-  // CF connect badge
   const cfBadge = document.getElementById("profile-cf-badge");
   if (cfBadge) {
     if (state.cfUserInfo) {
@@ -3345,16 +3589,9 @@ function renderProfileCF() {
     }
   }
 
-  // CF stats summary
   renderProfileCFStats();
-
-  // CF rating distribution
   renderProfileCFRatingDist();
-
-  // CF recent solves
   renderCFRecentSolves();
-
-  // CF tag coverage
   renderProfileCFTagCoverage();
 }
 
@@ -3537,7 +3774,6 @@ function renderProfileCFTagCoverage() {
     .join("");
 }
 
-// ─── Company Coverage ──────────────────────────────────────────────────────────
 function renderCompanyCoverage(solvedIds) {
   const coverage = document.getElementById("company-coverage");
   if (!coverage) return;
@@ -3598,30 +3834,24 @@ function formatDate(str) {
   });
 }
 
-// ─── Heatmap ───────────────────────────────────────────────────────────────────
+function filterByDate(date) {
+  state.filters.search = date;
+  const input = document.getElementById("search-input");
+  if (input) input.value = date;
+
+  switchPlatform("lc");
+  showPage("tracker");
+  applyFilters();
+  showToast(`📅 Showing problems from ${date}`, "info");
+}
+
 function renderHeatmap() {
   const el = document.getElementById("heatmap");
   if (!el) return;
   const WEEKS = 52;
-  const MONTHS = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-  ];
   const today = new Date();
   const start = new Date(today);
-  // Start from the Sunday of the week that was (WEEKS-1) weeks ago
   start.setDate(today.getDate() - today.getDay() - (WEEKS - 1) * 7);
-  // Build per-day merged totals so maxVal scales correctly across all platforms
   const _mergedActivity = {};
   for (const [d, v] of Object.entries(state.activity))
     _mergedActivity[d] = (_mergedActivity[d] || 0) + v;
@@ -3629,56 +3859,43 @@ function renderHeatmap() {
     _mergedActivity[d] = (_mergedActivity[d] || 0) + v;
   for (const [d, v] of Object.entries(state.acActivity))
     _mergedActivity[d] = (_mergedActivity[d] || 0) + v;
+
   const maxVal = Math.max(1, ...Object.values(_mergedActivity));
+  const rivalActivity = state.compareRival
+    ? getRivalActivity(state.compareRival)
+    : null;
 
-  const monthMarkers = [];
-  let lastMonth = -1;
   let colsHtml = "";
-
   for (let w = 0; w < WEEKS; w++) {
-    const weekStart = new Date(start);
-    weekStart.setDate(start.getDate() + w * 7);
-    const m = weekStart.getMonth();
-    // Only add label if month changed AND it's not the very last week (avoids duplicate at end)
-    if (m !== lastMonth) {
-      monthMarkers.push({ w, label: MONTHS[m] });
-      lastMonth = m;
-    }
-
-    colsHtml += `<div class="heatmap-col">`;
+    let colCells = "";
     for (let d = 0; d < 7; d++) {
       const date = new Date(start);
       date.setDate(start.getDate() + w * 7 + d);
       const key = dateStr(date);
-      const count =
-        (state.activity[key] || 0) +
-        (state.cfActivity[key] || 0) +
-        (state.acActivity[key] || 0);
-      const level = count === 0 ? 0 : Math.ceil((count / maxVal) * 4);
-      const future = date > today;
-      colsHtml += `<div class="heatmap-cell l${future ? 0 : level}${future ? " future" : ""}" title="${key}: ${count} solve${count !== 1 ? "s" : ""}"></div>`;
+
+      const myCount = _mergedActivity[key] || 0;
+      const myLevel = myCount === 0 ? 0 : Math.ceil((myCount / maxVal) * 4);
+
+      if (rivalActivity) {
+        const rivalCount = rivalActivity[key] || 0;
+        const rivalLevel =
+          rivalCount === 0 ? 0 : Math.ceil((rivalCount / maxVal) * 4);
+        colCells += `<div class="heatmap-cell split l${myLevel} r${rivalLevel}" 
+                     title="You: ${myCount} | Rival: ${rivalCount} on ${key}" 
+                     onclick="filterByDate('${key}')"></div>`;
+      } else {
+        const future = date > today;
+        colCells += `<div class="heatmap-cell l${future ? 0 : myLevel}${future ? " future" : ""}" 
+                     title="${key}: ${myCount} solve${myCount !== 1 ? "s" : ""}" 
+                     onclick="filterByDate('${key}')"></div>`;
+      }
     }
-    colsHtml += `</div>`;
+    colsHtml += `<div class="heatmap-col">${colCells}</div>`;
   }
 
-  // Each col = 12px cell + 3px gap = 15px
-  const COL_WIDTH = 15;
-  const monthsHtml = monthMarkers
-    .map(
-      ({ w, label }) =>
-        `<span class="heatmap-month-label" style="left:${w * COL_WIDTH}px">${label}</span>`,
-    )
-    .join("");
-
-  el.innerHTML = `
-    <div class="heatmap-wrapper">
-      <div class="heatmap-month-row">${monthsHtml}</div>
-      <div class="heatmap-grid">${colsHtml}</div>
-    </div>
-  `;
+  el.innerHTML = `<div class="heatmap-wrapper"><div class="heatmap-grid">${colsHtml}</div></div>`;
 }
 
-// ─── Modals ────────────────────────────────────────────────────────────────────
 function confirmClearData() {
   document.getElementById("modal-overlay").style.display = "flex";
 }
@@ -3698,7 +3915,6 @@ async function clearAllData() {
   renderTable();
 }
 
-// ─── Helpers ───────────────────────────────────────────────────────────────────
 function formatCompany(name) {
   return name
     .split(/[-_]/)
@@ -3710,7 +3926,6 @@ function showError(msg) {
     `<div class="error-state">⚠️ ${msg}</div>`;
 }
 
-// ─── Insights Page ─────────────────────────────────────────────────────────────
 function renderInsightsPage() {
   if (!state.questions.length) return;
   const platform = state.insightsPlatform || "lc";
@@ -3777,6 +3992,7 @@ function renderLCInsights() {
   renderNextToSolve();
   renderWeeklyChart();
   renderPatternInsights();
+  renderDailyQueue();
 }
 
 function renderCFInsights() {
@@ -3825,7 +4041,6 @@ function renderPatternInsights() {
   const el = document.getElementById("insights-patterns");
   if (!el) return;
 
-  // LC patterns
   let lcHtml = "";
   if (state.allTags.length) {
     const solvedIds = new Set(Object.keys(state.solved).map(Number));
@@ -3864,6 +4079,48 @@ function renderPatternInsights() {
   el.innerHTML =
     lcHtml ||
     `<div class="empty-insights">Run <code>node fetch-metadata.js</code> to enable pattern analytics.</div>`;
+}
+
+function renderDailyQueue() {
+  const container = document.getElementById("insights-lc-section");
+  let queueEl = document.getElementById("daily-review-queue");
+
+  if (!queueEl) {
+    queueEl = document.createElement("div");
+    queueEl.id = "daily-review-queue";
+    const ribbon = document.getElementById("insights-ribbon");
+    ribbon.parentNode.insertBefore(queueEl, ribbon.nextSibling);
+  }
+
+  const due = state.questions.filter((q) => isReviewDue(q.id)).slice(0, 5);
+
+  queueEl.className = "insights-card insights-card-wide review-queue-card";
+  queueEl.style.marginBottom = "20px";
+
+  let rows = due
+    .map(
+      (q) => `
+    <div class="upsolver-problem">
+      <span class="diff-badge ${q.difficulty.toLowerCase()} sm">${q.difficulty[0]}</span>
+      <a href="${q.link}" target="_blank" class="upsolver-name">${q.title}</a>
+      <button class="review-item-btn" onclick="advanceSM2(${q.id}); renderDailyQueue(); saveProgress(); showToast('Review Complete!')">Mark Reviewed</button>
+    </div>
+  `,
+    )
+    .join("");
+
+  queueEl.innerHTML = `
+    <div class="insights-card-header">
+      <span class="insights-card-icon">🧠</span>
+      <div>
+        <div class="insights-card-title">Daily Review Queue</div>
+        <div class="insights-card-sub">SM2 Spaced-Repetition: Strengthen your memory on these ${due.length} items</div>
+      </div>
+    </div>
+    <div class="upsolver-problems">
+      ${due.length ? rows : '<div class="empty-insights">🎉 No reviews due today. Your memory is sharp!</div>'}
+    </div>
+  `;
 }
 
 function renderHotQuestions() {
@@ -4059,7 +4316,6 @@ function renderNextToSolve() {
     `<div class="empty-insights">🎉 All high-frequency problems solved!</div>`;
 }
 
-// ─── CF Insights ───────────────────────────────────────────────────────────────
 function renderCFInsightsRibbon() {
   const el = document.getElementById("cf-insights-ribbon");
   if (!el) return;
@@ -4215,7 +4471,6 @@ function renderCFRadar() {
   const el = document.getElementById("cf-radar-chart");
   if (!el) return;
 
-  // Tag solve rates for top 8 tags by volume
   const tagStats = {};
   for (const p of Object.values(state.cfMeta)) {
     if (!p.rating) continue;
@@ -4282,7 +4537,6 @@ function renderCFWeeklyChart() {
   </div></div>`;
 }
 
-// ─── AtCoder ───────────────────────────────────────────────────────────────────
 async function loadACMeta() {
   try {
     const res = await fetch("data/atcoder-meta.json");
@@ -4366,13 +4620,11 @@ async function syncACUser() {
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     const submissions = Array.isArray(data) ? data : [];
     if (!submissions.length && res.ok) {
-      // Valid user but no submissions yet — still treat as success
     }
 
     state.acUsername = handle;
     localStorage.setItem("ac_username", handle);
 
-    // Fetch AC rating info
     try {
       const ratingRes = await fetch(
         `/api/contests-proxy?platform=ac-user&handle=${encodeURIComponent(handle)}`,
@@ -4494,20 +4746,16 @@ async function disconnectAC() {
   state.acUserInfo = null;
   state.acSolved = {};
   state.acActivity = {};
-
-  // Clear Contest-specific state
   contestsState.acContestHistory = [];
   contestsState.acHistoryFiltered = [];
   contestsState.acHistoryLoaded = false;
 
   localStorage.removeItem("ac_username");
-  // Wipe the contest caches
   clearContestCache("acHistory");
   clearContestCache(`acHistory_${state.acUsername}`);
 
-  await saveProgress(); // Updates Supabase
+  await saveProgress();
 
-  // UI Reset
   document.getElementById("ac-connect-area").style.display = "";
   const connectedArea = document.getElementById("ac-connected-area");
   connectedArea.style.display = "none";
@@ -4546,7 +4794,6 @@ function applyACFilters() {
       if (!solved) return false;
       if (!isACReviewDue(p.id)) return false;
     }
-    // Curated list filter
     if (state.acCuratedList && !CURATED_LISTS[state.acCuratedList]?.has(p.id))
       return false;
     return true;
@@ -4776,7 +5023,6 @@ function exportACProgress() {
   URL.revokeObjectURL(url);
 }
 
-// ─── Export Filtered CSV ──────────────────────────────────────────────────────
 function downloadCSV(rows, filename) {
   const blob = new Blob([rows.map((r) => r.join(",")).join("\n")], {
     type: "text/csv",
@@ -5157,7 +5403,7 @@ function renderACRadar() {
 
   const labels = data.map((b) => b.label);
   const values = data.map((b) => (b.total ? b.solved / b.total : 0));
-  const rawData = data.map(b => ({ solved: b.solved, total: b.total }));
+  const rawData = data.map((b) => ({ solved: b.solved, total: b.total }));
   renderRadarChart("ac-radar-chart", labels, values, "#4f46e5", rawData);
 }
 
@@ -5193,26 +5439,18 @@ function pickRandomAC(content) {
     </div>`;
 }
 
-// ─── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
   initTheme();
-
   const sb = getSupabase();
-
-  // Restore local progress immediately so UI is populated before network
   loadLocalProgress();
-
-  // Resolve Supabase session (handles OAuth redirect automatically)
   const {
     data: { session },
   } = await sb.auth.getSession();
   if (session) {
     state.user = session.user;
-    // Remote data wins over local cache — merge on top
     await loadProgressFromSupabase();
   }
 
-  // Listen for future auth changes (login / logout / token refresh)
   sb.auth.onAuthStateChange(async (_event, session) => {
     if (session) {
       state.user = session.user;
@@ -5250,8 +5488,6 @@ async function init() {
   });
 
   renderAuthArea();
-
-  // loadAllCSVs() internally calls loadMetadata() — no need to call it separately
   await Promise.all([loadAllCSVs(), initCF(), initAC()]);
 
   document.getElementById("loading").style.display = "none";
@@ -5262,7 +5498,6 @@ async function init() {
     setTimeout(() => syncLeetCode(true), 8000);
   }
 
-  // Event listeners
   document
     .querySelectorAll(".pill-diff")
     .forEach((btn) =>
@@ -5313,7 +5548,6 @@ async function init() {
     .getElementById("import-file-input")
     .addEventListener("change", handleImportFile);
 
-  // LC modal enter key
   document
     .getElementById("lc-username-input")
     ?.addEventListener("keydown", (e) => {
@@ -5341,34 +5575,27 @@ async function init() {
       .catch(() => {}),
   ]).then(() => initNavContestBadge());
 
-  // Show sync banner if logged in but LC not connected
   renderSyncBanner();
 
   setTimeout(checkOnboarding, 800);
+
+  renderCuratedDropdown("lc");
+  renderCuratedDropdown("cf");
+  renderCuratedDropdown("ac");
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// CONTESTS PAGE
-// Paste this entire block at the very bottom of app.js (before the last line)
-// Also add "contests" to the PAGES array at the top:
-//   const PAGES = ["tracker", "profile", "insights", "contests"];
-// And add to showPage() switch: if (name === "contests") initContestsPage();
-// And add keyboard shortcut: case "4": showPage("contests"); break;
-// ═══════════════════════════════════════════════════════════════════════════════
-
-// ─── Contests State ────────────────────────────────────────────────────────────
 const contestsState = {
-  cfContests: [], // all CF contests from API
-  cfContestHistory: [], // user.rating history for connected user
-  cfHistoryFiltered: [], // after search/filter
+  cfContests: [], 
+  cfContestHistory: [], 
+  cfHistoryFiltered: [], 
   cfHistoryPage: 1,
-  cfPastVisible: 10, // how many past contests to show
+  cfPastVisible: 10,
   cfLoaded: false,
   cfHistoryLoaded: false,
   cfParticipatedOnly: false,
 
-  acContests: [], // all AC contests from kenkoooo
-  acContestHistory: [], // user history
+  acContests: [], 
+  acContestHistory: [], 
   acHistoryFiltered: [],
   acHistoryPage: 1,
   acPastVisible: 10,
@@ -5385,12 +5612,11 @@ const contestsState = {
   navBadgeTimer: null,
 };
 
-// ─── Contest Cache Helpers ─────────────────────────────────────────────────────
 const CONTEST_CACHE_TTL = {
-  cfContests:   6 * 60 * 60 * 1000,  // 6 hours
-  cfHistory:    1 * 60 * 60 * 1000,  // 1 hour
-  acContests:   6 * 60 * 60 * 1000,
-  acHistory:    1 * 60 * 60 * 1000,
+  cfContests: 6 * 60 * 60 * 1000,
+  cfHistory: 1 * 60 * 60 * 1000,
+  acContests: 6 * 60 * 60 * 1000,
+  acHistory: 1 * 60 * 60 * 1000,
 };
 
 function getContestCache(key) {
@@ -5398,25 +5624,32 @@ function getContestCache(key) {
     const raw = localStorage.getItem(`contest_cache_${key}`);
     if (!raw) return null;
     const { ts, data } = JSON.parse(raw);
-    if (Date.now() - ts > CONTEST_CACHE_TTL[key]) return null; // expired
+    if (Date.now() - ts > CONTEST_CACHE_TTL[key]) return null; 
     return data;
-  } catch (_) { return null; }
+  } catch (_) {
+    return null;
+  }
 }
 
 function setContestCache(key, data) {
   try {
-    localStorage.setItem(`contest_cache_${key}`, JSON.stringify({ ts: Date.now(), data }));
+    localStorage.setItem(
+      `contest_cache_${key}`,
+      JSON.stringify({ ts: Date.now(), data }),
+    );
   } catch (_) {}
 }
 
 function clearContestCache(key) {
-  try { localStorage.removeItem(`contest_cache_${key}`); } catch (_) {}
+  try {
+    localStorage.removeItem(`contest_cache_${key}`);
+  } catch (_) {}
 }
 
 async function refreshContestData() {
   const plat = contestsState.activePlatform;
   showToast(`Refreshing ${plat.toUpperCase()} contests...`, "info");
-  
+
   if (plat === "cf") {
     clearContestCache("cfContests");
     clearContestCache("cfHistory");
@@ -5433,7 +5666,6 @@ async function refreshContestData() {
 
 const CONTESTS_HISTORY_PER_PAGE = 15;
 
-// ─── Page Entry Point ─────────────────────────────────────────────────────────
 function initContestsPage() {
   const plat = contestsState.activePlatform || "cf";
   renderContestsPlatformTabs(plat);
@@ -5458,7 +5690,6 @@ function renderContestsPlatformTabs(plat) {
   document.getElementById("ctab-ac")?.classList.toggle("active", plat === "ac");
 }
 
-// ─── Utilities ────────────────────────────────────────────────────────────────
 function fmtDuration(seconds) {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
@@ -5509,7 +5740,6 @@ function acContestCategory(id) {
   return { text: "Other", cls: "ac-other", fullName: "Contest" };
 }
 
-// ─── Rating delta badge ──────────────────────────────────────────────────────
 function ratingDeltaBadge(delta) {
   if (delta == null) return "";
   const sign = delta > 0 ? "+" : "";
@@ -5517,12 +5747,7 @@ function ratingDeltaBadge(delta) {
   return `<span class="rating-delta ${cls}">${sign}${delta}</span>`;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// ─── CODEFORCES CONTESTS ──────────────────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════════
-
 async function initCFContestsSection() {
-  // Show/hide user panel based on connection
   const hasUser = !!state.cfUserInfo;
   document.getElementById("cf-contest-user-panel").style.display = hasUser
     ? ""
@@ -5559,31 +5784,39 @@ async function initCFContestsSection() {
   renderCFRadar();
 }
 
-// ─── Radar Chart ──────────────────────────────────────────────────────────────
-// ─── Radar Chart ──────────────────────────────────────────────────────────────
 function renderRadarChart(elId, labels, values, color, rawData) {
   const el = document.getElementById(elId);
   if (!el) return;
   const N = labels.length;
   if (!N) return;
 
-  const W = 360, H = 360, cx = 180, cy = 172, R = 118;
-  const angle = (i) => i * (2 * Math.PI / N) - Math.PI / 2;
-  const pt = (i, r) => [cx + r * Math.cos(angle(i)), cy + r * Math.sin(angle(i))];
-  const getColor = (v) => v >= 0.7 ? "#4ade80" : v >= 0.4 ? "#facc15" : "#f87171";
+  const W = 360,
+    H = 360,
+    cx = 180,
+    cy = 172,
+    R = 118;
+  const angle = (i) => i * ((2 * Math.PI) / N) - Math.PI / 2;
+  const pt = (i, r) => [
+    cx + r * Math.cos(angle(i)),
+    cy + r * Math.sin(angle(i)),
+  ];
+  const getColor = (v) =>
+    v >= 0.7 ? "#4ade80" : v >= 0.4 ? "#facc15" : "#f87171";
 
-  // Grid rings
   let rings = "";
   [0.25, 0.5, 0.75, 1.0].forEach((frac, gi) => {
-    const pts = Array.from({length: N}, (_, i) => pt(i, R * frac).map(v => v.toFixed(1)).join(",")).join(" ");
-    rings += `<polygon points="${pts}" fill="${gi === 3 ? 'var(--bg-4)' : 'none'}" stroke="var(--border)" stroke-width="${gi === 3 ? 1.2 : 0.7}" opacity="${gi === 3 ? 0.5 : 0.6}" stroke-dasharray="${gi < 3 ? '4,3' : 'none'}"/>`;
+    const pts = Array.from({ length: N }, (_, i) =>
+      pt(i, R * frac)
+        .map((v) => v.toFixed(1))
+        .join(","),
+    ).join(" ");
+    rings += `<polygon points="${pts}" fill="${gi === 3 ? "var(--bg-4)" : "none"}" stroke="var(--border)" stroke-width="${gi === 3 ? 1.2 : 0.7}" opacity="${gi === 3 ? 0.5 : 0.6}" stroke-dasharray="${gi < 3 ? "4,3" : "none"}"/>`;
     if (gi < 3) {
       const labelY = (cy - R * frac - 5).toFixed(1);
       rings += `<text x="${cx + 4}" y="${labelY}" text-anchor="start" font-size="8" fill="var(--text-dim)" font-family="var(--mono)" opacity="0.55">${frac * 100}%</text>`;
     }
   });
 
-  // Axes + labels
   let axes = "";
   for (let i = 0; i < N; i++) {
     const [x1, y1] = pt(i, R);
@@ -5595,28 +5828,32 @@ function renderRadarChart(elId, labels, values, color, rawData) {
     const textY = ly > cy ? ly + 5 : ly - 4;
     const pct = Math.round(v * 100);
     const shortLabel = labels[i];
-    // Two-line label: name + pct
     axes += `<text text-anchor="${anchor}" font-family="var(--mono)" font-size="9.5" font-weight="600" fill="var(--text)" x="${lx.toFixed(1)}" y="${textY.toFixed(1)}">${shortLabel}</text>`;
     axes += `<text text-anchor="${anchor}" font-family="var(--mono)" font-size="9" font-weight="700" fill="${axisColor}" x="${lx.toFixed(1)}" y="${(parseFloat(textY) + 11).toFixed(1)}">${pct}%</text>`;
   }
 
-  // Filled shape
-  const shapePts = values.map((v, i) => pt(i, R * Math.min(Math.max(v, 0.02), 1)).map(x => x.toFixed(1)).join(",")).join(" ");
+  const shapePts = values
+    .map((v, i) =>
+      pt(i, R * Math.min(Math.max(v, 0.02), 1))
+        .map((x) => x.toFixed(1))
+        .join(","),
+    )
+    .join(" ");
 
-  // Dots
-  const dots = values.map((v, i) => {
-    const [x, y] = pt(i, R * Math.min(Math.max(v, 0.02), 1));
-    const dotColor = getColor(v);
-    const pct = Math.round(v * 100);
-    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5.5" fill="${dotColor}" stroke="var(--bg-1)" stroke-width="2" opacity="0.95">
+  const dots = values
+    .map((v, i) => {
+      const [x, y] = pt(i, R * Math.min(Math.max(v, 0.02), 1));
+      const dotColor = getColor(v);
+      const pct = Math.round(v * 100);
+      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5.5" fill="${dotColor}" stroke="var(--bg-1)" stroke-width="2" opacity="0.95">
       <animate attributeName="r" values="4.5;6.5;4.5" dur="2.4s" begin="${i * 0.18}s" repeatCount="indefinite"/>
     </circle>
     <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="12" fill="transparent" style="cursor:pointer">
       <title>${labels[i]}: ${pct}%</title>
     </circle>`;
-  }).join("");
+    })
+    .join("");
 
-  // Legend
   const legend = `<g transform="translate(${cx - 100}, ${H - 18})">
     <rect width="8" height="8" rx="2" fill="#4ade80"/><text x="12" y="8" font-size="8.5" fill="var(--text-muted)" font-family="var(--mono)">Strong ≥70%</text>
     <rect x="85" width="8" height="8" rx="2" fill="#facc15"/><text x="97" y="8" font-size="8.5" fill="var(--text-muted)" font-family="var(--mono)">OK ≥40%</text>
@@ -5644,15 +5881,12 @@ function renderRadarChart(elId, labels, values, color, rawData) {
       ${dots}${legend}
     </svg>`;
 
-  // Click to open detail modal
   el.querySelector("svg").addEventListener("click", () => {
     openRadarModal(elId, labels, values, color, rawData);
   });
   el.style.cursor = "pointer";
 }
 
-// ─── Radar Detail Modal ────────────────────────────────────────────────────────
-// ─── Radar Detail Modal (CS2-style deep breakdown) ─────────────────────────────
 function openRadarModal(elId, labels, values, color, rawData) {
   const isCF = elId.startsWith("cf");
   const title = isCF ? "Tag Coverage Analysis" : "Difficulty Coverage Analysis";
@@ -5660,44 +5894,78 @@ function openRadarModal(elId, labels, values, color, rawData) {
     ? `${state.cfUsername || "You"} · Codeforces`
     : `${state.acUsername || "You"} · AtCoder`;
 
-  const getColor = (v) => v >= 0.7 ? "#4ade80" : v >= 0.4 ? "#facc15" : "#f87171";
-  const getBg    = (v) => v >= 0.7 ? "rgba(74,222,128,0.10)" : v >= 0.4 ? "rgba(250,204,21,0.10)" : "rgba(248,113,113,0.10)";
-  const getTier  = (v) => v >= 0.7 ? "Strong" : v >= 0.5 ? "Good" : v >= 0.3 ? "Developing" : "Weak";
-  const getTierColor = (v) => v >= 0.7 ? "#4ade80" : v >= 0.5 ? "#a3e635" : v >= 0.3 ? "#facc15" : "#f87171";
+  const getColor = (v) =>
+    v >= 0.7 ? "#4ade80" : v >= 0.4 ? "#facc15" : "#f87171";
+  const getBg = (v) =>
+    v >= 0.7
+      ? "rgba(74,222,128,0.10)"
+      : v >= 0.4
+        ? "rgba(250,204,21,0.10)"
+        : "rgba(248,113,113,0.10)";
+  const getTier = (v) =>
+    v >= 0.7 ? "Strong" : v >= 0.5 ? "Good" : v >= 0.3 ? "Developing" : "Weak";
+  const getTierColor = (v) =>
+    v >= 0.7
+      ? "#4ade80"
+      : v >= 0.5
+        ? "#a3e635"
+        : v >= 0.3
+          ? "#facc15"
+          : "#f87171";
 
-  // ── Compute stats ──
   const totalSolved = rawData ? rawData.reduce((s, d) => s + d.solved, 0) : 0;
-  const totalProbs  = rawData ? rawData.reduce((s, d) => s + d.total, 0) : 0;
-  const overallPct  = totalProbs ? Math.round((totalSolved / totalProbs) * 100) : 0;
-  const sorted      = labels.map((l, i) => ({ l, v: values[i], raw: rawData?.[i] })).sort((a, b) => b.v - a.v);
-  const weakest     = sorted[sorted.length - 1];
-  const strongest   = sorted[0];
-  const avgPct      = Math.round(values.reduce((s, v) => s + v, 0) / values.length * 100);
+  const totalProbs = rawData ? rawData.reduce((s, d) => s + d.total, 0) : 0;
+  const overallPct = totalProbs
+    ? Math.round((totalSolved / totalProbs) * 100)
+    : 0;
+  const sorted = labels
+    .map((l, i) => ({ l, v: values[i], raw: rawData?.[i] }))
+    .sort((a, b) => b.v - a.v);
+  const weakest = sorted[sorted.length - 1];
+  const strongest = sorted[0];
+  const avgPct = Math.round(
+    (values.reduce((s, v) => s + v, 0) / values.length) * 100,
+  );
 
-  // ── Mini radar SVG (inside modal) ──
   const N = labels.length;
-  const W = 260, H = 260, cx = 130, cy = 125, R = 90;
-  const ang = (i) => i * (2 * Math.PI / N) - Math.PI / 2;
+  const W = 260,
+    H = 260,
+    cx = 130,
+    cy = 125,
+    R = 90;
+  const ang = (i) => i * ((2 * Math.PI) / N) - Math.PI / 2;
   const mpt = (i, r) => [cx + r * Math.cos(ang(i)), cy + r * Math.sin(ang(i))];
 
   let mRings = "";
   [0.25, 0.5, 0.75, 1.0].forEach((f, gi) => {
-    const pts = Array.from({length: N}, (_, i) => mpt(i, R * f).map(v => v.toFixed(1)).join(",")).join(" ");
-    mRings += `<polygon points="${pts}" fill="none" stroke="var(--border)" stroke-width="${gi===3?1:0.5}" opacity="${gi===3?0.6:0.4}" stroke-dasharray="${gi<3?'3,3':'none'}"/>`;
+    const pts = Array.from({ length: N }, (_, i) =>
+      mpt(i, R * f)
+        .map((v) => v.toFixed(1))
+        .join(","),
+    ).join(" ");
+    mRings += `<polygon points="${pts}" fill="none" stroke="var(--border)" stroke-width="${gi === 3 ? 1 : 0.5}" opacity="${gi === 3 ? 0.6 : 0.4}" stroke-dasharray="${gi < 3 ? "3,3" : "none"}"/>`;
   });
   let mAxes = "";
   for (let i = 0; i < N; i++) {
-    const [x1,y1] = mpt(i, R);
+    const [x1, y1] = mpt(i, R);
     mAxes += `<line x1="${cx}" y1="${cy}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="${getColor(values[i])}" stroke-width="0.8" opacity="0.3"/>`;
-    const [lx,ly] = mpt(i, R+20);
-    const anchor = lx < cx-8 ? "end" : lx > cx+8 ? "start" : "middle";
-    mAxes += `<text x="${lx.toFixed(1)}" y="${(ly+3).toFixed(1)}" text-anchor="${anchor}" font-size="8.5" font-family="var(--mono)" fill="var(--text-muted)">${labels[i]}</text>`;
+    const [lx, ly] = mpt(i, R + 20);
+    const anchor = lx < cx - 8 ? "end" : lx > cx + 8 ? "start" : "middle";
+    mAxes += `<text x="${lx.toFixed(1)}" y="${(ly + 3).toFixed(1)}" text-anchor="${anchor}" font-size="8.5" font-family="var(--mono)" fill="var(--text-muted)">${labels[i]}</text>`;
   }
-  const mShape = values.map((v,i) => mpt(i, R * Math.min(Math.max(v,0.02),1)).map(x=>x.toFixed(1)).join(",")).join(" ");
-  const mDots  = values.map((v,i) => {
-    const [x,y] = mpt(i, R * Math.min(Math.max(v,0.02),1));
-    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4" fill="${getColor(v)}" stroke="var(--bg-1)" stroke-width="1.5"/>`;
-  }).join("");
+  const mShape = values
+    .map((v, i) =>
+      mpt(i, R * Math.min(Math.max(v, 0.02), 1))
+        .map((x) => x.toFixed(1))
+        .join(","),
+    )
+    .join(" ");
+  const mDots = values
+    .map((v, i) => {
+      const [x, y] = mpt(i, R * Math.min(Math.max(v, 0.02), 1));
+      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4" fill="${getColor(v)}" stroke="var(--bg-1)" stroke-width="1.5"/>`;
+    })
+    .join("");
 
   const miniRadar = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;display:block;margin:0 auto;overflow:visible">
     <defs>
@@ -5711,25 +5979,31 @@ function openRadarModal(elId, labels, values, color, rawData) {
     ${mDots}
   </svg>`;
 
-  // ── Ranked rows ──
-  const rankedRows = sorted.map((item, rank) => {
-    const pct = Math.round(item.v * 100);
-    const c   = getColor(item.v);
-    const bg  = getBg(item.v);
-    const tier = getTier(item.v);
-    const solved = item.raw?.solved ?? "—";
-    const total  = item.raw?.total  ?? "—";
-    const remaining = item.raw ? (item.raw.total - item.raw.solved) : "—";
-    const rankEmoji = rank === 0 ? "🥇" : rank === 1 ? "🥈" : rank === 2 ? "🥉" : `${rank+1}.`;
+  const rankedRows = sorted
+    .map((item, rank) => {
+      const pct = Math.round(item.v * 100);
+      const c = getColor(item.v);
+      const bg = getBg(item.v);
+      const tier = getTier(item.v);
+      const solved = item.raw?.solved ?? "—";
+      const total = item.raw?.total ?? "—";
+      const remaining = item.raw ? item.raw.total - item.raw.solved : "—";
+      const rankEmoji =
+        rank === 0
+          ? "🥇"
+          : rank === 1
+            ? "🥈"
+            : rank === 2
+              ? "🥉"
+              : `${rank + 1}.`;
 
-    // Skill bar with tier breakpoints
-    const tierMarkers = `
+      const tierMarkers = `
       <div style="position:absolute;left:30%;top:-4px;height:calc(100%+8px);width:1px;background:rgba(250,204,21,0.4)"></div>
       <div style="position:absolute;left:50%;top:-4px;height:calc(100%+8px);width:1px;background:rgba(163,230,53,0.4)"></div>
       <div style="position:absolute;left:70%;top:-4px;height:calc(100%+8px);width:1px;background:rgba(74,222,128,0.4)"></div>
     `;
 
-    return `<div class="rdm-row" style="background:${bg};border-left:3px solid ${c}">
+      return `<div class="rdm-row" style="background:${bg};border-left:3px solid ${c}">
       <div class="rdm-rank">${rankEmoji}</div>
       <div class="rdm-label-block">
         <div class="rdm-label">${item.l}</div>
@@ -5751,27 +6025,34 @@ function openRadarModal(elId, labels, values, color, rawData) {
       <div class="rdm-stats">
         <div class="rdm-pct" style="color:${c}">${pct}%</div>
         <div class="rdm-counts">${solved}/${total}</div>
-        <div class="rdm-remaining" style="color:var(--text-muted)">${typeof remaining === 'number' ? remaining + ' left' : ''}</div>
+        <div class="rdm-remaining" style="color:var(--text-muted)">${typeof remaining === "number" ? remaining + " left" : ""}</div>
       </div>
     </div>`;
-  }).join("");
+    })
+    .join("");
 
-  // ── Insight pills ──
-  const priority = sorted.filter(d => d.v < 0.5).slice(0, 3).map(d =>
-    `<span class="rdm-pill rdm-pill-warn">📌 Focus: ${d.l} (${Math.round(d.v*100)}%)</span>`
-  ).join("");
-  const strong = sorted.filter(d => d.v >= 0.7).map(d =>
-    `<span class="rdm-pill rdm-pill-ok">✓ ${d.l}</span>`
-  ).join("");
+  const priority = sorted
+    .filter((d) => d.v < 0.5)
+    .slice(0, 3)
+    .map(
+      (d) =>
+        `<span class="rdm-pill rdm-pill-warn">📌 Focus: ${d.l} (${Math.round(d.v * 100)}%)</span>`,
+    )
+    .join("");
+  const strong = sorted
+    .filter((d) => d.v >= 0.7)
+    .map((d) => `<span class="rdm-pill rdm-pill-ok">✓ ${d.l}</span>`)
+    .join("");
 
-  // ── Build or reuse overlay ──
   let overlay = document.getElementById("radar-detail-overlay");
   if (!overlay) {
     overlay = document.createElement("div");
     overlay.id = "radar-detail-overlay";
     overlay.className = "modal-overlay";
     overlay.style.zIndex = "9999";
-    overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.style.display = "none"; });
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) overlay.style.display = "none";
+    });
     document.body.appendChild(overlay);
   }
 
@@ -5805,11 +6086,11 @@ function openRadarModal(elId, labels, values, color, rawData) {
         <div class="rdm-ribbon-label">Avg Solve Rate</div>
       </div>
       <div class="rdm-ribbon-stat">
-        <div class="rdm-ribbon-val" style="color:#f87171">${Math.round(weakest.v*100)}%</div>
+        <div class="rdm-ribbon-val" style="color:#f87171">${Math.round(weakest.v * 100)}%</div>
         <div class="rdm-ribbon-label">Weakest: ${weakest.l}</div>
       </div>
       <div class="rdm-ribbon-stat">
-        <div class="rdm-ribbon-val" style="color:#4ade80">${Math.round(strongest.v*100)}%</div>
+        <div class="rdm-ribbon-val" style="color:#4ade80">${Math.round(strongest.v * 100)}%</div>
         <div class="rdm-ribbon-label">Strongest: ${strongest.l}</div>
       </div>
     </div>
@@ -5827,10 +6108,14 @@ function openRadarModal(elId, labels, values, color, rawData) {
           <span><span class="rdm-dot" style="background:#a3e635"></span>Good ≥50%</span>
           <span><span class="rdm-dot" style="background:#4ade80"></span>Strong ≥70%</span>
         </div>
-        ${priority || strong ? `<div class="rdm-pills-section">
+        ${
+          priority || strong
+            ? `<div class="rdm-pills-section">
           ${priority ? `<div class="rdm-pills-group">${priority}</div>` : ""}
           ${strong ? `<div class="rdm-pills-group">${strong}</div>` : ""}
-        </div>` : ""}
+        </div>`
+            : ""
+        }
       </div>
 
       <!-- Right: ranked breakdown -->
@@ -5885,15 +6170,18 @@ async function loadCFContestHistory() {
     } else {
       const res = await fetch(
         `/api/contests-proxy?platform=cf-history&handle=${encodeURIComponent(state.cfUsername)}`,
-        { headers: { "User-Agent": "AlgoTrack/1.0" } }
+        { headers: { "User-Agent": "AlgoTrack/1.0" } },
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       contestsState.cfContestHistory = await res.json();
-      setContestCache("cfHistory", { handle: state.cfUsername, history: contestsState.cfContestHistory });
+      setContestCache("cfHistory", {
+        handle: state.cfUsername,
+        history: contestsState.cfContestHistory,
+      });
     }
     contestsState.cfHistoryFiltered = [
       ...contestsState.cfContestHistory,
-    ].reverse(); // newest first
+    ].reverse(); 
     contestsState.cfHistoryLoaded = true;
     renderCFContestHistory();
     renderCFRatingGraph();
@@ -5921,7 +6209,6 @@ function renderCFContestLists() {
     .filter((c) => c.phase === "FINISHED")
     .sort((a, b) => b.startTimeSeconds - a.startTimeSeconds);
 
-  // Live
   const liveSection = document.getElementById("cf-live-section");
   if (live.length) {
     liveSection.style.display = "";
@@ -5932,7 +6219,6 @@ function renderCFContestLists() {
     liveSection.style.display = "none";
   }
 
-  // Upcoming
   const upcomingEl = document.getElementById("cf-upcoming-contests");
   if (upcoming.length) {
     upcomingEl.innerHTML = upcoming
@@ -5954,13 +6240,11 @@ function renderCFContestLists() {
       );
       pastFiltered = past.filter((c) => ids.has(c.id));
     } else if (!contestsState.cfHistoryLoaded) {
-      // still loading — show spinner, don't show all 2103
       pastEl.innerHTML = `<div class="contests-empty">Loading your contest history…</div>`;
       document.getElementById("cf-past-count").textContent = "loading…";
       document.getElementById("cf-past-more-btn").style.display = "none";
       return;
     } else {
-      // loaded but empty — genuinely 0 participations
       pastFiltered = [];
     }
   }
@@ -5999,7 +6283,6 @@ function renderCFContestCard(c, type) {
     timeInfo = `<span class="contest-time-badge past-badge">${fmtContestDate(startMs)}</span>`;
   }
 
-  // Participation badge — works for past/live/upcoming (e.g. re-listed past rounds)
   let userResult = "";
   if (contestsState.cfContestHistory.length) {
     const entry = contestsState.cfContestHistory.find(
@@ -6042,13 +6325,11 @@ function renderCFContestCard(c, type) {
     </div>
   </div>`;
 }
-
-// ─── CF Contest History Table ─────────────────────────────────────────────────
 function filterCFContestHistory(search) {
   const q = (search || "").toLowerCase();
   const resultFilter =
     document.getElementById("cf-contest-result-filter")?.value || "all";
-  const hist = [...contestsState.cfContestHistory].reverse(); // newest first
+  const hist = [...contestsState.cfContestHistory].reverse(); 
 
   contestsState.cfHistoryFiltered = hist.filter((h) => {
     if (q && !h.contestName.toLowerCase().includes(q)) return false;
@@ -6056,7 +6337,6 @@ function filterCFContestHistory(search) {
     if (resultFilter === "up" && delta <= 0) return false;
     if (resultFilter === "down" && delta >= 0) return false;
     if (resultFilter === "good") {
-      // approximate "top 25%" — just check positive delta for now
       if (delta <= 0) return false;
     }
     return true;
@@ -6106,7 +6386,7 @@ function renderCFContestHistoryTable() {
           .map((h, i) => {
             const delta = h.newRating - h.oldRating;
             const contestLink = `https://codeforces.com/contest/${h.contestId}`;
-            const idx = data.length - start - i; // descending index (most recent = highest)
+            const idx = data.length - start - i;
             return `<tr class="contest-history-row ${delta > 0 ? "ch-up" : delta < 0 ? "ch-down" : ""}">
             <td class="ch-num">${idx}</td>
             <td class="ch-name"><a href="${contestLink}" target="_blank">${h.contestName}</a></td>
@@ -6147,7 +6427,6 @@ function cfHistoryGoPage(p) {
   renderCFContestHistoryTable();
 }
 
-// ─── CF Rating Graph ──────────────────────────────────────────────────────────
 function renderCFRatingGraph() {
   const el = document.getElementById("cf-rating-graph");
   if (!el) return;
@@ -6177,7 +6456,6 @@ function renderCFRatingGraph() {
     return PAD.top + innerH - ((r - minR) / (maxR - minR || 1)) * innerH;
   }
 
-  // CF rating zone backgrounds
   const zones = [
     { min: 800, max: 1200, color: "#80808018" },
     { min: 1200, max: 1400, color: "#00800018" },
@@ -6197,7 +6475,6 @@ function renderCFRatingGraph() {
     })
     .join("");
 
-  // Y-axis guide lines
   const yTicks = [];
   const step = Math.ceil((maxR - minR) / 5 / 100) * 100;
   for (let r = Math.ceil(minR / step) * step; r <= maxR; r += step) {
@@ -6208,7 +6485,6 @@ function renderCFRatingGraph() {
     `);
   }
 
-  // Polyline
   const points = hist
     .map(
       (h) =>
@@ -6217,7 +6493,6 @@ function renderCFRatingGraph() {
     .join(" ");
   const fillPoints = `${xOf(times[0]).toFixed(1)},${(PAD.top + innerH).toFixed(1)} ${points} ${xOf(times[times.length - 1]).toFixed(1)},${(PAD.top + innerH).toFixed(1)}`;
 
-  // Dots for each contest
   const dots = hist
     .map((h, i) => {
       const cx = xOf(h.ratingUpdateTimeSeconds).toFixed(1);
@@ -6231,13 +6506,11 @@ function renderCFRatingGraph() {
     })
     .join("");
 
-  // Peak marker
   const peakIdx = ratings.indexOf(Math.max(...ratings));
   const peakH = hist[peakIdx];
   const peakX = xOf(peakH.ratingUpdateTimeSeconds).toFixed(1);
   const peakY = yOf(peakH.newRating).toFixed(1);
 
-  // X axis date labels (up to 6 labels)
   const labelStep = Math.max(1, Math.floor(hist.length / 6));
   const xLabels = hist
     .filter((_, i) => i % labelStep === 0)
@@ -6265,7 +6538,6 @@ function renderCFRatingGraph() {
   `;
 }
 
-// ─── CF Contest Ribbon ────────────────────────────────────────────────────────
 function renderCFContestRibbon() {
   const el = document.getElementById("cf-contests-ribbon");
   if (!el) return;
@@ -6295,7 +6567,6 @@ function renderCFContestRibbon() {
   `;
 }
 
-// ─── CF Best Contests ─────────────────────────────────────────────────────────
 function renderCFBestContests() {
   const el = document.getElementById("cf-best-contests");
   if (!el) return;
@@ -6327,7 +6598,6 @@ function renderCFBestContests() {
     .join("");
 }
 
-// ─── CF Rank Distribution ─────────────────────────────────────────────────────
 function renderCFRankDistribution() {
   const el = document.getElementById("cf-rank-distribution");
   if (!el) return;
@@ -6368,7 +6638,6 @@ function renderCFRankDistribution() {
     .join("");
 }
 
-// ─── CF Improvement Tips ──────────────────────────────────────────────────────
 function renderCFImprovementTips() {
   const el = document.getElementById("cf-improvement-tips");
   if (!el) return;
@@ -6383,7 +6652,6 @@ function renderCFImprovementTips() {
     return;
   }
 
-  // Tip: 3 consecutive losses
   if (hist.length >= 3) {
     const recent3 = [...hist].slice(-3).map((h) => h.newRating - h.oldRating);
     if (recent3.every((d) => d < 0)) {
@@ -6394,8 +6662,6 @@ function renderCFImprovementTips() {
       });
     }
   }
-
-  // Tip: rating stagnation — 5+ contests, net movement < ±50
   if (hist.length >= 5) {
     const recent5 = [...hist].slice(-5);
     const netMove =
@@ -6409,7 +6675,6 @@ function renderCFImprovementTips() {
     }
   }
 
-  // Tip: contest frequency — last contest > 30 days ago
   if (hist.length) {
     const lastContestTs = [...hist].slice(-1)[0].ratingUpdateTimeSeconds;
     const daysSince = Math.floor((Date.now() / 1000 - lastContestTs) / 86400);
@@ -6422,7 +6687,6 @@ function renderCFImprovementTips() {
     }
   }
 
-  // Tip: target rating band problems
   if (userRating) {
     const targetRating = userRating + 200;
     const metaLoaded = Object.keys(state.cfMeta || {}).length > 0;
@@ -6447,7 +6711,6 @@ function renderCFImprovementTips() {
     }
   }
 
-  // Tip: difficulty avoidance — avg solved rating vs current rating
   if (userRating && Object.keys(state.cfMeta || {}).length) {
     const solvedRatings = Object.keys(state.cfSolved)
       .map((key) => {
@@ -6469,7 +6732,6 @@ function renderCFImprovementTips() {
     }
   }
 
-  // Tip: weak tags
   if (Object.keys(state.cfMeta || {}).length) {
     const tagStats = {};
     for (const p of Object.values(state.cfMeta)) {
@@ -6496,7 +6758,6 @@ function renderCFImprovementTips() {
     }
   }
 
-  // Tip: solve volume — last 30 days only (fix: filter by date)
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const thirtyKey = thirtyDaysAgo.toISOString().slice(0, 10);
@@ -6511,7 +6772,6 @@ function renderCFImprovementTips() {
     });
   }
 
-  // Tip: best rank guidance
   if (hist.length) {
     const bestRank = Math.min(...hist.map((h) => h.rank));
     if (bestRank > 2000) {
@@ -6542,10 +6802,6 @@ function renderCFImprovementTips() {
     )
     .join("");
 }
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// ─── ATCODER CONTESTS ─────────────────────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════════
 
 async function initACContestsSection() {
   const hasUser = !!state.acUserInfo;
@@ -6589,7 +6845,7 @@ async function loadACContests(force = false) {
   setContestLoadingState("ac-upcoming-contests", true);
   setContestLoadingState("ac-past-contests", true);
   try {
-    const cached = !force && getContestCache("acContests"); 
+    const cached = !force && getContestCache("acContests");
     if (cached) {
       contestsState.acContests = cached;
       contestsState.acLoaded = true;
@@ -6616,20 +6872,21 @@ async function loadACContestHistory() {
   if (!state.acUsername) return;
   try {
     const cacheKey = `acHistory_${state.acUsername}`;
-    // Check for username-specific cache or the generic fallback
     const cached = getContestCache(cacheKey) || getContestCache("acHistory");
 
     if (cached && cached.handle === state.acUsername) {
       contestsState.acContestHistory = cached.history;
     } else {
       const res = await fetch(
-        `/api/contests-proxy?platform=ac-history&handle=${encodeURIComponent(state.acUsername)}`
+        `/api/contests-proxy?platform=ac-history&handle=${encodeURIComponent(state.acUsername)}`,
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const rawHistory = await res.json();
-      // kenkoooo history format: array of { ContestScreenName, Place, OldRating, NewRating, Performance, IsRated, ... }
       contestsState.acContestHistory = rawHistory || [];
-      setContestCache("acHistory", { handle: state.acUsername, history: contestsState.acContestHistory });
+      setContestCache("acHistory", {
+        handle: state.acUsername,
+        history: contestsState.acContestHistory,
+      });
     }
 
     contestsState.acHistoryFiltered = [
@@ -6637,7 +6894,6 @@ async function loadACContestHistory() {
     ].reverse();
     contestsState.acHistoryLoaded = true;
 
-    // Trigger all dependent renders
     renderACContestHistory();
     renderACRatingGraph();
     renderACBestContests();
@@ -6655,8 +6911,6 @@ async function loadACContestHistory() {
 
 function renderACContestLists() {
   const now = Math.floor(Date.now() / 1000);
-
-  // kenkoooo contests: { id, start_epoch_second, duration_second, title, rate_change }
   const upcoming = contestsState.acContests
     .filter((c) => c.start_epoch_second > now)
     .sort((a, b) => a.start_epoch_second - b.start_epoch_second);
@@ -6707,7 +6961,6 @@ function renderACContestLists() {
       );
       pastFiltered = past.filter((c) => ids.has((c.id || "").toLowerCase()));
     } else {
-      // loaded but empty — 0 participations
       pastFiltered = [];
     }
   }
@@ -6747,7 +7000,6 @@ function renderACContestCard(c, type) {
     timeInfo = `<span class="contest-time-badge past-badge">${fmtContestDate(startMs)}</span>`;
   }
 
-  // Participation badge — all types
   let userResult = "";
   if (contestsState.acContestHistory.length) {
     const entry = contestsState.acContestHistory.find(
@@ -6794,7 +7046,6 @@ function renderACContestCard(c, type) {
   </div>`;
 }
 
-// ─── AC Contest History Table ─────────────────────────────────────────────────
 function filterACContestHistory(search) {
   const q = (search || "").toLowerCase();
   const resultFilter =
@@ -6902,7 +7153,6 @@ function acHistoryGoPage(p) {
   renderACContestHistoryTable();
 }
 
-// ─── AC Rating Graph ──────────────────────────────────────────────────────────
 function renderACRatingGraph() {
   const el = document.getElementById("ac-rating-graph");
   if (!el) return;
@@ -6952,7 +7202,6 @@ function renderACRatingGraph() {
     })
     .join("");
 
-  // Y ticks
   const step = Math.ceil((maxR - minR) / 5 / 100) * 100;
   const yTicks = [];
   for (let r = Math.ceil(minR / step) * step; r <= maxR; r += step) {
@@ -6977,7 +7226,6 @@ function renderACRatingGraph() {
   `;
 }
 
-// ─── AC Best Contests ─────────────────────────────────────────────────────────
 function renderACBestContests() {
   const el = document.getElementById("ac-best-contests");
   if (!el) return;
@@ -7009,7 +7257,6 @@ function renderACBestContests() {
     .join("");
 }
 
-// ─── AC Performance Stats ─────────────────────────────────────────────────────
 function renderACPerfStats() {
   const el = document.getElementById("ac-perf-stats");
   if (!el) return;
@@ -7065,7 +7312,6 @@ function renderACPerfStats() {
   `;
 }
 
-// ─── AC Improvement Tips ──────────────────────────────────────────────────────
 function renderACImprovementTips() {
   const el = document.getElementById("ac-improvement-tips");
   if (!el) return;
@@ -7080,7 +7326,6 @@ function renderACImprovementTips() {
     return;
   }
 
-  // Tip: consecutive rating drops
   if (rated.length >= 3) {
     const recent3 = [...rated].slice(-3).map((h) => h.NewRating - h.OldRating);
     if (recent3.every((d) => d < 0)) {
@@ -7092,7 +7337,6 @@ function renderACImprovementTips() {
     }
   }
 
-  // Tip: performance vs rating gap — consistently outperforming means you should contest more
   if (rated.length >= 5) {
     const recent5 = [...rated].slice(-5);
     const avgPerf = Math.round(
@@ -7107,7 +7351,6 @@ function renderACImprovementTips() {
       });
     }
 
-    // Tip: rating stagnation
     const netMove =
       recent5[recent5.length - 1].NewRating - recent5[0].OldRating;
     if (Math.abs(netMove) < 50) {
@@ -7119,7 +7362,6 @@ function renderACImprovementTips() {
     }
   }
 
-  // Tip: ABC vs ARC routing based on avg solved difficulty
   const solvedDifficulties = Object.keys(state.acSolved || {})
     .map((id) => state.acMeta?.[id]?.difficulty)
     .filter((d) => d != null);
@@ -7147,7 +7389,6 @@ function renderACImprovementTips() {
     tips.push({ icon: "🎯", text: recommend, cls: "tip-info" });
   }
 
-  // Tip: performance variance
   if (rated.length >= 3) {
     const perfs = [...rated].slice(-5).map((h) => h.Performance || 0);
     const avg = Math.round(perfs.reduce((s, v) => s + v, 0) / perfs.length);
@@ -7166,7 +7407,6 @@ function renderACImprovementTips() {
     }
   }
 
-  // Tip: unrated participations
   const unratedCount = all.filter((h) => !h.IsRated).length;
   if (unratedCount > 3) {
     tips.push({
@@ -7176,7 +7416,6 @@ function renderACImprovementTips() {
     });
   }
 
-  // Tip: contest frequency
   if (rated.length) {
     const lastTs = rated[rated.length - 1].EndTime
       ? new Date(rated[rated.length - 1].EndTime).getTime() / 1000
@@ -7193,7 +7432,6 @@ function renderACImprovementTips() {
     }
   }
 
-  // Tip: solve volume — last 30 days
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const thirtyKey = thirtyDaysAgo.toISOString().slice(0, 10);
@@ -7228,7 +7466,6 @@ function renderACImprovementTips() {
     .join("");
 }
 
-// ─── Loading / Error helpers ──────────────────────────────────────────────────
 function setContestLoadingState(elId, loading) {
   const el = document.getElementById(elId);
   if (!el) return;
@@ -7244,7 +7481,6 @@ function setContestError(elId, msg) {
   else el.innerHTML = "";
 }
 
-// ─── Participated filter toggles ──────────────────────────────────────────────
 function toggleCFParticipatedFilter() {
   if (!state.cfUsername) {
     alert("Connect your Codeforces account first.");
@@ -7255,7 +7491,7 @@ function toggleCFParticipatedFilter() {
   const btn = document.getElementById("cf-participated-filter");
   if (btn) btn.classList.toggle("active", contestsState.cfParticipatedOnly);
   if (contestsState.cfParticipatedOnly && !contestsState.cfHistoryLoaded) {
-    renderCFContestLists(); // show "loading…" immediately
+    renderCFContestLists(); 
     loadCFContestHistory().then(() => renderCFContestLists());
   } else {
     renderCFContestLists();
@@ -7278,7 +7514,6 @@ function toggleACParticipatedFilter() {
   }
 }
 
-// ─── Contest detail modal ─────────────────────────────────────────────────────
 function closeContestDetail() {
   document.getElementById("contest-detail-overlay").style.display = "none";
 }
@@ -7305,7 +7540,11 @@ function openCFContestDetail(contestId) {
     const delta = entry.newRating - entry.oldRating;
     const deltaStr = (delta >= 0 ? "+" : "") + delta;
     const deltaColor =
-      delta > 0 ? "var(--color-positive)" : delta < 0 ? "var(--color-negative)" : "var(--text-muted)";
+      delta > 0
+        ? "var(--color-positive)"
+        : delta < 0
+          ? "var(--color-negative)"
+          : "var(--text-muted)";
     body += `
       <div class="cd-participated-banner">✓ You participated in this contest</div>
       <div class="cd-stats-grid">
@@ -7350,7 +7589,11 @@ function openACContestDetail(contestId) {
     const delta = entry.IsRated ? entry.NewRating - entry.OldRating : null;
     const deltaStr = delta != null ? (delta >= 0 ? "+" : "") + delta : "N/A";
     const deltaColor =
-      delta > 0 ? "var(--color-positive)" : delta < 0 ? "var(--color-negative)" : "var(--text-muted)";
+      delta > 0
+        ? "var(--color-positive)"
+        : delta < 0
+          ? "var(--color-negative)"
+          : "var(--text-muted)";
     body += `
       <div class="cd-participated-banner">✓ You participated in this contest</div>
       <div class="cd-stats-grid">
@@ -7379,12 +7622,8 @@ function openACContestDetail(contestId) {
   document.getElementById("contest-detail-overlay").style.display = "flex";
 }
 
-
 window.addEventListener("hashchange", handleHashChange);
 document.addEventListener("DOMContentLoaded", init);
-// ═══════════════════════════════════════════════════════════════════════════════
-// ─── NAV CONTEST BADGE ────────────────────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════════
 function initNavContestBadge() {
   if (contestsState.navBadgeTimer) clearInterval(contestsState.navBadgeTimer);
   updateNavBadge();
@@ -7395,126 +7634,281 @@ function updateNavBadge() {
   if (!badge) return;
   const now = Math.floor(Date.now() / 1000);
   const all = [
-    ...(contestsState.cfContests || []).map((c) => ({ name: c.name, _start: c.startTimeSeconds, _plat: "CF" })),
-    ...(contestsState.acContests || []).map((c) => ({ name: c.title, _start: c.start_epoch_second, _plat: "AC" })),
-  ].filter((c) => c._start > now).sort((a, b) => a._start - b._start);
-  if (!all.length) { badge.style.display = "none"; return; }
+    ...(contestsState.cfContests || []).map((c) => ({
+      name: c.name,
+      _start: c.startTimeSeconds,
+      _plat: "CF",
+    })),
+    ...(contestsState.acContests || []).map((c) => ({
+      name: c.title,
+      _start: c.start_epoch_second,
+      _plat: "AC",
+    })),
+  ]
+    .filter((c) => c._start > now)
+    .sort((a, b) => a._start - b._start);
+  if (!all.length) {
+    badge.style.display = "none";
+    return;
+  }
   const next = all[0];
   const diff = next._start - now;
-  const h = Math.floor(diff / 3600), m = Math.floor((diff % 3600) / 60);
-  const label = h > 48 ? `${Math.floor(h / 24)}d` : h > 0 ? `${h}h ${m}m` : `${m}m`;
+  const h = Math.floor(diff / 3600),
+    m = Math.floor((diff % 3600) / 60);
+  const label =
+    h > 48 ? `${Math.floor(h / 24)}d` : h > 0 ? `${h}h ${m}m` : `${m}m`;
   badge.style.display = "flex";
   badge.title = `Next: ${next.name} in ${label}`;
   badge.innerHTML = `<span class="nav-badge-dot"></span><span>${next._plat} · ${label}</span>`;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// ─── CF PERSONAL RECORDS ──────────────────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════════
 function renderCFPersonalRecords() {
   const panel = document.getElementById("cf-records-panel");
   const el = document.getElementById("cf-personal-records");
   if (!el) return;
   const hist = contestsState.cfContestHistory;
-  if (!hist.length) { if (panel) panel.style.display = "none"; return; }
+  if (!hist.length) {
+    if (panel) panel.style.display = "none";
+    return;
+  }
   if (panel) panel.style.display = "";
   const deltas = hist.map((h) => h.newRating - h.oldRating);
-  const bestDelta = Math.max(...deltas), worstDelta = Math.min(...deltas);
+  const bestDelta = Math.max(...deltas),
+    worstDelta = Math.min(...deltas);
   const bestRank = Math.min(...hist.map((h) => h.rank));
   const peakRating = Math.max(...hist.map((h) => h.newRating));
   const currentRating = hist[hist.length - 1].newRating;
-  let maxStreak = 0, cur = 0;
-  for (const d of deltas) { if (d > 0) { cur++; maxStreak = Math.max(maxStreak, cur); } else cur = 0; }
+  let maxStreak = 0,
+    cur = 0;
+  for (const d of deltas) {
+    if (d > 0) {
+      cur++;
+      maxStreak = Math.max(maxStreak, cur);
+    } else cur = 0;
+  }
   let currentStreak = 0;
-  for (let i = deltas.length - 1; i >= 0; i--) { if (deltas[i] > 0) currentStreak++; else break; }
+  for (let i = deltas.length - 1; i >= 0; i--) {
+    if (deltas[i] > 0) currentStreak++;
+    else break;
+  }
   const bestH = hist[deltas.indexOf(bestDelta)];
   const worstH = hist[deltas.indexOf(worstDelta)];
   const bestRankH = hist.find((h) => h.rank === bestRank);
   const records = [
-    { icon: "🏆", label: "Best Rank Ever", val: `#${bestRank.toLocaleString()}`, sub: (bestRankH?.contestName || "").slice(0, 32) },
-    { icon: "📈", label: "Best Rating Gain", val: `+${bestDelta}`, sub: (bestH?.contestName || "").slice(0, 32), color: "var(--color-positive)" },
-    { icon: "📉", label: "Worst Drop", val: `${worstDelta}`, sub: (worstH?.contestName || "").slice(0, 32), color: "var(--color-negative)" },
-    { icon: "⭐", label: "Peak Rating", val: peakRating, sub: cfRatingLabel(peakRating), color: cfRatingColor(peakRating) },
-    { icon: "🔥", label: "Best Win Streak", val: maxStreak, sub: "consecutive gains" },
-    { icon: "⚡", label: "Current Streak", val: currentStreak, sub: currentStreak > 0 ? "ongoing" : "no streak" },
-    { icon: "🎯", label: "Total Contests", val: hist.length, sub: `${deltas.filter((d) => d > 0).length}W · ${deltas.filter((d) => d < 0).length}L` },
-    { icon: "📊", label: "Current Rating", val: currentRating, sub: cfRatingLabel(currentRating), color: cfRatingColor(currentRating) },
+    {
+      icon: "🏆",
+      label: "Best Rank Ever",
+      val: `#${bestRank.toLocaleString()}`,
+      sub: (bestRankH?.contestName || "").slice(0, 32),
+    },
+    {
+      icon: "📈",
+      label: "Best Rating Gain",
+      val: `+${bestDelta}`,
+      sub: (bestH?.contestName || "").slice(0, 32),
+      color: "var(--color-positive)",
+    },
+    {
+      icon: "📉",
+      label: "Worst Drop",
+      val: `${worstDelta}`,
+      sub: (worstH?.contestName || "").slice(0, 32),
+      color: "var(--color-negative)",
+    },
+    {
+      icon: "⭐",
+      label: "Peak Rating",
+      val: peakRating,
+      sub: cfRatingLabel(peakRating),
+      color: cfRatingColor(peakRating),
+    },
+    {
+      icon: "🔥",
+      label: "Best Win Streak",
+      val: maxStreak,
+      sub: "consecutive gains",
+    },
+    {
+      icon: "⚡",
+      label: "Current Streak",
+      val: currentStreak,
+      sub: currentStreak > 0 ? "ongoing" : "no streak",
+    },
+    {
+      icon: "🎯",
+      label: "Total Contests",
+      val: hist.length,
+      sub: `${deltas.filter((d) => d > 0).length}W · ${deltas.filter((d) => d < 0).length}L`,
+    },
+    {
+      icon: "📊",
+      label: "Current Rating",
+      val: currentRating,
+      sub: cfRatingLabel(currentRating),
+      color: cfRatingColor(currentRating),
+    },
   ];
-  el.innerHTML = records.map((r) => `<div class="pr-card">
+  el.innerHTML = records
+    .map(
+      (r) => `<div class="pr-card">
     <div class="pr-icon">${r.icon}</div>
     <div class="pr-val"${r.color ? ` style="color:${r.color}"` : ""}>${r.val}</div>
     <div class="pr-label">${r.label}</div>
     ${r.sub ? `<div class="pr-sub">${r.sub}</div>` : ""}
-  </div>`).join("");
+  </div>`,
+    )
+    .join("");
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// ─── AC PERSONAL RECORDS ──────────────────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════════
 function renderACPersonalRecords() {
   const panel = document.getElementById("ac-records-panel");
   const el = document.getElementById("ac-personal-records");
   if (!el) return;
   const rated = contestsState.acContestHistory.filter((h) => h.IsRated);
   const all = contestsState.acContestHistory;
-  if (!all.length) { if (panel) panel.style.display = "none"; return; }
+  if (!all.length) {
+    if (panel) panel.style.display = "none";
+    return;
+  }
   if (panel) panel.style.display = "";
   const deltas = rated.map((h) => h.NewRating - h.OldRating);
   const perfs = rated.map((h) => h.Performance || 0).filter(Boolean);
   const bestDelta = deltas.length ? Math.max(...deltas) : 0;
   const worstDelta = deltas.length ? Math.min(...deltas) : 0;
   const bestRank = Math.min(...all.map((h) => h.Place || Infinity));
-  const peakRating = rated.length ? Math.max(...rated.map((h) => h.NewRating)) : 0;
+  const peakRating = rated.length
+    ? Math.max(...rated.map((h) => h.NewRating))
+    : 0;
   const currentRating = rated.length ? rated[rated.length - 1].NewRating : 0;
   const bestPerf = perfs.length ? Math.max(...perfs) : 0;
-  const avgPerf = perfs.length ? Math.round(perfs.reduce((s, v) => s + v, 0) / perfs.length) : 0;
-  let maxStreak = 0, cur = 0;
-  for (const d of deltas) { if (d > 0) { cur++; maxStreak = Math.max(maxStreak, cur); } else cur = 0; }
+  const avgPerf = perfs.length
+    ? Math.round(perfs.reduce((s, v) => s + v, 0) / perfs.length)
+    : 0;
+  let maxStreak = 0,
+    cur = 0;
+  for (const d of deltas) {
+    if (d > 0) {
+      cur++;
+      maxStreak = Math.max(maxStreak, cur);
+    } else cur = 0;
+  }
   let currentStreak = 0;
-  for (let i = deltas.length - 1; i >= 0; i--) { if (deltas[i] > 0) currentStreak++; else break; }
+  for (let i = deltas.length - 1; i >= 0; i--) {
+    if (deltas[i] > 0) currentStreak++;
+    else break;
+  }
   const records = [
-    { icon: "🏆", label: "Best Rank", val: bestRank === Infinity ? "—" : `#${bestRank.toLocaleString()}` },
-    { icon: "🚀", label: "Best Performance", val: bestPerf || "—", sub: "single contest", color: bestPerf ? acDiffColor(bestPerf) : undefined },
-    { icon: "📊", label: "Avg Performance", val: avgPerf || "—", sub: `over ${rated.length} rated`, color: avgPerf ? acDiffColor(avgPerf) : undefined },
-    { icon: "⭐", label: "Peak Rating", val: peakRating || "—", sub: peakRating ? acDiffLabel(peakRating) : "", color: peakRating ? acDiffColor(peakRating) : undefined },
-    { icon: "📈", label: "Best Rating Gain", val: deltas.length ? `+${bestDelta}` : "—", color: "var(--color-positive)" },
-    { icon: "📉", label: "Worst Drop", val: deltas.length ? `${worstDelta}` : "—", color: "var(--color-negative)" },
-    { icon: "🔥", label: "Best Win Streak", val: maxStreak, sub: "consecutive gains" },
-    { icon: "🎯", label: "Total Contests", val: all.length, sub: `${rated.length} rated · ${all.length - rated.length} unrated` },
+    {
+      icon: "🏆",
+      label: "Best Rank",
+      val: bestRank === Infinity ? "—" : `#${bestRank.toLocaleString()}`,
+    },
+    {
+      icon: "🚀",
+      label: "Best Performance",
+      val: bestPerf || "—",
+      sub: "single contest",
+      color: bestPerf ? acDiffColor(bestPerf) : undefined,
+    },
+    {
+      icon: "📊",
+      label: "Avg Performance",
+      val: avgPerf || "—",
+      sub: `over ${rated.length} rated`,
+      color: avgPerf ? acDiffColor(avgPerf) : undefined,
+    },
+    {
+      icon: "⭐",
+      label: "Peak Rating",
+      val: peakRating || "—",
+      sub: peakRating ? acDiffLabel(peakRating) : "",
+      color: peakRating ? acDiffColor(peakRating) : undefined,
+    },
+    {
+      icon: "📈",
+      label: "Best Rating Gain",
+      val: deltas.length ? `+${bestDelta}` : "—",
+      color: "var(--color-positive)",
+    },
+    {
+      icon: "📉",
+      label: "Worst Drop",
+      val: deltas.length ? `${worstDelta}` : "—",
+      color: "var(--color-negative)",
+    },
+    {
+      icon: "🔥",
+      label: "Best Win Streak",
+      val: maxStreak,
+      sub: "consecutive gains",
+    },
+    {
+      icon: "🎯",
+      label: "Total Contests",
+      val: all.length,
+      sub: `${rated.length} rated · ${all.length - rated.length} unrated`,
+    },
   ];
-  el.innerHTML = records.map((r) => `<div class="pr-card">
+  el.innerHTML = records
+    .map(
+      (r) => `<div class="pr-card">
     <div class="pr-icon">${r.icon}</div>
     <div class="pr-val"${r.color ? ` style="color:${r.color}"` : ""}>${r.val}</div>
     <div class="pr-label">${r.label}</div>
     ${r.sub ? `<div class="pr-sub">${r.sub}</div>` : ""}
-  </div>`).join("");
+  </div>`,
+    )
+    .join("");
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// ─── CF UPSOLVER ──────────────────────────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════════
 function initCFUpsolver() {
   const panel = document.getElementById("cf-upsolver-panel");
   const sel = document.getElementById("cf-upsolver-contest-select");
   if (!panel || !sel) return;
   const hist = contestsState.cfContestHistory;
-  if (!hist.length) { panel.style.display = "none"; return; }
+  if (!hist.length) {
+    panel.style.display = "none";
+    return;
+  }
   panel.style.display = "";
-  sel.innerHTML = `<option value="">Select a contest you participated in…</option>` +
-    [...hist].reverse().slice(0, 50).map((h) =>
-      `<option value="${h.contestId}">${h.contestName} — ${new Date(h.ratingUpdateTimeSeconds * 1000).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</option>`
-    ).join("");
+  sel.innerHTML =
+    `<option value="">Select a contest you participated in…</option>` +
+    [...hist]
+      .reverse()
+      .slice(0, 50)
+      .map(
+        (h) =>
+          `<option value="${h.contestId}">${h.contestName} — ${new Date(h.ratingUpdateTimeSeconds * 1000).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</option>`,
+      )
+      .join("");
 }
 function renderCFUpsolver(contestId) {
   const el = document.getElementById("cf-upsolver-body");
-  if (!el || !contestId) { if (el) el.innerHTML = ""; return; }
+  if (!el || !contestId) {
+    if (el) el.innerHTML = "";
+    return;
+  }
   contestId = parseInt(contestId);
-  const entry = contestsState.cfContestHistory.find((h) => h.contestId === contestId);
-  if (!entry) { el.innerHTML = `<div class="contests-empty">No data for this contest.</div>`; return; }
-  const problems = Object.values(state.cfMeta || {}).filter((p) => p.contestId === contestId).sort((a, b) => (a.index || "").localeCompare(b.index || ""));
+  const entry = contestsState.cfContestHistory.find(
+    (h) => h.contestId === contestId,
+  );
+  if (!entry) {
+    el.innerHTML = `<div class="contests-empty">No data for this contest.</div>`;
+    return;
+  }
+  const problems = Object.values(state.cfMeta || {})
+    .filter((p) => p.contestId === contestId)
+    .sort((a, b) => (a.index || "").localeCompare(b.index || ""));
   const delta = entry.newRating - entry.oldRating;
-  const deltaColor = delta > 0 ? "var(--color-positive)" : delta < 0 ? "var(--color-negative)" : "var(--text-muted)";
-  const solvedCount = problems.filter((p) => state.cfSolved[cfProblemKey(p.contestId, p.index)]).length;
+  const deltaColor =
+    delta > 0
+      ? "var(--color-positive)"
+      : delta < 0
+        ? "var(--color-negative)"
+        : "var(--text-muted)";
+  const solvedCount = problems.filter(
+    (p) => state.cfSolved[cfProblemKey(p.contestId, p.index)],
+  ).length;
   if (!problems.length) {
     el.innerHTML = `<div class="upsolver-summary">
       <span>Rank <strong>#${entry.rank.toLocaleString()}</strong></span>
@@ -7540,38 +7934,62 @@ function renderCFUpsolver(contestId) {
       <span class="upsolver-status">${solved ? "✓ Solved" : "⟳ Upsolve"}</span>
     </div>`;
   }
-  const unsolved = problems.filter((p) => !state.cfSolved[cfProblemKey(p.contestId, p.index)]).length;
+  const unsolved = problems.filter(
+    (p) => !state.cfSolved[cfProblemKey(p.contestId, p.index)],
+  ).length;
   html += `</div>${unsolved === 0 ? `<div class="upsolver-complete">🎉 All problems solved!</div>` : `<div class="upsolver-footer">${unsolved} problem${unsolved > 1 ? "s" : ""} left to upsolve</div>`}`;
   el.innerHTML = html;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// ─── AC UPSOLVER ──────────────────────────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════════
 function initACUpsolver() {
   const panel = document.getElementById("ac-upsolver-panel");
   const sel = document.getElementById("ac-upsolver-contest-select");
   if (!panel || !sel) return;
   const hist = contestsState.acContestHistory;
-  if (!hist.length) { panel.style.display = "none"; return; }
+  if (!hist.length) {
+    panel.style.display = "none";
+    return;
+  }
   panel.style.display = "";
-  sel.innerHTML = `<option value="">Select a contest you participated in…</option>` +
-    [...hist].reverse().slice(0, 50).map((h) =>
-      `<option value="${h.ContestScreenName}">${h.ContestScreenName}${h.IsRated ? ` · Rank #${h.Place}` : " (unrated)"}</option>`
-    ).join("");
+  sel.innerHTML =
+    `<option value="">Select a contest you participated in…</option>` +
+    [...hist]
+      .reverse()
+      .slice(0, 50)
+      .map(
+        (h) =>
+          `<option value="${h.ContestScreenName}">${h.ContestScreenName}${h.IsRated ? ` · Rank #${h.Place}` : " (unrated)"}</option>`,
+      )
+      .join("");
 }
 function renderACUpsolver(contestId) {
   const el = document.getElementById("ac-upsolver-body");
-  if (!el || !contestId) { if (el) el.innerHTML = ""; return; }
-  const entry = contestsState.acContestHistory.find((h) => (h.ContestScreenName || "").toLowerCase() === contestId.toLowerCase());
-  const contest = contestsState.acContests.find((c) => (c.id || "").toLowerCase() === contestId.toLowerCase());
+  if (!el || !contestId) {
+    if (el) el.innerHTML = "";
+    return;
+  }
+  const entry = contestsState.acContestHistory.find(
+    (h) =>
+      (h.ContestScreenName || "").toLowerCase() === contestId.toLowerCase(),
+  );
+  const contest = contestsState.acContests.find(
+    (c) => (c.id || "").toLowerCase() === contestId.toLowerCase(),
+  );
   const link = `https://atcoder.jp/contests/${contestId}`;
-  // Find problems in this contest from acMeta
-  const problems = Object.values(state.acMeta || {}).filter((p) => (p.contestId || "").toLowerCase() === contestId.toLowerCase()).sort((a, b) => (a.id || "").localeCompare(b.id || ""));
+  const problems = Object.values(state.acMeta || {})
+    .filter(
+      (p) => (p.contestId || "").toLowerCase() === contestId.toLowerCase(),
+    )
+    .sort((a, b) => (a.id || "").localeCompare(b.id || ""));
   let html = "";
   if (entry) {
     const delta = entry.IsRated ? entry.NewRating - entry.OldRating : null;
-    const deltaColor = delta > 0 ? "var(--color-positive)" : delta < 0 ? "var(--color-negative)" : "var(--text-muted)";
+    const deltaColor =
+      delta > 0
+        ? "var(--color-positive)"
+        : delta < 0
+          ? "var(--color-negative)"
+          : "var(--text-muted)";
     const solvedCount = problems.filter((p) => state.acSolved[p.id]).length;
     html += `<div class="upsolver-summary">
       <span>Rank <strong>#${(entry.Place || 0).toLocaleString()}</strong></span>
@@ -7606,19 +8024,21 @@ function renderACUpsolver(contestId) {
   el.innerHTML = html;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// ─── CF RECOMMENDER ───────────────────────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════════
 function initCFRecommender() {
   const panel = document.getElementById("cf-recommender-panel");
   if (!panel) return;
-  if (!Object.keys(state.cfMeta || {}).length) { panel.style.display = "none"; return; }
+  if (!Object.keys(state.cfMeta || {}).length) {
+    panel.style.display = "none";
+    return;
+  }
   panel.style.display = "";
   renderCFRecommender();
 }
 function renderCFRecommender() {
   const el = document.getElementById("cf-recommender-body");
   if (!el) return;
+  const baseRating = state.cfUserInfo?.rating || 1200;
+  const challengeRating = baseRating + 150;
   const userRating = state.cfUserInfo?.rating || 1200;
   const tagStats = {};
   for (const p of Object.values(state.cfMeta || {})) {
@@ -7634,37 +8054,56 @@ function renderCFRecommender() {
   const weakTags = Object.entries(tagStats)
     .filter(([, v]) => v.total >= 5 && v.solved / v.total < 0.4)
     .sort((a, b) => a[1].solved / a[1].total - b[1].solved / b[1].total)
-    .slice(0, 4).map(([tag]) => tag);
-  const targetMin = Math.max(800, userRating - 50), targetMax = userRating + 300;
+    .slice(0, 4)
+    .map(([tag]) => tag);
   const candidates = Object.values(state.cfMeta || {}).filter((p) => {
-    if (!p.rating || p.rating < targetMin || p.rating > targetMax) return false;
-    return !state.cfSolved[cfProblemKey(p.contestId, p.index)];
+    const isUnsolved = !state.cfSolved[cfProblemKey(p.contestId, p.index)];
+    if (!isUnsolved) return false;
+
+    if (!p.rating) {
+      return userRating < 1400;
+    }
+    return p.rating >= baseRating && p.rating <= challengeRating + 100;
   });
   const shuffle = (arr) => arr.sort(() => Math.random() - 0.5);
-  const weak = shuffle(candidates.filter((p) => (p.tags || []).some((t) => weakTags.includes(t)))).slice(0, 6);
-  const normal = shuffle(candidates.filter((p) => !(p.tags || []).some((t) => weakTags.includes(t)))).slice(0, 6);
+  const weak = shuffle(
+    candidates.filter((p) => (p.tags || []).some((t) => weakTags.includes(t))),
+  ).slice(0, 6);
+  const normal = shuffle(
+    candidates.filter((p) => !(p.tags || []).some((t) => weakTags.includes(t))),
+  ).slice(0, 6);
   const picks = [...weak, ...normal];
-  if (!picks.length) { el.innerHTML = `<div class="contests-empty">No recommendations yet — sync CF data to populate.</div>`; return; }
+  if (!picks.length) {
+    el.innerHTML = `<div class="contests-empty">No recommendations yet — sync CF data to populate.</div>`;
+    return;
+  }
   el.innerHTML = `
     ${weakTags.length ? `<div class="recommender-tags-row">Targeting weak tags: ${weakTags.map((t) => `<span class="rec-tag">${t}</span>`).join("")}</div>` : ""}
-    <div class="recommender-grid">${picks.map((p) => {
-      const link = `https://codeforces.com/contest/${p.contestId}/problem/${p.index}`;
-      const isWeak = (p.tags || []).some((t) => weakTags.includes(t));
-      return `<a href="${link}" target="_blank" class="rec-problem-card${isWeak ? " rec-weak" : ""}">
+    <div class="recommender-grid">${picks
+      .map((p) => {
+        const link = `https://codeforces.com/contest/${p.contestId}/problem/${p.index}`;
+        const isWeak = (p.tags || []).some((t) => weakTags.includes(t));
+        return `<a href="${link}" target="_blank" class="rec-problem-card${isWeak ? " rec-weak" : ""}">
         <div class="rec-top"><span class="rec-idx">${p.contestId}${p.index}</span>${isWeak ? `<span class="rec-weak-badge">weak tag</span>` : ""}</div>
         <div class="rec-name">${p.name}</div>
-        <div class="rec-meta"><span style="color:${cfRatingColor(p.rating)}">${p.rating}</span>${(p.tags || []).slice(0, 2).map((t) => `<span class="rec-tag-small">${t}</span>`).join("")}</div>
+        <div class="rec-meta"><span style="color:${cfRatingColor(p.rating)}">${p.rating}</span>${(
+          p.tags || []
+        )
+          .slice(0, 2)
+          .map((t) => `<span class="rec-tag-small">${t}</span>`)
+          .join("")}</div>
       </a>`;
-    }).join("")}</div>`;
+      })
+      .join("")}</div>`;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// ─── AC RECOMMENDER ───────────────────────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════════
 function initACRecommender() {
   const panel = document.getElementById("ac-recommender-panel");
   if (!panel) return;
-  if (!Object.keys(state.acMeta || {}).length) { panel.style.display = "none"; return; }
+  if (!Object.keys(state.acMeta || {}).length) {
+    panel.style.display = "none";
+    return;
+  }
   panel.style.display = "";
   renderACRecommender();
 }
@@ -7682,27 +8121,37 @@ function renderACRecommender() {
   });
   const shuffle = (arr) => arr.sort(() => Math.random() - 0.5);
   const picks = shuffle(candidates).slice(0, 12);
-  if (!picks.length) { el.innerHTML = `<div class="contests-empty">No recommendations — sync AC data first.</div>`; return; }
-  const label = userRating ? `Targeting difficulty ${targetMin}–${targetMax} (around your rating ${userRating})` : "Targeting beginner-friendly problems";
+  if (!picks.length) {
+    el.innerHTML = `<div class="contests-empty">No recommendations — sync AC data first.</div>`;
+    return;
+  }
+  const label = userRating
+    ? `Targeting difficulty ${targetMin}–${targetMax} (around your rating ${userRating})`
+    : "Targeting beginner-friendly problems";
   el.innerHTML = `
     <div class="recommender-tags-row">${label}</div>
-    <div class="recommender-grid">${picks.map((p) => {
-      const link = `https://atcoder.jp/contests/${p.contestId}/tasks/${p.id}`;
-      return `<a href="${link}" target="_blank" class="rec-problem-card">
+    <div class="recommender-grid">${picks
+      .map((p) => {
+        const link = `https://atcoder.jp/contests/${p.contestId}/tasks/${p.id}`;
+        return `<a href="${link}" target="_blank" class="rec-problem-card">
         <div class="rec-top"><span class="rec-idx">${p.id}</span></div>
         <div class="rec-name">${p.title}</div>
         <div class="rec-meta"><span style="color:${acDiffColor(p.difficulty)}">${p.difficulty}</span></div>
       </a>`;
-    }).join("")}</div>`;
+      })
+      .join("")}</div>`;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// ─── CF RATING PREDICTOR ──────────────────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════════
 function initCFRatingPredictor() {
   const panel = document.getElementById("cf-predictor-panel");
   if (!panel) return;
-  if (!contestsState.cfContestHistory.length || !contestsState.cfContests.length) { panel.style.display = "none"; return; }
+  if (
+    !contestsState.cfContestHistory.length ||
+    !contestsState.cfContests.length
+  ) {
+    panel.style.display = "none";
+    return;
+  }
   panel.style.display = "";
   renderCFRatingPredictor();
 }
@@ -7710,23 +8159,44 @@ function renderCFRatingPredictor() {
   const el = document.getElementById("cf-predictor-body");
   if (!el) return;
   const hist = contestsState.cfContestHistory;
-  if (!hist.length) { el.innerHTML = `<div class="contests-empty">Participate in at least one contest to unlock.</div>`; return; }
+  if (!hist.length) {
+    el.innerHTML = `<div class="contests-empty">Participate in at least one contest to unlock.</div>`;
+    return;
+  }
   const now = Math.floor(Date.now() / 1000);
-  const upcoming = contestsState.cfContests.filter((c) => c.startTimeSeconds > now).sort((a, b) => a.startTimeSeconds - b.startTimeSeconds).slice(0, 3);
-  if (!upcoming.length) { el.innerHTML = `<div class="contests-empty">No upcoming CF contests found.</div>`; return; }
+  const upcoming = contestsState.cfContests
+    .filter((c) => c.startTimeSeconds > now)
+    .sort((a, b) => a.startTimeSeconds - b.startTimeSeconds)
+    .slice(0, 3);
+  if (!upcoming.length) {
+    el.innerHTML = `<div class="contests-empty">No upcoming CF contests found.</div>`;
+    return;
+  }
   const recentDeltas = hist.slice(-10).map((h) => h.newRating - h.oldRating);
-  const avgDelta = Math.round(recentDeltas.reduce((s, v) => s + v, 0) / recentDeltas.length);
-  const trend = recentDeltas.slice(-3).reduce((s, v) => s + v, 0) > 0 ? "📈 Positive" : "📉 Negative";
-  const userRating = state.cfUserInfo?.rating || hist[hist.length - 1].newRating;
+  const avgDelta = Math.round(
+    recentDeltas.reduce((s, v) => s + v, 0) / recentDeltas.length,
+  );
+  const trend =
+    recentDeltas.slice(-3).reduce((s, v) => s + v, 0) > 0
+      ? "📈 Positive"
+      : "📉 Negative";
+  const userRating =
+    state.cfUserInfo?.rating || hist[hist.length - 1].newRating;
   el.innerHTML = `
     <div class="predictor-context">Last ${recentDeltas.length} contests · Avg Δ <strong style="color:${avgDelta >= 0 ? "var(--color-positive)" : "var(--color-negative)"}">${avgDelta > 0 ? "+" : ""}${avgDelta}</strong> · Trend: ${trend}</div>
-    <div class="predictor-grid">${upcoming.map((c) => {
-      const div = cfContestDivLabel(c.name);
-      const mult = div?.text === "Div. 1" ? 0.6 : (div?.text === "Div. 3" || div?.text === "Div. 4") ? 1.3 : 1.0;
-      const pd = Math.round(avgDelta * mult);
-      const pr = userRating + pd;
-      const link = `https://codeforces.com/contest/${c.id}`;
-      return `<div class="predictor-card">
+    <div class="predictor-grid">${upcoming
+      .map((c) => {
+        const div = cfContestDivLabel(c.name);
+        const mult =
+          div?.text === "Div. 1"
+            ? 0.6
+            : div?.text === "Div. 3" || div?.text === "Div. 4"
+              ? 1.3
+              : 1.0;
+        const pd = Math.round(avgDelta * mult);
+        const pr = userRating + pd;
+        const link = `https://codeforces.com/contest/${c.id}`;
+        return `<div class="predictor-card">
         <div class="predictor-card-top">${div ? `<span class="contest-div-badge ${div.cls}">${div.text}</span>` : ""}
           <a href="${link}" target="_blank" class="predictor-name" onclick="event.stopPropagation()">${c.name}</a></div>
         <div class="predictor-stats">
@@ -7736,17 +8206,18 @@ function renderCFRatingPredictor() {
         </div>
         <div class="predictor-disclaimer">Based on your last ${recentDeltas.length}-contest trend. Actual results vary.</div>
       </div>`;
-    }).join("")}</div>`;
+      })
+      .join("")}</div>`;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// ─── AC PERFORMANCE PREDICTOR ─────────────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════════
 function initACRatingPredictor() {
   const panel = document.getElementById("ac-predictor-panel");
   if (!panel) return;
   const rated = contestsState.acContestHistory.filter((h) => h.IsRated);
-  if (!rated.length || !contestsState.acContests.length) { panel.style.display = "none"; return; }
+  if (!rated.length || !contestsState.acContests.length) {
+    panel.style.display = "none";
+    return;
+  }
   panel.style.display = "";
   renderACRatingPredictor();
 }
@@ -7754,26 +8225,47 @@ function renderACRatingPredictor() {
   const el = document.getElementById("ac-predictor-body");
   if (!el) return;
   const rated = contestsState.acContestHistory.filter((h) => h.IsRated);
-  if (!rated.length) { el.innerHTML = `<div class="contests-empty">Participate in rated contests to unlock.</div>`; return; }
+  if (!rated.length) {
+    el.innerHTML = `<div class="contests-empty">Participate in rated contests to unlock.</div>`;
+    return;
+  }
   const now = Math.floor(Date.now() / 1000);
-  const upcoming = contestsState.acContests.filter((c) => c.start_epoch_second > now).sort((a, b) => a.start_epoch_second - b.start_epoch_second).slice(0, 3);
-  if (!upcoming.length) { el.innerHTML = `<div class="contests-empty">No upcoming AC contests found.</div>`; return; }
-  const recentPerfs = rated.slice(-10).map((h) => h.Performance || 0).filter(Boolean);
-  const avgPerf = recentPerfs.length ? Math.round(recentPerfs.reduce((s, v) => s + v, 0) / recentPerfs.length) : 0;
+  const upcoming = contestsState.acContests
+    .filter((c) => c.start_epoch_second > now)
+    .sort((a, b) => a.start_epoch_second - b.start_epoch_second)
+    .slice(0, 3);
+  if (!upcoming.length) {
+    el.innerHTML = `<div class="contests-empty">No upcoming AC contests found.</div>`;
+    return;
+  }
+  const recentPerfs = rated
+    .slice(-10)
+    .map((h) => h.Performance || 0)
+    .filter(Boolean);
+  const avgPerf = recentPerfs.length
+    ? Math.round(recentPerfs.reduce((s, v) => s + v, 0) / recentPerfs.length)
+    : 0;
   const recentDeltas = rated.slice(-10).map((h) => h.NewRating - h.OldRating);
-  const avgDelta = recentDeltas.length ? Math.round(recentDeltas.reduce((s, v) => s + v, 0) / recentDeltas.length) : 0;
-  const trend = recentDeltas.slice(-3).reduce((s, v) => s + v, 0) > 0 ? "📈 Positive" : "📉 Negative";
+  const avgDelta = recentDeltas.length
+    ? Math.round(recentDeltas.reduce((s, v) => s + v, 0) / recentDeltas.length)
+    : 0;
+  const trend =
+    recentDeltas.slice(-3).reduce((s, v) => s + v, 0) > 0
+      ? "📈 Positive"
+      : "📉 Negative";
   const currentRating = rated[rated.length - 1].NewRating;
   el.innerHTML = `
     <div class="predictor-context">Last ${recentDeltas.length} rated · Avg Perf <strong style="color:${acDiffColor(avgPerf)}">${avgPerf}</strong> · Avg Δ <strong style="color:${avgDelta >= 0 ? "var(--color-positive)" : "var(--color-negative)"}">${avgDelta > 0 ? "+" : ""}${avgDelta}</strong> · Trend: ${trend}</div>
-    <div class="predictor-grid">${upcoming.map((c) => {
-      const cat = acContestCategory(c.id);
-      const perfMult = cat.text === "AGC" ? 1.1 : cat.text === "ARC" ? 1.05 : 1.0;
-      const predictedPerf = Math.round(avgPerf * perfMult);
-      const predictedDelta = Math.round(avgDelta * perfMult);
-      const predictedRating = currentRating + predictedDelta;
-      const link = `https://atcoder.jp/contests/${c.id}`;
-      return `<div class="predictor-card">
+    <div class="predictor-grid">${upcoming
+      .map((c) => {
+        const cat = acContestCategory(c.id);
+        const perfMult =
+          cat.text === "AGC" ? 1.1 : cat.text === "ARC" ? 1.05 : 1.0;
+        const predictedPerf = Math.round(avgPerf * perfMult);
+        const predictedDelta = Math.round(avgDelta * perfMult);
+        const predictedRating = currentRating + predictedDelta;
+        const link = `https://atcoder.jp/contests/${c.id}`;
+        return `<div class="predictor-card">
         <div class="predictor-card-top"><span class="contest-div-badge ${cat.cls}">${cat.text}</span>
           <a href="${link}" target="_blank" class="predictor-name" onclick="event.stopPropagation()">${c.title}</a></div>
         <div class="predictor-stats">
@@ -7784,29 +8276,45 @@ function renderACRatingPredictor() {
         </div>
         <div class="predictor-disclaimer">Based on your last ${recentDeltas.length}-contest trend. Actual results vary.</div>
       </div>`;
-    }).join("")}</div>`;
+      })
+      .join("")}</div>`;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// ─── CF RIVALS ────────────────────────────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════════
 function initCFRivals() {
   const panel = document.getElementById("cf-rivals-panel");
-  if (panel) { panel.style.display = ""; renderCFRivals(); }
+  if (panel) {
+    panel.style.display = "";
+    renderCFRivals();
+  }
 }
 async function addCFRival() {
   const input = document.getElementById("cf-rival-input");
   const handle = (input?.value || "").trim();
   if (!handle) return;
-  if (contestsState.cfRivals.find((r) => r.handle.toLowerCase() === handle.toLowerCase())) { input.value = ""; return; }
+  if (
+    contestsState.cfRivals.find(
+      (r) => r.handle.toLowerCase() === handle.toLowerCase(),
+    )
+  ) {
+    input.value = "";
+    return;
+  }
   input.value = "";
   const el = document.getElementById("cf-rivals-body");
   const lid = `cfrl-${Date.now()}`;
-  if (el) el.insertAdjacentHTML("afterbegin", `<div class="rivals-loading" id="${lid}">⏳ Loading @${handle}…</div>`);
+  if (el)
+    el.insertAdjacentHTML(
+      "afterbegin",
+      `<div class="rivals-loading" id="${lid}">⏳ Loading @${handle}…</div>`,
+    );
   try {
     const [hr, ir] = await Promise.all([
-      fetch(`/api/contests-proxy?platform=cf-history&handle=${encodeURIComponent(handle)}`),
-      fetch(`https://codeforces.com/api/user.info?handles=${encodeURIComponent(handle)}`),
+      fetch(
+        `/api/contests-proxy?platform=cf-history&handle=${encodeURIComponent(handle)}`,
+      ),
+      fetch(
+        `https://codeforces.com/api/user.info?handles=${encodeURIComponent(handle)}`,
+      ),
     ]);
     if (!hr.ok) throw new Error("Handle not found");
     const history = await hr.json();
@@ -7817,16 +8325,27 @@ async function addCFRival() {
     localStorage.setItem("cf_rivals", JSON.stringify(saved));
   } catch (e) {
     document.getElementById(lid)?.remove();
-    if (el) el.insertAdjacentHTML("afterbegin", `<div class="contests-error" style="font-size:12px;margin-bottom:8px">⚠️ @${handle}: ${e.message}</div>`);
+    if (el)
+      el.insertAdjacentHTML(
+        "afterbegin",
+        `<div class="contests-error" style="font-size:12px;margin-bottom:8px">⚠️ @${handle}: ${e.message}</div>`,
+      );
     return;
   }
   renderCFRivals();
 }
 function removeCFRival(handle) {
-  contestsState.cfRivals = contestsState.cfRivals.filter((r) => r.handle !== handle);
-  localStorage.setItem("cf_rivals", JSON.stringify(
-    JSON.parse(localStorage.getItem("cf_rivals") || "[]").filter((r) => r.handle !== handle)
-  ));
+  contestsState.cfRivals = contestsState.cfRivals.filter(
+    (r) => r.handle !== handle,
+  );
+  localStorage.setItem(
+    "cf_rivals",
+    JSON.stringify(
+      JSON.parse(localStorage.getItem("cf_rivals") || "[]").filter(
+        (r) => r.handle !== handle,
+      ),
+    ),
+  );
   renderCFRivals();
 }
 async function loadSavedCFRivals() {
@@ -7837,16 +8356,24 @@ async function loadSavedCFRivals() {
     if (contestsState.cfRivals.find((r) => r.handle === handle)) continue;
     try {
       const [hr, ir] = await Promise.all([
-        fetch(`/api/contests-proxy?platform=cf-history&handle=${encodeURIComponent(handle)}`),
-        fetch(`https://codeforces.com/api/user.info?handles=${encodeURIComponent(handle)}`),
+        fetch(
+          `/api/contests-proxy?platform=cf-history&handle=${encodeURIComponent(handle)}`,
+        ),
+        fetch(
+          `https://codeforces.com/api/user.info?handles=${encodeURIComponent(handle)}`,
+        ),
       ]);
       if (!hr.ok) continue;
       const history = await hr.json();
       const info = (await ir.json()).result?.[0] || {};
-      contestsState.cfRivals.push({ handle, history, rating: info.rating || 0 });
-      renderCFRivals(); // progressive render
+      contestsState.cfRivals.push({
+        handle,
+        history,
+        rating: info.rating || 0,
+      });
+      renderCFRivals();
     } catch (_) {}
-    await new Promise((r) => setTimeout(r, 300)); // rate-limit: 300ms between requests
+    await new Promise((r) => setTimeout(r, 300));
   }
   renderCFRivals();
 }
@@ -7854,58 +8381,111 @@ function renderCFRivals() {
   const el = document.getElementById("cf-rivals-body");
   if (!el) return;
   const userRating = state.cfUserInfo?.rating || 0;
-  const colors = ["#4fc3f7", "#81c784", "#ffb74d", "#f06292", "#ce93d8", "#80cbc4"];
-  const me = state.cfUsername && userRating ? [{ handle: state.cfUsername, rating: userRating, history: contestsState.cfContestHistory, isYou: true }] : [];
-  const all = [...me, ...contestsState.cfRivals].sort((a, b) => (b.rating || 0) - (a.rating || 0));
-  if (!contestsState.cfRivals.length && !me.length) { el.innerHTML = `<div class="contests-empty">Add a rival's CF handle to compare side by side.</div>`; return; }
-  const allRatings = all.flatMap((e) => (e.history || []).map((h) => h.newRating || 0)).filter(Boolean);
-  const maxR = allRatings.length ? Math.max(...allRatings) : 2000, minR = allRatings.length ? Math.min(...allRatings) : 800;
-  const W = 500, H = 110, pad = 16;
+  const colors = [
+    "#4fc3f7",
+    "#81c784",
+    "#ffb74d",
+    "#f06292",
+    "#ce93d8",
+    "#80cbc4",
+  ];
+  const me =
+    state.cfUsername && userRating
+      ? [
+          {
+            handle: state.cfUsername,
+            rating: userRating,
+            history: contestsState.cfContestHistory,
+            isYou: true,
+          },
+        ]
+      : [];
+  const all = [...me, ...contestsState.cfRivals].sort(
+    (a, b) => (b.rating || 0) - (a.rating || 0),
+  );
+  if (!contestsState.cfRivals.length && !me.length) {
+    el.innerHTML = `<div class="contests-empty">Add a rival's CF handle to compare side by side.</div>`;
+    return;
+  }
+  const allRatings = all
+    .flatMap((e) => (e.history || []).map((h) => h.newRating || 0))
+    .filter(Boolean);
+  const maxR = allRatings.length ? Math.max(...allRatings) : 2000,
+    minR = allRatings.length ? Math.min(...allRatings) : 800;
+  const W = 500,
+    H = 110,
+    pad = 16;
   let svgLines = "";
   all.forEach((entry, i) => {
     const hist = entry.history || [];
     if (hist.length < 2) return;
     const color = colors[i % colors.length];
-    const pts = hist.map((h, j) => {
-      const x = pad + (j / (hist.length - 1)) * (W - pad * 2);
-      const y = H - pad - ((h.newRating - minR) / Math.max(maxR - minR, 100)) * (H - pad * 2);
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    }).join(" ");
+    const pts = hist
+      .map((h, j) => {
+        const x = pad + (j / (hist.length - 1)) * (W - pad * 2);
+        const y =
+          H -
+          pad -
+          ((h.newRating - minR) / Math.max(maxR - minR, 100)) * (H - pad * 2);
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      })
+      .join(" ");
     svgLines += `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="${entry.isYou ? 2.5 : 1.5}" opacity="0.9" stroke-linejoin="round"/>`;
   });
-  const graph = all.some((e) => (e.history || []).length >= 2) ? `<svg viewBox="0 0 ${W} ${H}" class="rivals-graph" preserveAspectRatio="none">${svgLines}</svg>` : "";
-  el.innerHTML = graph + `<div class="rivals-list">${all.map((entry, i) => {
-    const color = colors[i % colors.length];
-    const diff = userRating && !entry.isYou ? entry.rating - userRating : null;
-    return `<div class="rival-row">
+  const graph = all.some((e) => (e.history || []).length >= 2)
+    ? `<svg viewBox="0 0 ${W} ${H}" class="rivals-graph" preserveAspectRatio="none">${svgLines}</svg>`
+    : "";
+  el.innerHTML =
+    graph +
+    `<div class="rivals-list">${all
+      .map((entry, i) => {
+        const color = colors[i % colors.length];
+        const diff =
+          userRating && !entry.isYou ? entry.rating - userRating : null;
+        return `<div class="rival-row">
       <span class="rival-color-dot" style="background:${color}"></span>
       <a href="https://codeforces.com/profile/${escHtml(entry.handle)}" target="_blank" class="rival-handle" onclick="event.stopPropagation()">${entry.isYou ? "👤 " : ""}${escHtml(entry.handle)}</a>
       <span class="rival-rating" style="color:${cfRatingColor(entry.rating || 0)}">${entry.rating || "—"}</span>
       <span class="rival-label">${cfRatingLabel(entry.rating || 0)}</span>
-      ${diff !== null ? `<span class="rival-diff" style="color:${diff > 0 ? 'var(--color-negative)' : 'var(--color-positive)'}">${diff > 0 ? "+" : ""}${diff}</span>` : ""}
+      ${diff !== null ? `<span class="rival-diff" style="color:${diff > 0 ? "var(--color-negative)" : "var(--color-positive)"}">${diff > 0 ? "+" : ""}${diff}</span>` : ""}
       ${!entry.isYou ? `<button class="rival-remove-btn" onclick="removeCFRival('${entry.handle}')">✕</button>` : ""}
     </div>`;
-  }).join("")}</div>`;
+      })
+      .join("")}</div>`;
+  updateHeatmapRivalDropdown();
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// ─── AC RIVALS ────────────────────────────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════════
 function initACRivals() {
   const panel = document.getElementById("ac-rivals-panel");
-  if (panel) { panel.style.display = ""; renderACRivals(); }
+  if (panel) {
+    panel.style.display = "";
+    renderACRivals();
+  }
 }
 async function addACRival() {
   const input = document.getElementById("ac-rival-input");
   const handle = (input?.value || "").trim();
   if (!handle) return;
-  if (contestsState.acRivals.find((r) => r.handle.toLowerCase() === handle.toLowerCase())) { input.value = ""; return; }
+  if (
+    contestsState.acRivals.find(
+      (r) => r.handle.toLowerCase() === handle.toLowerCase(),
+    )
+  ) {
+    input.value = "";
+    return;
+  }
   input.value = "";
   const el = document.getElementById("ac-rivals-body");
   const lid = `acrl-${Date.now()}`;
-  if (el) el.insertAdjacentHTML("afterbegin", `<div class="rivals-loading" id="${lid}">⏳ Loading @${handle}…</div>`);
+  if (el)
+    el.insertAdjacentHTML(
+      "afterbegin",
+      `<div class="rivals-loading" id="${lid}">⏳ Loading @${handle}…</div>`,
+    );
   try {
-    const hr = await fetch(`/api/contests-proxy?platform=ac-history&handle=${encodeURIComponent(handle)}`);
+    const hr = await fetch(
+      `/api/contests-proxy?platform=ac-history&handle=${encodeURIComponent(handle)}`,
+    );
     if (!hr.ok) throw new Error("Handle not found");
     const history = await hr.json();
     const rated = history.filter((h) => h.IsRated);
@@ -7916,16 +8496,27 @@ async function addACRival() {
     localStorage.setItem("ac_rivals", JSON.stringify(saved));
   } catch (e) {
     document.getElementById(lid)?.remove();
-    if (el) el.insertAdjacentHTML("afterbegin", `<div class="contests-error" style="font-size:12px;margin-bottom:8px">⚠️ @${handle}: ${e.message}</div>`);
+    if (el)
+      el.insertAdjacentHTML(
+        "afterbegin",
+        `<div class="contests-error" style="font-size:12px;margin-bottom:8px">⚠️ @${handle}: ${e.message}</div>`,
+      );
     return;
   }
   renderACRivals();
 }
 function removeACRival(handle) {
-  contestsState.acRivals = contestsState.acRivals.filter((r) => r.handle !== handle);
-  localStorage.setItem("ac_rivals", JSON.stringify(
-    JSON.parse(localStorage.getItem("ac_rivals") || "[]").filter((r) => r.handle !== handle)
-  ));
+  contestsState.acRivals = contestsState.acRivals.filter(
+    (r) => r.handle !== handle,
+  );
+  localStorage.setItem(
+    "ac_rivals",
+    JSON.stringify(
+      JSON.parse(localStorage.getItem("ac_rivals") || "[]").filter(
+        (r) => r.handle !== handle,
+      ),
+    ),
+  );
   renderACRivals();
 }
 async function loadSavedACRivals() {
@@ -7935,15 +8526,17 @@ async function loadSavedACRivals() {
   for (const { handle } of saved) {
     if (contestsState.acRivals.find((r) => r.handle === handle)) continue;
     try {
-      const hr = await fetch(`/api/contests-proxy?platform=ac-history&handle=${encodeURIComponent(handle)}`);
+      const hr = await fetch(
+        `/api/contests-proxy?platform=ac-history&handle=${encodeURIComponent(handle)}`,
+      );
       if (!hr.ok) continue;
       const history = await hr.json();
       const rated = history.filter((h) => h.IsRated);
       const rating = rated.length ? rated[rated.length - 1].NewRating : 0;
       contestsState.acRivals.push({ handle, history, rating });
-      renderACRivals(); // progressive render
+      renderACRivals();
     } catch (_) {}
-    await new Promise((r) => setTimeout(r, 300)); // rate-limit: 300ms between requests
+    await new Promise((r) => setTimeout(r, 300)); 
   }
   renderACRivals();
 }
@@ -7952,38 +8545,109 @@ function renderACRivals() {
   if (!el) return;
   const rated = contestsState.acContestHistory.filter((h) => h.IsRated);
   const myRating = rated.length ? rated[rated.length - 1].NewRating : 0;
-  const colors = ["#4fc3f7", "#81c784", "#ffb74d", "#f06292", "#ce93d8", "#80cbc4"];
-  const me = state.acUsername && myRating ? [{ handle: state.acUsername, rating: myRating, history: contestsState.acContestHistory, isYou: true }] : [];
-  const all = [...me, ...contestsState.acRivals].sort((a, b) => (b.rating || 0) - (a.rating || 0));
-  if (!contestsState.acRivals.length && !me.length) { el.innerHTML = `<div class="contests-empty">Add a rival's AtCoder handle to compare side by side.</div>`; return; }
-  // Build rating graph using NewRating from history
+  const colors = [
+    "#4fc3f7",
+    "#81c784",
+    "#ffb74d",
+    "#f06292",
+    "#ce93d8",
+    "#80cbc4",
+  ];
+  const me =
+    state.acUsername && myRating
+      ? [
+          {
+            handle: state.acUsername,
+            rating: myRating,
+            history: contestsState.acContestHistory,
+            isYou: true,
+          },
+        ]
+      : [];
+  const all = [...me, ...contestsState.acRivals].sort(
+    (a, b) => (b.rating || 0) - (a.rating || 0),
+  );
+  if (!contestsState.acRivals.length && !me.length) {
+    el.innerHTML = `<div class="contests-empty">Add a rival's AtCoder handle to compare side by side.</div>`;
+    return;
+  }
   const getRating = (h) => h.NewRating || h.newRating || 0;
-  const allRatings = all.flatMap((e) => (e.history || []).filter((h) => h.IsRated !== false).map(getRating)).filter(Boolean);
-  const maxR = allRatings.length ? Math.max(...allRatings) : 1600, minR = allRatings.length ? Math.min(...allRatings) : 400;
-  const W = 500, H = 110, pad = 16;
+  const allRatings = all
+    .flatMap((e) =>
+      (e.history || []).filter((h) => h.IsRated !== false).map(getRating),
+    )
+    .filter(Boolean);
+  const maxR = allRatings.length ? Math.max(...allRatings) : 1600,
+    minR = allRatings.length ? Math.min(...allRatings) : 400;
+  const W = 500,
+    H = 110,
+    pad = 16;
   let svgLines = "";
   all.forEach((entry, i) => {
     const hist = (entry.history || []).filter((h) => getRating(h) > 0);
     if (hist.length < 2) return;
     const color = colors[i % colors.length];
-    const pts = hist.map((h, j) => {
-      const x = pad + (j / (hist.length - 1)) * (W - pad * 2);
-      const y = H - pad - ((getRating(h) - minR) / Math.max(maxR - minR, 100)) * (H - pad * 2);
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    }).join(" ");
+    const pts = hist
+      .map((h, j) => {
+        const x = pad + (j / (hist.length - 1)) * (W - pad * 2);
+        const y =
+          H -
+          pad -
+          ((getRating(h) - minR) / Math.max(maxR - minR, 100)) * (H - pad * 2);
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      })
+      .join(" ");
     svgLines += `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="${entry.isYou ? 2.5 : 1.5}" opacity="0.9" stroke-linejoin="round"/>`;
   });
-  const graph = all.some((e) => (e.history || []).length >= 2) ? `<svg viewBox="0 0 ${W} ${H}" class="rivals-graph" preserveAspectRatio="none">${svgLines}</svg>` : "";
-  el.innerHTML = graph + `<div class="rivals-list">${all.map((entry, i) => {
-    const color = colors[i % colors.length];
-    const diff = myRating && !entry.isYou ? entry.rating - myRating : null;
-    return `<div class="rival-row">
+  const graph = all.some((e) => (e.history || []).length >= 2)
+    ? `<svg viewBox="0 0 ${W} ${H}" class="rivals-graph" preserveAspectRatio="none">${svgLines}</svg>`
+    : "";
+  el.innerHTML =
+    graph +
+    `<div class="rivals-list">${all
+      .map((entry, i) => {
+        const color = colors[i % colors.length];
+        const diff = myRating && !entry.isYou ? entry.rating - myRating : null;
+        return `<div class="rival-row">
       <span class="rival-color-dot" style="background:${color}"></span>
       <a href="https://atcoder.jp/users/${escHtml(entry.handle)}" target="_blank" class="rival-handle" onclick="event.stopPropagation()">${entry.isYou ? "👤 " : ""}${escHtml(entry.handle)}</a>
       <span class="rival-rating" style="color:${acDiffColor(entry.rating || 0)}">${entry.rating || "—"}</span>
       <span class="rival-label">${acDiffLabel(entry.rating || 0)}</span>
-      ${diff !== null ? `<span class="rival-diff" style="color:${diff > 0 ? 'var(--color-negative)' : 'var(--color-positive)'}">${diff > 0 ? "+" : ""}${diff}</span>` : ""}
+      ${diff !== null ? `<span class="rival-diff" style="color:${diff > 0 ? "var(--color-negative)" : "var(--color-positive)"}">${diff > 0 ? "+" : ""}${diff}</span>` : ""}
       ${!entry.isYou ? `<button class="rival-remove-btn" onclick="removeACRival('${escHtml(entry.handle)}')">✕</button>` : ""}
     </div>`;
-  }).join("")}</div>`;
+      })
+      .join("")}</div>`;
+}
+
+function setHeatmapRival(handle) {
+  state.compareRival = handle || null;
+  renderHeatmap();
+  showToast(handle ? `Comparing with @${handle}` : "Rival comparison cleared");
+}
+
+function getRivalActivity(handle) {
+  const rival = contestsState.cfRivals.find((r) => r.handle === handle);
+  if (!rival) return {};
+  const activity = {};
+  rival.history.forEach((h) => {
+    const d = dateStr(new Date(h.ratingUpdateTimeSeconds * 1000));
+    activity[d] = (activity[d] || 0) + 1;
+  });
+  return activity;
+}
+
+function updateHeatmapRivalDropdown() {
+  const select = document.getElementById("heatmap-rival-select");
+  if (!select) return;
+
+  select.innerHTML = '<option value="">Compare with Rival...</option>';
+
+  contestsState.cfRivals.forEach((rival) => {
+    const opt = document.createElement("option");
+    opt.value = rival.handle;
+    opt.textContent = rival.handle;
+    if (state.compareRival === rival.handle) opt.selected = true;
+    select.appendChild(opt);
+  });
 }

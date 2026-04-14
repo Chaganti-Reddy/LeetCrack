@@ -7,7 +7,6 @@
   <title>AlgoTrack — Multi-Platform Problem Tracker</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="style.css">
-  <!-- Supabase JS SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script>
     window.SUPABASE_URL = "https://ziwaxepqjpxljbbcxnqd.supabase.co";
@@ -39,11 +38,9 @@
     </div>
   </nav>
 
-  <!-- ── TRACKER PAGE ─────────────────────────────────────────────────────── -->
   <div id="page-tracker" class="page active">
     <div class="app-wrapper">
 
-      <!-- Platform tabs -->
       <div class="platform-tabs">
         <button class="platform-tab active" id="platform-tab-lc" onclick="switchPlatform('lc')">⚡ LeetCode</button>
         <button class="platform-tab" id="platform-tab-cf" onclick="switchPlatform('cf')">
@@ -59,7 +56,6 @@
         <button class="platform-tab" id="platform-tab-ac" onclick="switchPlatform('ac')">🔵 AtCoder</button>
       </div>
 
-      <!-- LC Content -->
       <div id="lc-tracker-content">
 
         <div class="cf-sync-bar">
@@ -114,15 +110,19 @@
             <input type="text" id="search-input" placeholder="Search problems or companies… ( / )" autocomplete="off">
           </div>
 
-          <div id="lc-curated-row" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
-            <span style="font-size:11px;color:var(--text-muted);line-height:28px;margin-right:2px;">📋 Curated:</span>
-            <button class="curated-pill" data-platform="lc" data-list="blind75" onclick="setCuratedList('lc','blind75')">Blind 75</button>
-            <button class="curated-pill" data-platform="lc" data-list="neetcode150" onclick="setCuratedList('lc','neetcode150')">NeetCode 150</button>
-          </div>
-          <div id="filter-difficulty-pills" class="diff-pills">
-            <button class="pill pill-diff pill-easy" data-diff="easy">Easy</button>
-            <button class="pill pill-diff pill-medium" data-diff="medium">Medium</button>
-            <button class="pill pill-diff pill-hard" data-diff="hard">Hard</button>
+          <div id="lc-curated-container"></div>
+          <div class="company-filter-wrap" id="diff-filter-wrap">
+            <button class="filter-dropdown-btn" id="diff-filter-btn" onclick="toggleDiffDropdown()">
+              Difficulty <span id="diff-filter-count" class="filter-count" style="display:none">0</span><span
+                class="dropdown-arrow">▾</span>
+            </button>
+            <div class="company-dropdown" id="diff-dropdown" style="display:none">
+              <div class="company-checkbox-list" id="diff-checkbox-list">
+              </div>
+              <div class="company-dropdown-footer">
+                <button class="dropdown-clear-btn" onclick="clearDiffFilters()">Clear</button>
+              </div>
+              </div>
           </div>
 
           <div class="filter-group">
@@ -220,9 +220,8 @@
           <span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> switch pages</span>
         </div>
       </div>
-    </div> <!-- end lc-tracker-content -->
+    </div> 
 
-    <!-- CF Content -->
     <div id="cf-tracker-content" style="display:none">
       <div class="cf-sync-bar">
         <div id="cf-connect-area" class="cf-connect-area">
@@ -303,12 +302,7 @@
           <option value="unsolved">Unsolved</option>
           <option value="solved">Solved ✓</option>
         </select>
-        <div id="cf-curated-row" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px;">
-          <span style="font-size:11px;color:var(--text-muted);line-height:28px;margin-right:2px;">📋 Curated:</span>
-          <button class="curated-pill" data-platform="cf" data-list="cf_a2oj_800" onclick="setCuratedList('cf','cf_a2oj_800')">A2OJ 800</button>
-          <button class="curated-pill" data-platform="cf" data-list="cf_a2oj_1200" onclick="setCuratedList('cf','cf_a2oj_1200')">A2OJ 1200</button>
-          <button class="curated-pill" data-platform="cf" data-list="cf_a2oj_1600" onclick="setCuratedList('cf','cf_a2oj_1600')">A2OJ 1600</button>
-        </div>
+        <div id="cf-curated-container"></div>
         <div class="filter-pills-group">
           <button class="pill filter-pill" id="cf-filter-starred-btn" onclick="toggleCFStarredFilter()" title="Show bookmarked only">★ Starred</button>
           <button class="pill filter-pill" id="cf-filter-review-btn" onclick="toggleCFReviewFilter()" title="Due for SM2 review">🔁 Review</button>
@@ -338,9 +332,8 @@
         <span><kbd>S</kbd> sync accounts</span>
         <span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> switch pages</span>
       </div>
-    </div> <!-- end cf-tracker-content -->
+    </div> 
 
-    <!-- AC Content -->
     <div id="ac-tracker-content" style="display:none">
       <div class="cf-sync-bar">
         <div id="ac-connect-area" class="cf-connect-area">
@@ -389,11 +382,7 @@
           <option value="unsolved">Unsolved</option>
           <option value="solved">Solved ✓</option>
         </select>
-        <div id="ac-curated-row" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px;">
-          <span style="font-size:11px;color:var(--text-muted);line-height:28px;margin-right:2px;">📋 Curated:</span>
-          <button class="curated-pill" data-platform="ac" data-list="ac_typical90" onclick="setCuratedList('ac','ac_typical90')">Typical 90</button>
-          <button class="curated-pill" data-platform="ac" data-list="ac_beginner" onclick="setCuratedList('ac','ac_beginner')">Beginner Series</button>
-        </div>
+        <div id="ac-curated-container"></div>
         <div class="filter-pills-group">
           <button class="pill filter-pill" id="ac-filter-starred-btn" onclick="toggleACStarredFilter()" title="Show bookmarked only">★ Starred</button>
           <button class="pill filter-pill" id="ac-filter-review-btn" onclick="toggleACReviewFilter()" title="Due for SM2 review">🔁 Review</button>
@@ -421,12 +410,11 @@
         <span><kbd>S</kbd> sync accounts</span>
         <span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> switch pages</span>
       </div>
-    </div> <!-- end ac-tracker-content -->
+    </div>
 
     </div>
   </div>
 
-  <!-- ── PROFILE PAGE ─────────────────────────────────────────────────────── -->
   <div id="page-profile" class="page">
     <div class="app-wrapper profile-wrapper">
 
@@ -448,7 +436,6 @@
       </div>
 
       <div id="profile-content" style="display:none">
-        <!-- GitHub identity header - always shown, generic -->
         <div class="profile-header">
           <div class="profile-avatar-wrap"><img id="profile-avatar" src="" alt="" class="profile-avatar"></div>
           <div class="profile-info">
@@ -462,7 +449,6 @@
           </div>
         </div>
 
-        <!-- Cross-platform streak & heatmap -->
         <div class="streak-section">
           <div class="streak-card main-streak" id="streak-card">
             <div class="streak-bg-glow"></div>
@@ -490,20 +476,28 @@
         </div>
 
         <div class="section-block">
-          <div class="section-title">Solve Activity — Last 52 Weeks <span
-              style="font-size:9px;color:var(--text-dim);font-weight:400;letter-spacing:0;text-transform:none">LC + CF + AC
-              combined</span></div>
+          <div class="section-title"
+            style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <span>Solve Activity — Last 52 Weeks <span
+                style="font-size:9px;color:var(--text-dim);font-weight:400;letter-spacing:0;text-transform:none">LC + CF + AC
+                combined</span></span>
+                <select id="heatmap-rival-select" onchange="setHeatmapRival(this.value)" class="contest-filter-select"
+                  style="font-size:10px; padding:2px 8px; height:22px;">
+                  <option value="">Compare with Rival...</option>
+                </select>
+                </div>
           <div id="heatmap" class="heatmap"></div>
-          <div class="heatmap-legend"><span>Less</span>
+          <div class="heatmap-legend">
+            <span>Less</span>
             <div class="legend-box l0"></div>
             <div class="legend-box l1"></div>
             <div class="legend-box l2"></div>
             <div class="legend-box l3"></div>
-            <div class="legend-box l4"></div><span>More</span>
+            <div class="legend-box l4"></div>
+            <span>More</span>
           </div>
         </div>
 
-        <!-- Platform tabs -->
         <div class="profile-platform-tabs">
           <button class="profile-plat-tab active" id="profile-tab-lc" onclick="switchProfilePlatform('lc')">⚡ LeetCode</button>
           <button class="profile-plat-tab" id="profile-tab-cf" onclick="switchProfilePlatform('cf')">
@@ -516,9 +510,7 @@
           <button class="profile-plat-tab" id="profile-tab-ac" onclick="switchProfilePlatform('ac')">🔵 AtCoder</button>
         </div>
         
-        <!-- ── LC Profile Section ── -->
         <div id="profile-lc-section">
-          <!-- LC action bar -->
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
             <div id="profile-lc-badge" class="profile-lc-badge"></div>
             <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
@@ -531,8 +523,20 @@
           </div>
 
           <div class="section-block readiness-section" style="position:relative;padding-top:44px">
-            <div class="section-title" style="position:absolute;top:22px;left:24px">Interview Readiness Score</div>
-            <div id="readiness-gauge" style="margin-top:8px"></div>
+            <div class="section-title"
+              style="position:absolute;top:22px;left:24px;display:flex;align-items:center;gap:12px;width:calc(100% - 48px)">
+              <span>Interview Readiness Score</span>
+              <select id="readiness-company-filter" onchange="state.readinessCompany = this.value; renderProfileLC();"
+                class="cf-rating-select" style="margin-left:auto;padding:2px 8px;font-size:10px;height:24px">
+                <option value="all">Overall Prep</option>
+                <option value="google">Google</option>
+                <option value="amazon">Amazon</option>
+                <option value="meta">Meta</option>
+                <option value="microsoft">Microsoft</option>
+                <option value="apple">Apple</option>
+              </select>
+            </div>
+            <div id="readiness-gauge" style="margin-top:8px; width: 100%;"></div>
           </div>
 
           <div class="profile-grid">
@@ -580,9 +584,7 @@
             </div>
             </div>
             
-            <!-- ── CF Profile Section ── -->
             <div id="profile-cf-section" style="display:none">
-              <!-- CF action bar -->
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
                 <div id="profile-cf-badge" class="profile-lc-badge"></div>
                 <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
@@ -614,7 +616,6 @@
               </div>
             </div>
 
-            <!-- ── AC Profile Section ── -->
             <div id="profile-ac-section" style="display:none">
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
                 <div id="profile-ac-badge" class="profile-lc-badge"></div>
@@ -644,10 +645,8 @@
     </div>
   </div>
 
-  <!-- ── INSIGHTS PAGE ────────────────────────────────────────────────────── -->
   <div id="page-insights" class="page">
     <div class="app-wrapper insights-wrapper">
-      <!-- Not logged in -->
       <div id="insights-guest" style="display:none">
         <div class="guest-card">
           <div class="guest-icon">📈</div>
@@ -664,7 +663,6 @@
         </div>
       </div>
       
-      <!-- Logged in but no handle connected -->
       <div id="insights-no-handle" style="display:none">
         <div class="contests-no-user">
           <div class="contests-no-user-icon">📈</div>
@@ -675,9 +673,7 @@
         </div>
       </div>
       
-      <!-- Actual insights content -->
       <div id="insights-content">
-<!-- Platform tabs -->
 <div class="profile-platform-tabs">
   <button class="profile-plat-tab active" id="insights-tab-lc" onclick="switchInsightsPlatform('lc')">⚡
     LeetCode</button>
@@ -691,7 +687,6 @@
   <button class="profile-plat-tab" id="insights-tab-ac" onclick="switchInsightsPlatform('ac')">🔵 AtCoder</button>
 </div>
 
-<!-- ── LC Insights Section ── -->
 <div id="insights-lc-section">
         <div class="insights-ribbon" id="insights-ribbon"></div>
         <div class="insights-grid">
@@ -772,7 +767,6 @@
           </div>
           </div>
 
-      <!-- ── CF Insights Section ── -->
       <div id="insights-cf-section" style="display:none">
         <div class="insights-ribbon" id="cf-insights-ribbon"></div>
         <div class="insights-grid">
@@ -815,7 +809,6 @@
         </div>
       </div>
 
-      <!-- ── AC Insights Section ── -->
       <div id="insights-ac-section" style="display:none">
         <div class="insights-ribbon" id="ac-insights-ribbon"></div>
         <div class="insights-grid">
@@ -848,11 +841,10 @@
           </div>
         </div>
       </div>
-    </div><!-- /insights-content -->
+    </div>
     </div>
   </div>
 
-  <!-- ── MODALS ──────────────────────────────────────────────────────────── -->
   <div id="modal-overlay" class="modal-overlay" style="display:none" onclick="closeModal()">
     <div class="modal" onclick="event.stopPropagation()">
       <div class="modal-title">Clear all progress?</div>
@@ -917,7 +909,6 @@
     </div>
   </div>
 
-  <!-- ── ONBOARDING MODAL ──────────────────────────────────────────────── -->
   <div id="onboarding-overlay" class="modal-overlay" style="display:none">
     <div class="modal onboarding-modal" onclick="event.stopPropagation()">
       <div class="onboarding-header">
@@ -1012,23 +1003,9 @@
     </div>
   </div>
 
-  <!-- ═══════════════════════════════════════════════════════════════════════
-      CONTESTS PAGE — index.html PATCHES
-      ═══════════════════════════════════════════════════════════════════════
-    
-    PATCH 1: Inside <div class="nav-links"> add this button after nav-insights:
-    ─────────────────────────────────────────────────────────────────────────
-         <button class="nav-btn" id="nav-contests" onclick="showPage('contests')">Contests</button>
-    
-    PATCH 2: Add this entire block just before <script src="app.js"></script>
-    ─────────────────────────────────────────────────────────────────────────
-    -->
-  
-  <!-- ── CONTESTS PAGE ────────────────────────────────────────────────────── -->
   <div id="page-contests" class="page">
     <div class="app-wrapper contests-wrapper">
 
-      <!-- Not logged in -->
 <div id="contests-guest" style="display:none">
   <div class="guest-card">
     <div class="guest-icon">🏆</div>
@@ -1044,7 +1021,6 @@
   </div>
 </div>
 
-<!-- Logged in but no handle connected -->
 <div id="contests-no-handle" style="display:none">
   <div class="contests-no-user">
     <div class="contests-no-user-icon">🏆</div>
@@ -1054,10 +1030,8 @@
   </div>
 </div>
 
-<!-- Actual contests content -->
 <div id="contests-content">
   
-      <!-- Platform tabs -->
       <div class="contests-plat-tabs">
         <button class="contests-plat-tab active" id="ctab-cf" onclick="switchContestPlatform('cf')">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px">
@@ -1069,10 +1043,8 @@
         <button class="contests-plat-tab" id="ctab-ac" onclick="switchContestPlatform('ac')">🔵 AtCoder</button>
       </div>
   
-      <!-- ═══ CODEFORCES CONTESTS ═══ -->
       <div id="contests-cf-section">
   
-        <!-- User contest history (only if CF connected) -->
         <div id="cf-contest-user-panel" style="display:none">
           <div class="section-block">
             <div class="section-title-row">
@@ -1080,10 +1052,8 @@
               <span class="contests-user-tag" id="cf-contests-user-tag"></span>
             </div>
   
-            <!-- Rating stats ribbon -->
             <div class="contests-ribbon" id="cf-contests-ribbon"></div>
   
-            <!-- Rating graph (SVG drawn via JS) -->
             <div class="rating-graph-wrap">
               <div class="rating-graph-header">
                 <span class="rating-graph-title">Rating over time</span>
@@ -1095,7 +1065,6 @@
               <div id="cf-rating-graph" class="rating-graph-container"></div>
             </div>
   
-            <!-- Contest history table -->
             <div class="section-title" style="margin-top:20px">Contest History</div>
             <div class="contests-history-controls">
               <input type="text" id="cf-contest-search" class="contest-search-input" placeholder="Search contests…"
@@ -1112,7 +1081,6 @@
             <div id="cf-contest-history-pagination" class="contests-pagination"></div>
           </div>
   
-          <!-- Performance breakdown -->
           <div class="contests-insight-grid">
             <div class="section-block">
               <div class="section-title">🏆 Best Performances</div>
@@ -1128,13 +1096,11 @@
             </div>
           </div>
 
-          <!-- CF Personal Records -->
           <div class="section-block" id="cf-records-panel" style="display:none">
             <div class="section-title">🏅 Personal Records</div>
             <div id="cf-personal-records" class="pr-grid"></div>
           </div>
 
-          <!-- CF Post-Contest Upsolver -->
           <div class="section-block" id="cf-upsolver-panel" style="display:none">
             <div class="section-title">⟳ Post-Contest Upsolver</div>
             <div class="upsolver-select-row">
@@ -1145,13 +1111,11 @@
             <div id="cf-upsolver-body"></div>
           </div>
 
-          <!-- CF Rating Predictor -->
           <div class="section-block" id="cf-predictor-panel" style="display:none">
             <div class="section-title">🔮 Rating Predictor</div>
             <div id="cf-predictor-body"></div>
           </div>
 
-          <!-- CF Rivals Tracker -->
           <div class="section-block" id="cf-rivals-panel">
             <div class="section-title-row">
               <span class="section-title">⚔️ Rivals Tracker</span>
@@ -1171,7 +1135,6 @@
 
         </div>
   
-        <!-- No user connected state -->
         <div id="cf-contest-no-user" class="contests-no-user" style="display:none">
           <div class="contests-no-user-icon">📊</div>
           <div class="contests-no-user-title">Connect Codeforces to see your contest history</div>
@@ -1180,7 +1143,6 @@
           <button class="btn-primary" onclick="switchPlatform('cf'); showPage('tracker')">→ Connect Codeforces</button>
         </div>
 
-        <!-- CF Problem Recommender -->
         <div class="section-block" id="cf-recommender-panel" style="display:none">
           <div class="section-title-row">
             <span class="section-title">🎯 What to Solve Next</span>
@@ -1189,7 +1151,6 @@
           <div id="cf-recommender-body"></div>
         </div>
 
-        <!-- Upcoming contests (always shown) -->
         <div class="section-block">
           <div class="section-title-row">
             <span class="section-title">🚀 Upcoming Contests</span>
@@ -1199,7 +1160,6 @@
           <div id="cf-upcoming-contests" class="contests-list"></div>
         </div>
   
-        <!-- Active / live contests -->
         <div class="section-block" id="cf-live-section" style="display:none">
           <div class="section-title-row">
             <span class="section-title live-indicator">🔴 Live Now</span>
@@ -1207,7 +1167,6 @@
           <div id="cf-live-contests" class="contests-list"></div>
         </div>
   
-        <!-- Recent past contests -->
         <div class="section-block">
           <div class="section-title-row">
             <span class="section-title">📋 Recent Past Contests</span>
@@ -1221,12 +1180,10 @@
           <button id="cf-past-more-btn" class="contests-more-btn" onclick="showMoreCFPast()" style="display:none">Show
             more</button>
         </div>  
-      </div><!-- /contests-cf-section -->
+      </div>
   
-      <!-- ═══ ATCODER CONTESTS ═══ -->
       <div id="contests-ac-section" style="display:none">
   
-        <!-- User contest history (only if AC connected) -->
         <div id="ac-contest-user-panel" style="display:none">
           <div class="section-block">
             <div class="section-title-row">
@@ -1234,7 +1191,6 @@
               <span class="contests-user-tag" id="ac-contests-user-tag"></span>
             </div>
   
-            <!-- AC rating graph -->
             <div class="rating-graph-wrap">
               <div class="rating-graph-header">
                 <span class="rating-graph-title">Performance over time</span>
@@ -1242,7 +1198,6 @@
               <div id="ac-rating-graph" class="rating-graph-container"></div>
             </div>
   
-            <!-- AC Contest History table -->
             <div class="section-title" style="margin-top:20px">Contest History</div>
             <div class="contests-history-controls">
               <input type="text" id="ac-contest-search" class="contest-search-input" placeholder="Search contests…"
@@ -1259,7 +1214,6 @@
             <div id="ac-contest-history-pagination" class="contests-pagination"></div>
           </div>
   
-          <!-- AC performance insights -->
           <div class="contests-insight-grid">
             <div class="section-block">
               <div class="section-title">🏆 Best Performances</div>
@@ -1274,13 +1228,11 @@
               <div id="ac-improvement-tips" class="contests-tips"></div>
             </div>
           </div>
-<!-- AC Personal Records -->
 <div class="section-block" id="ac-records-panel" style="display:none">
   <div class="section-title">🏅 Personal Records</div>
   <div id="ac-personal-records" class="pr-grid"></div>
 </div>
 
-<!-- AC Post-Contest Upsolver -->
 <div class="section-block" id="ac-upsolver-panel" style="display:none">
   <div class="section-title">⟳ Post-Contest Upsolver</div>
   <div class="upsolver-select-row">
@@ -1292,13 +1244,11 @@
   <div id="ac-upsolver-body"></div>
 </div>
 
-<!-- AC Rating Predictor -->
 <div class="section-block" id="ac-predictor-panel" style="display:none">
   <div class="section-title">🔮 Performance Predictor</div>
   <div id="ac-predictor-body"></div>
 </div>
 
-<!-- AC Rivals Tracker -->
 <div class="section-block" id="ac-rivals-panel">
   <div class="section-title-row">
     <span class="section-title">⚔️ Rivals Tracker</span>
@@ -1320,7 +1270,6 @@
 
         </div>
   
-        <!-- No user connected state -->
         <div id="ac-contest-no-user" class="contests-no-user" style="display:none">
           <div class="contests-no-user-icon">📊</div>
           <div class="contests-no-user-title">Connect AtCoder to see your contest history</div>
@@ -1329,7 +1278,6 @@
           <button class="btn-primary" onclick="switchPlatform('ac'); showPage('tracker')">→ Connect AtCoder</button>
         </div>
   
-        <!-- AC Problem Recommender -->
         <div class="section-block" id="ac-recommender-panel" style="display:none">
           <div class="section-title-row">
             <span class="section-title">🎯 What to Solve Next</span>
@@ -1338,7 +1286,6 @@
           <div id="ac-recommender-body"></div>
         </div>
 
-        <!-- AC Upcoming -->
         <div class="section-block">
           <div class="section-title-row">
             <span class="section-title">🚀 Upcoming AtCoder Contests</span>
@@ -1348,7 +1295,6 @@
           <div id="ac-upcoming-contests" class="contests-list"></div>
         </div>
   
-        <!-- AC Live -->
         <div class="section-block" id="ac-live-section" style="display:none">
           <div class="section-title-row">
             <span class="section-title live-indicator">🔴 Live Now</span>
@@ -1356,7 +1302,6 @@
           <div id="ac-live-contests" class="contests-list"></div>
         </div>
   
-        <!-- AC Past -->
         <div class="section-block">
           <div class="section-title-row">
             <span class="section-title">📋 Recent Past AtCoder Contests</span>
@@ -1370,11 +1315,10 @@
             more</button>
         </div>
   
-      </div><!-- /contests-ac-section -->
+      </div>
   
     </div>
 
-    <!-- Contest detail modal -->
 <div id="contest-detail-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeContestDetail()">
   <div class="modal contest-detail-modal" onclick="event.stopPropagation()">
     <div class="contest-detail-header">
@@ -1387,11 +1331,9 @@
     <div id="contest-detail-body" class="contest-detail-body"></div>
   </div>
 </div>
-</div><!-- /contests-content -->
-  </div><!-- /page-contests -->
+</div>
+  </div>
 
-
-  <!-- CF Note Modal -->
   <div id="cf-note-modal-overlay" class="modal-overlay" style="display:none" onclick="closeCFNoteModal()">
     <div class="modal note-modal" onclick="event.stopPropagation()">
       <div class="modal-title" id="cf-note-modal-title">CF Problem Notes</div>
@@ -1404,7 +1346,6 @@
     </div>
   </div>
 
-  <!-- AC Note Modal -->
   <div id="ac-note-modal-overlay" class="modal-overlay" style="display:none" onclick="closeACNoteModal()">
     <div class="modal note-modal" onclick="event.stopPropagation()">
       <div class="modal-title" id="ac-note-modal-title">AC Problem Notes</div>
@@ -1417,7 +1358,6 @@
     </div>
   </div>
 
-  <!-- Weekly Digest Modal -->
   <div id="weekly-digest-overlay" class="modal-overlay" style="display:none" onclick="closeWeeklyDigest()">
     <div class="modal" onclick="event.stopPropagation()" style="max-width:400px">
       <div class="modal-title">📊 Weekly Digest</div>
