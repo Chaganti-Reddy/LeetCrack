@@ -25,17 +25,6 @@ fi
 node generate-manifest.js
 
 node -e "
-  const fs = require('fs');
-  const original = fs.readFileSync('index.html', 'utf8');
-  fs.writeFileSync('index.html.bak', original);
-  const injected = original
-    .replace(/REPLACE_SUPABASE_URL/g, process.env.SUPABASE_URL)
-    .replace(/REPLACE_SUPABASE_ANON/g, process.env.SUPABASE_ANON);
-  fs.writeFileSync('index.html', injected);
-  console.log('Supabase config injected');
-"
-
-node -e "
   const fs  = require('fs');
   const dir = require('path').join(process.cwd(), 'data');
   let debounce = null;
@@ -54,10 +43,6 @@ WATCHER_PID=$!
 
 cleanup() {
   echo ""
-  if [ -f index.html.bak ]; then
-    mv index.html.bak index.html
-    echo "✓ index.html restored"
-  fi
   kill $WATCHER_PID 2>/dev/null
   kill $NETLIFY_PID 2>/dev/null
 }
