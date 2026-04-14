@@ -301,7 +301,7 @@ button {
   background: var(--bg-3);
   border-radius: 0 0 var(--radius-lg) var(--radius-lg);
   overflow: hidden;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 #progress-bar-fill {
@@ -311,6 +311,33 @@ button {
   transition: width .5s ease;
 }
 
+.platform-progress-fill {
+  height: 100%;
+  width: 0%;
+  transition: width .5s ease;
+}
+
+.cf-progress-fill {
+  background: linear-gradient(90deg, #1565c0, #4fc3f7);
+}
+
+.ac-progress-fill {
+  background: linear-gradient(90deg, #00695c, #26a69a);
+}
+
+#cf-tracker-content .filters-row,
+#ac-tracker-content .filters-row {
+  margin-top: 16px;
+}
+
+#insights-guest,
+#insights-no-handle,
+#contests-guest,
+#contests-no-handle {
+  display: flex;
+  justify-content: center;
+  padding: 60px 20px;
+}
 /* ── Loading ───────────────────────────────────────────────────────────────── */
 #loading {
   text-align: center;
@@ -6027,4 +6054,296 @@ kbd {
   padding: 0 6px;
   white-space: nowrap;
   color: var(--text);
+}
+/* ─── Radar click hint ────────────────────────────── */
+.radar-click-hint {
+  text-align: center;
+  font-size: 10px;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  letter-spacing: 0.05em;
+    margin-bottom: 4px;
+    opacity: 0.65;
+}
+#cf-radar-chart,
+#ac-radar-chart {
+  cursor: pointer;
+  transition: opacity 0.18s, transform 0.2s;
+}
+#cf-radar-chart:hover,
+#ac-radar-chart:hover {
+  opacity: 0.87;
+  transform: scale(1.015);
+}
+
+/* ─── Radar Detail Modal (CS2-style) ─────────────── */
+.rdm-modal {
+  max-width: 900px;
+  width: 96vw;
+  max-height: 88vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+}
+
+.rdm-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 22px 24px 16px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--bg-2);
+    z-index: 2;
+  }
+  
+  .rdm-title {
+    font-family: var(--display);
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  
+  .rdm-subtitle {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: var(--mono);
+    margin-top: 3px;
+}
+
+/* Summary ribbon */
+.rdm-ribbon {
+  display: flex;
+  gap: 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-3);
+  }
+  
+  .rdm-ribbon-stat {
+    flex: 1;
+    padding: 14px 16px;
+    border-right: 1px solid var(--border);
+    text-align: center;
+  }
+  
+  .rdm-ribbon-stat:last-child {
+    border-right: none;
+  }
+  
+  .rdm-ribbon-val {
+    font-family: var(--mono);
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1;
+  }
+  
+  .rdm-ribbon-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    font-family: var(--mono);
+}
+
+/* Body layout */
+.rdm-body {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 0;
+  min-height: 0;
+}
+
+.rdm-left {
+  padding: 20px 16px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rdm-right {
+  padding: 20px 20px;
+  overflow-y: auto;
+}
+
+.rdm-section-label {
+  font-size: 10px;
+  font-family: var(--mono);
+  font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+
+/* Legend */
+.rdm-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--text-muted);
+}
+.rdm-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 3px;
+  vertical-align: middle;
+}
+
+/* Insight pills */
+.rdm-pills-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rdm-pills-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.rdm-pill {
+  font-size: 10px;
+  font-family: var(--mono);
+  padding: 4px 9px;
+  border-radius: 12px;
+  font-weight: 500;
+}
+.rdm-pill-warn {
+  background: rgba(248, 113, 113, 0.13);
+  color: #f87171;
+  border: 1px solid rgba(248, 113, 113, 0.25);
+}
+
+.rdm-pill-ok {
+  background: rgba(74, 222, 128, 0.12);
+  color: #4ade80;
+  border: 1px solid rgba(74, 222, 128, 0.25);
+}
+
+/* Breakdown rows */
+.rdm-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.rdm-row {
+  display: grid;
+  grid-template-columns: 28px 110px 1fr 90px;
+  align-items: center;
+  gap: 12px;
+    padding: 10px 14px;
+  border-radius: 8px;
+  transition: opacity 0.15s;
+}
+.rdm-row:hover {
+  opacity: 0.9;
+}
+
+.rdm-rank {
+  font-size: 13px;
+  text-align: center;
+}
+
+.rdm-label-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rdm-label {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+.rdm-tier {
+  font-size: 9.5px;
+  font-family: var(--mono);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.rdm-bar-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rdm-bar-track {
+  height: 8px;
+  background: var(--bg-4);
+  border-radius: 4px;
+  overflow: visible;
+}
+.rdm-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+.rdm-bar-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 8px;
+  font-family: var(--mono);
+  padding: 0 1px;
+  }
+  
+  .rdm-stats {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+  }
+  
+  .rdm-pct {
+    font-family: var(--mono);
+    font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+}
+.rdm-counts {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.rdm-remaining {
+  font-size: 9.5px;
+  font-family: var(--mono);
+}
+
+/* Mobile */
+@media (max-width: 640px) {
+  .rdm-body {
+    grid-template-columns: 1fr;
+  }
+
+  .rdm-left {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .rdm-ribbon {
+    flex-wrap: wrap;
+  }
+
+  .rdm-ribbon-stat {
+    flex: 1 1 30%;
+  }
+
+  .rdm-row {
+    grid-template-columns: 24px 80px 1fr 70px;
+    gap: 8px;
+  }
 }
