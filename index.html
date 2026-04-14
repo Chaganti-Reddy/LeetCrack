@@ -62,6 +62,14 @@
       <!-- LC Content -->
       <div id="lc-tracker-content">
 
+        <div class="cf-sync-bar">
+          <div id="lc-connect-area" class="cf-connect-area" style="display:none">
+            <input id="lc-username-input-tracker" class="lc-input" placeholder="LeetCode username…" style="width:200px">
+            <button class="btn-primary" onclick="saveLCUsernameFromTracker()">Sync</button>
+          </div>
+          <div id="lc-connected-area" style="display:none"></div>
+        </div>
+
       <div class="stats-bar">
         <div class="stat-item">
           <div class="stat-value" id="stat-total">—</div>
@@ -224,6 +232,9 @@
         <div id="cf-connected-area" style="display:none"></div>
       </div>
       <div id="cf-stats-bar" class="stats-bar"></div>
+      <div class="progress-wrap">
+        <div id="cf-progress-bar-fill" class="platform-progress-fill cf-progress-fill"></div>
+      </div>
       <div class="filters-row">
         <div class="search-wrap">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
@@ -339,6 +350,9 @@
         <div id="ac-connected-area" style="display:none"></div>
       </div>
       <div id="ac-stats-bar" class="stats-bar"></div>
+      <div class="progress-wrap">
+        <div id="ac-progress-bar-fill" class="platform-progress-fill ac-progress-fill"></div>
+      </div>
       <div class="filters-row">
         <div class="search-wrap">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
@@ -633,6 +647,36 @@
   <!-- ── INSIGHTS PAGE ────────────────────────────────────────────────────── -->
   <div id="page-insights" class="page">
     <div class="app-wrapper insights-wrapper">
+      <!-- Not logged in -->
+      <div id="insights-guest" style="display:none">
+        <div class="guest-card">
+          <div class="guest-icon">📈</div>
+          <h2>Sync your progress</h2>
+          <p>Login with GitHub to unlock personal insights — solve trends, pattern coverage, company breakdown and more.</p>
+          <button class="btn-github-large" onclick="loginWithGitHub()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
+            </svg>
+            Continue with GitHub
+          </button>
+          <p class="guest-note">No database. No tracking. Just your own GitHub Gist.</p>
+        </div>
+      </div>
+      
+      <!-- Logged in but no handle connected -->
+      <div id="insights-no-handle" style="display:none">
+        <div class="contests-no-user">
+          <div class="contests-no-user-icon">📈</div>
+          <div class="contests-no-user-title">Connect a platform to see Insights</div>
+          <div class="contests-no-user-sub">Link your LeetCode, Codeforces, or AtCoder handle from the Tracker page to unlock
+            solve trends, pattern coverage, and more.</div>
+          <button class="btn-primary" onclick="showPage('tracker')">→ Go to Tracker</button>
+        </div>
+      </div>
+      
+      <!-- Actual insights content -->
+      <div id="insights-content">
 <!-- Platform tabs -->
 <div class="profile-platform-tabs">
   <button class="profile-plat-tab active" id="insights-tab-lc" onclick="switchInsightsPlatform('lc')">⚡
@@ -804,7 +848,7 @@
           </div>
         </div>
       </div>
-
+    </div><!-- /insights-content -->
     </div>
   </div>
 
@@ -983,6 +1027,35 @@
   <!-- ── CONTESTS PAGE ────────────────────────────────────────────────────── -->
   <div id="page-contests" class="page">
     <div class="app-wrapper contests-wrapper">
+
+      <!-- Not logged in -->
+<div id="contests-guest" style="display:none">
+  <div class="guest-card">
+    <div class="guest-icon">🏆</div>
+    <h2>Sync your progress</h2>
+    <p>Login with GitHub to track your contest history, rating graph, rivals, and performance predictions.</p>
+    <button class="btn-github-large" onclick="loginWithGitHub()">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
+      </svg>
+      Continue with GitHub
+    </button>
+    <p class="guest-note">No database. No tracking. Just your own GitHub Gist.</p>
+  </div>
+</div>
+
+<!-- Logged in but no handle connected -->
+<div id="contests-no-handle" style="display:none">
+  <div class="contests-no-user">
+    <div class="contests-no-user-icon">🏆</div>
+    <div class="contests-no-user-title">Connect a platform to see Contests</div>
+    <div class="contests-no-user-sub">Link your Codeforces or AtCoder handle from the Tracker page to see your contest history, rating graph, rivals, and predictions.</div>
+    <button class="btn-primary" onclick="showPage('tracker')">→ Go to Tracker</button>
+  </div>
+</div>
+
+<!-- Actual contests content -->
+<div id="contests-content">
   
       <!-- Platform tabs -->
       <div class="contests-plat-tabs">
@@ -1089,6 +1162,12 @@
             </div>
             <div id="cf-rivals-body"></div>
           </div>
+          <div class="insights-card" style="margin-top: 16px; margin-bottom: 16px;">
+            <div class="insights-card-title">🕸️ Tag Coverage Radar</div>
+<div style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Solve rate % per topic · <span
+    style="color:var(--accent);font-weight:600">click to expand</span></div>
+            <div id="cf-radar-chart"></div>
+          </div>
 
         </div>
   
@@ -1114,7 +1193,7 @@
         <div class="section-block">
           <div class="section-title-row">
             <span class="section-title">🚀 Upcoming Contests</span>
-            <button class="contests-refresh-btn" id="cf-contests-refresh" onclick="loadCFContests(true)">⟳
+            <button class="contests-refresh-btn" id="cf-contests-refresh" onclick="refreshContestData()">⟳
               Refresh</button>
           </div>
           <div id="cf-upcoming-contests" class="contests-list"></div>
@@ -1141,8 +1220,7 @@
           <div id="cf-past-contests" class="contests-list"></div>
           <button id="cf-past-more-btn" class="contests-more-btn" onclick="showMoreCFPast()" style="display:none">Show
             more</button>
-        </div>
-  
+        </div>  
       </div><!-- /contests-cf-section -->
   
       <!-- ═══ ATCODER CONTESTS ═══ -->
@@ -1233,6 +1311,13 @@
   <div id="ac-rivals-body"></div>
 </div>
 
+<div class="insights-card" style="margin-top:16px; margin-bottom: 16px;">
+  <div class="insights-card-title">🕸️ Difficulty Coverage Radar</div>
+<div style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Solve rate % per difficulty band · <span
+    style="color:var(--accent);font-weight:600">click to expand</span></div>
+  <div id="ac-radar-chart"></div>
+</div>
+
         </div>
   
         <!-- No user connected state -->
@@ -1257,7 +1342,7 @@
         <div class="section-block">
           <div class="section-title-row">
             <span class="section-title">🚀 Upcoming AtCoder Contests</span>
-            <button class="contests-refresh-btn" id="ac-contests-refresh" onclick="loadACContests(true)">⟳
+            <button class="contests-refresh-btn" id="ac-contests-refresh" onclick="refreshContestData()">⟳
               Refresh</button>
           </div>
           <div id="ac-upcoming-contests" class="contests-list"></div>
@@ -1302,6 +1387,7 @@
     <div id="contest-detail-body" class="contest-detail-body"></div>
   </div>
 </div>
+</div><!-- /contests-content -->
   </div><!-- /page-contests -->
 
 
