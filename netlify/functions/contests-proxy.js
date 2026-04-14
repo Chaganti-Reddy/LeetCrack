@@ -61,6 +61,27 @@ exports.handler = async (event) => {
       return { statusCode: 200, headers, body: JSON.stringify([]) };
     }
 
+    if (platform === "ac-user" && handle) {
+      try {
+        const res = await fetch(
+          `https://atcoder.jp/users/${encodeURIComponent(handle)}/history/json`,
+          { headers: { "User-Agent": "AlgoTrack/1.0" } }
+        );
+        if (!res.ok) return { statusCode: 200, headers, body: JSON.stringify({}) };
+        const ratingRes = await fetch(
+          `https://kenkoooo.com/atcoder/atcoder-api/v3/user/history?user=${encodeURIComponent(handle)}`,
+          { headers: { "User-Agent": "AlgoTrack/1.0" } }
+        );
+        const ratingData = ratingRes.ok ? await ratingRes.json() : [];
+        const rated = ratingData.filter((h) => h.IsRated);
+        const currentRating = rated.length ? rated[rated.length - 1].NewRating : null;
+        const peakRating = rated.length ? Math.max(...rated.map((h) => h.NewRating)) : null;
+        return { statusCode: 200, headers, body: JSON.stringify({ currentRating, peakRating, contests: rated.length }) };
+      } catch (_) {
+        return { statusCode: 200, headers, body: JSON.stringify({}) };
+      }
+    }
+
     return {
       statusCode: 400,
       headers,
