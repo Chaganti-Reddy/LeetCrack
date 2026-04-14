@@ -129,17 +129,33 @@ exports.handler = async (event) => {
         method: "POST",
         headers: lcHeaders,
         body: JSON.stringify({
-          query: `query($username: String!) { matchedUser(username: $username) { profile { userAvatar } } }`,
+          query: `query($username: String!) {
+            matchedUser(username: $username) {
+              profile { userAvatar ranking }
+              submitStatsGlobal {
+                acSubmissionNum { difficulty count }
+              }
+            }
+          }`,
           variables: { username },
         }),
       });
       const avatarData = await avatarRes.json();
-      const userAvatar =
-        avatarData?.data?.matchedUser?.profile?.userAvatar || null;
+      const matchedUser = avatarData?.data?.matchedUser;
+      const userAvatar = matchedUser?.profile?.userAvatar || null;
+      const ranking = matchedUser?.profile?.ranking || null;
+      const acNums = matchedUser?.submitStatsGlobal?.acSubmissionNum || [];
+      const solvedCount =
+        acNums.find((x) => x.difficulty === "All")?.count ?? null;
       return {
         statusCode: 200,
         headers,
-        body: JSON.stringify({ ...data.data, userAvatar }),
+        body: JSON.stringify({
+          ...data.data,
+          userAvatar,
+          ranking,
+          solvedCount,
+        }),
       };
     }
   } catch (err) {
