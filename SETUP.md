@@ -2,249 +2,121 @@
 
 ## How it works
 
-- LeetCode questions are auto-loaded from all CSV files in `data/`
-- Codeforces and AtCoder problems are loaded from metadata JSON files in `data/`
-- Each user logs in with GitHub OAuth — progress is saved to **their own private GitHub Gist**
-- No database, no backend storage — just GitHub's infrastructure
-- You (the repo owner) create one OAuth App; every visitor just clicks "Login with GitHub"
+- **LeetCode questions** are auto-loaded from CSV files in `data/`.
+- **Codeforces and AtCoder** problems are loaded from metadata JSON files in `data/`.
+- **User Progress Sync**: Progress is saved to a **Supabase Database**. 
+- **Authentication**: Uses **Supabase Auth** (configured with GitHub). This allows cross-device sync and permanent storage without relying on browser `localStorage` or private Gists.
+- **Contest Tracking**: A dedicated dashboard pulls upcoming/past contests from all three platforms via a serverless proxy.
 
 ---
 
-## Local Development
+## 1. Supabase Setup (Database & Auth)
+
+Before running the app, you need a Supabase project.
+
+1. **Create Project**: Go to [Supabase](https://supabase.com/) and create a new project.
+2. **Initialize Schema**: 
+   - Go to the **SQL Editor** in the Supabase dashboard.
+   - Copy the contents of `supabase-schema.sql` from this repo and run it. 
+   - This creates the `user_progress` and `user_settings` tables.
+3. **Configure Auth**:
+   - Go to **Authentication** -> **Providers** -> **GitHub**.
+   - Enable it. You will need to create a GitHub OAuth App (see below) and paste the **Client ID** and **Client Secret** into Supabase.
+   - **Important**: In your GitHub OAuth App, set the "Authorization callback URL" to the one provided by Supabase (e.g., `https://your-project.supabase.co/auth/v1/callback`).
+   - Add https://localhost:8888 to redirect URLs in your Supabase OAuth App.
+
+---
+
+## 2. Local Development
 
 ### 1. Install Netlify CLI
-
 ```bash
 npm install -g netlify-cli
 ```
 
-### 2. Create a GitHub OAuth App for local dev
-
-Go to: https://github.com/settings/developers → **OAuth Apps** → **New OAuth App**
-
-| Field | Value |
-|---|---|
-| Application name | AlgoTrack Dev |
-| Homepage URL | `http://localhost:8888` |
-| Authorization callback URL | `http://localhost:8888/api/github-oauth` |
-
-Click **Register application**, then generate a **Client Secret**.
-
-### 3. Set up your .env file
-
+### 2. Set up your .env file
 ```bash
 cp .env.example .env
 ```
-
-Edit `.env` with your dev OAuth app credentials:
-
+Edit `.env` with your Supabase credentials found in **Project Settings -> API**:
 ```
-GITHUB_CLIENT_ID=your_dev_client_id
-GITHUB_CLIENT_SECRET=your_dev_client_secret
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-public-key
 ```
 
-`.env` is gitignored — it will never be committed.
-
-### 4. Run the dev server
-
+### 3. Run the dev server
 ```bash
 ./dev.sh
 ```
-
 This script:
-- Checks for `.env` and validates required vars
-- Injects `GITHUB_CLIENT_ID` into `index.html` (restores original on exit)
-- Regenerates `data/manifest.json` from `data/*.csv`
-- Starts **Netlify Dev** at `http://localhost:8888` (functions + static)
-- Starts **browser-sync** at `http://localhost:4000` (live reload proxy over `:8888`)
-- Watches `data/*.csv` for changes and auto-regenerates the manifest
-
-> Open `http://localhost:4000` for development. Use `:8888` if you just need the raw server without live reload.
-
-### 5. Test the full flow
-
-1. Open `http://localhost:4000`
-2. Click **Login with GitHub**
-3. Approve the OAuth prompt
-4. Solve a question — check https://gist.github.com to confirm a private gist named `leetcode-tracker-progress.json` was created automatically
+- Injects Supabase keys into `index.html` at runtime.
+- Regenerates `data/manifest.json`.
+- Starts **Netlify Dev** (functions) at `:8888` and **browser-sync** (UI) at `:4000`.
 
 ---
 
-## Fetching Platform Metadata (one-time, run locally)
+## 3. Fetching Platform Metadata
 
-These scripts populate `data/` with problem metadata required for filtering, tags, and difficulty display. Run once and commit the output — they don't need to be re-run unless you want to refresh the data.
-
-### LeetCode metadata
-
-Fetches topic tags, slugs, and acceptance rates for all ~3000 public problems.
+Run these once to populate problem metadata (tags, difficulty, ratings).
 
 ```bash
-node fetch-leetcode-metadata.js           # fresh fetch (~25 min due to rate limiting)
-node fetch-leetcode-metadata.js --update  # only fetch new problems not already cached
+node fetch-leetcode-metadata.js           # ~25 min (rate-limited)
+node fetch-leetcode-metadata.js --update  # update only new problems
+node fetch-cf-metadata.js                 # Fast
+node fetch-atcoder-metadata.js            # Fast
 ```
-
-Output: `data/leetcode-meta.json`
-
-> LeetCode rate-limits tag fetches, which is why this takes time. The `--update` flag skips already-cached problems and is much faster on subsequent runs.
-
-### Codeforces metadata
-
-Fetches all rated CF problems with ratings and algorithm tags via the public Codeforces API.
-
-```bash
-node fetch-cf-metadata.js
-```
-
-Output: `data/cf-meta.json`
-
-### AtCoder metadata
-
-Fetches all AtCoder problems with difficulty estimates via the AtCoder Problems public API (kenkoooo.com).
-
-```bash
-node fetch-atcoder-metadata.js
-```
-
-Output: `data/atcoder-meta.json`
-
-> AtCoder problems don't have algorithm tags — only difficulty estimates and solve counts. This is a limitation of the data source, not the app.
-
-After running any of these, commit the output:
-
-```bash
-git add data/
-git commit -m "Update platform metadata"
-git push
-```
+*Commit the resulting `.json` files in the `data/` folder.*
 
 ---
 
-## Adding New Companies / Questions
+## 4. Adding New Companies / Questions
 
-Drop a new `.csv` file into `data/`. The filename format is:
-
-```
-companyname_timeframe.csv
-```
-
-Examples: `google_alltime.csv`, `stripe_1year.csv`, `amazon_6months.csv`
-
-The CSV must have these columns (standard LeetCode company export format):
-```
-ID, Title, Acceptance, Difficulty, Frequency, Leetcode Question Link
-```
-
-Run the manifest generator, then commit:
-
-```bash
-node generate-manifest.js
-git add data/
-git commit -m "Add <company> CSV"
-git push
-```
-
-`dev.sh` auto-regenerates the manifest on startup and watches for CSV changes during development, so manual runs are only needed outside of dev mode.
+1. Drop a new `.csv` file into `data/` (e.g., `uber_6months.csv`).
+2. Format must match: `ID, Title, Acceptance, Difficulty, Frequency, Leetcode Question Link`.
+3. Run `node generate-manifest.js`.
+4. Commit and push.
 
 ---
 
-## LeetCode Sync Modes
+## 5. LeetCode Sync Modes
 
-The app supports two sync modes for LeetCode:
+| Mode | Trigger | Storage |
+|------|---------|---------|
+| **Regular Sync** | `⟳ Sync` button | Fetches last 20 accepted solves via GraphQL. |
+| **Full History** | One-time modal | Requires `LEETCODE_SESSION` cookie; imports entire history. |
 
-| Mode | Trigger | What it fetches | Auth required |
-|------|---------|-----------------|---------------|
-| Regular sync | `⟳ Sync` button or on page load | Last 20 accepted submissions | None (public profile) |
-| Full history sync | One-time modal | Complete submission history | `LEETCODE_SESSION` cookie |
-
-**Recommended flow:**
-1. Connect your LeetCode username
-2. Run **Full History Sync** once (paste your `LEETCODE_SESSION` cookie from browser DevTools)
-3. All historical solves are imported and saved to your GitHub Gist
-4. From then on, regular sync keeps new solves up to date — the cookie is never needed again
-
-> LeetCode's public API hard-caps at 20 submissions. The cookie-based full sync is the only way to access complete history — this is a LeetCode API limitation, not an app limitation.
+**All synced data is automatically pushed to Supabase** if you are logged in.
 
 ---
 
-## Question Cache
+## 6. Production Deployment (Netlify)
 
-After the first load, LeetCode question data (CSV merges + metadata) is cached in `localStorage` and keyed to a hash of `manifest.json`. Subsequent loads are near-instant — no CSV fetches happen unless you've added or removed CSV files.
+### 1. Push to GitHub
+Ensure your repo is updated with all `data/*.json` metadata and the `manifest.json`.
 
-To force a cache refresh from the browser console:
+### 2. Connect to Netlify
+1. Create a new site from your GitHub repo.
+2. Build settings are handled by `netlify.toml`.
 
-```js
-clearLCCache()   // then reload the page
-```
-
----
-
-## Production Deployment (Netlify)
-
-### 1. Create a GitHub OAuth App for production
-
-Go to: https://github.com/settings/developers → **OAuth Apps** → **New OAuth App**
-
-| Field | Value |
-|---|---|
-| Application name | AlgoTrack |
-| Homepage URL | `https://your-site.netlify.app` |
-| Authorization callback URL | `https://your-site.netlify.app/api/github-oauth` |
-
-> Use your actual Netlify domain. You can update this after the first deploy.
-
-### 2. Push to GitHub
-
-```bash
-git init
-git add .
-git commit -m "initial commit"
-git remote add origin https://github.com/yourusername/algotrack.git
-git push -u origin main
-```
-
-### 3. Connect to Netlify
-
-1. Go to https://app.netlify.com → **Add new site** → **Import an existing project**
-2. Connect your GitHub repo
-3. Build settings are auto-detected from `netlify.toml` — no changes needed
-
-### 4. Set environment variables in Netlify
-
-Go to: **Site settings → Environment variables → Add a variable**
+### 3. Set Environment Variables
+In Netlify **Site settings → Environment variables**:
 
 | Key | Value |
 |---|---|
-| `GITHUB_CLIENT_ID` | Your production OAuth App Client ID |
-| `GITHUB_CLIENT_SECRET` | Your production OAuth App Client Secret |
+| `SUPABASE_URL` | Your Supabase URL |
+| `SUPABASE_ANON_KEY` | Your Supabase Anon Key |
 
-### 5. Deploy
-
-Trigger a deploy (or push a commit). Netlify will automatically:
-
-1. Run `node generate-manifest.js` — scans `data/` and builds the manifest
-2. Inject `GITHUB_CLIENT_ID` into `index.html`
-3. Deploy all functions (`github-oauth`, `lc-sync`, `ac-sync`) and static assets
-
-Your site is live. Share the URL — anyone can click "Login with GitHub" and start tracking.
+*Note: The build script automatically injects these into your HTML so the frontend can initialize the Supabase client.*
 
 ---
 
-## Serverless Functions
+## 7. Serverless Functions
 
 | Function | Route | Purpose |
 |---|---|---|
-| `github-oauth.js` | `/api/github-oauth` | Exchanges GitHub OAuth code for access token |
-| `lc-sync.js` | (called by frontend directly) | Proxies LeetCode GraphQL — handles both public (last 20) and cookie-based (full history) sync |
-| `ac-sync.js` | `/api/ac-sync` | Proxies kenkoooo.com AtCoder submission API (blocked for browser CORS) |
-
----
-
-## Environment Variables Summary
-
-| Variable | Where | Purpose |
-|---|---|---|
-| `GITHUB_CLIENT_ID` | `.env` + Netlify env vars | Injected into `index.html` at build/dev time — safe to expose |
-| `GITHUB_CLIENT_SECRET` | `.env` + Netlify env vars | Used server-side only by `github-oauth.js` — never sent to browser |
+| `lc-sync.js` | `/api/lc-sync` | Proxies LeetCode GraphQL (handles CORS + cookies). |
+| `ac-sync.js` | `/api/ac-sync` | Proxies AtCoder (kenkoooo) submission API. |
+| `contests-proxy.js` | `/api/contests-proxy` | Aggregates contest schedules from multiple platforms. |
 
 ---
 
@@ -252,30 +124,17 @@ Your site is live. Share the URL — anyone can click "Login with GitHub" and st
 
 ```
 /
-├── index.html                          # Main app shell
-├── app.js                              # All frontend logic
-├── style.css                           # Styles
-├── netlify.toml                        # Build config + function redirects
-├── generate-manifest.js                # Scans data/ and writes manifest.json
-├── dev.sh                              # Local dev script (cross-platform, Git Bash compatible)
-├── .env.example                        # Template for local env vars
-├── .gitignore
-├── fetch-leetcode-metadata.js          # One-time: LC tags/slugs → data/leetcode-meta.json
-├── fetch-cf-metadata.js                # One-time: CF ratings/tags → data/cf-meta.json
-├── fetch-atcoder-metadata.js           # One-time: AC difficulties → data/atcoder-meta.json
-├── SETUP.md                            # This file
-├── README.md                           # Quick overview and setup summary
-├── netlify/
-│   └── functions/
-│       ├── github-oauth.js             # Serverless: OAuth token exchange
-│       ├── lc-sync.js                  # Serverless: LeetCode submission proxy
-│       └── ac-sync.js                  # Serverless: AtCoder submission proxy
-└── data/
-    ├── manifest.json                   # Auto-generated — lists all CSV files
-    ├── leetcode-meta.json              # LC metadata (tags, slugs, difficulty, acceptance)
-    ├── cf-meta.json                    # CF metadata (ratings, tags, solve counts)
-    ├── atcoder-meta.json               # AC metadata (difficulty estimates, solve counts)
-    ├── google_alltime.csv
-    ├── amazon_6months.csv
-    └── ...                             # Drop more company CSVs here anytime
+├── app.js                     # Frontend logic (Supabase client, Auth, UI)
+├── index.html                 # App shell (Env vars injected here during build)
+├── supabase-schema.sql        # Database tables & RLS policies
+├── netlify/functions/
+│   ├── contests-proxy.js      # NEW: Fetches contest data
+│   ├── lc-sync.js             # Proxies LC submissions
+│   └── ac-sync.js             # Proxies AtCoder submissions
+├── data/
+│   ├── manifest.json          # List of active company CSVs
+│   ├── leetcode-meta.json     # LC problem database
+│   ├── cf-meta.json           # CF problem database
+│   └── atcoder-meta.json      # AC problem database
+└── ...
 ```
