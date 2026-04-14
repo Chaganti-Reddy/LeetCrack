@@ -5721,3 +5721,36 @@ kbd {
 .curated-row span {
   line-height: 34px;
 }
+
+.nav-contest-badge {
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.1s;
+}
+
+.nav-contest-badge:active {
+  transform: scale(0.95);
+}
+
+.nav-badge-dot {
+  width: 6px;
+  height: 6px;
+  background: #4fc3f7;
+  border-radius: 50%;
+  box-shadow: 0 0 8px #4fc3f7;
+  animation: nav-dot-pulse 2s infinite;
+}
+
+@keyframes nav-dot-pulse {
+  0% {
+    box-shadow: 0 0 0 0px rgba(79, 195, 247, 0.7);
+  }
+
+  70% {
+    box-shadow: 0 0 0 6px rgba(79, 195, 247, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0px rgba(79, 195, 247, 0);
+  }
+}

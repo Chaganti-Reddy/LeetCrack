@@ -358,7 +358,7 @@ const state = {
   notes: {},
   reviewData: {},
   user: null,
-  lcUsername: null, 
+  lcUsername: null,
   lcUserInfo: null,
   lcSyncing: false,
   page: 1,
@@ -379,7 +379,7 @@ const state = {
   coverageExpanded: false,
   expandedRows: new Set(),
   studyPlanCompany: null,
-  curatedList: null, 
+  curatedList: null,
   cfCuratedList: null,
   acCuratedList: null,
   activePlatform: "lc",
@@ -423,6 +423,7 @@ const state = {
   interviewDate: null,
   readinessCompany: "all",
   compareRival: null,
+  nextContestData: null,
 };
 
 const PAGES = ["tracker", "profile", "insights", "contests"];
@@ -1995,7 +1996,7 @@ async function disconnectCF() {
   clearContestCache("cfHistory");
   clearContestCache(`cfHistory_${state.cfUsername}`);
 
-  await saveProgress(); 
+  await saveProgress();
 
   document.getElementById("cf-connect-area").style.display = "";
   const connectedArea = document.getElementById("cf-connected-area");
@@ -2080,8 +2081,7 @@ function renderCFFilterUI() {
   if (searchEl) searchEl.value = state.cfFilters.search;
 }
 
-function updateCFRatingLabel() {
-}
+function updateCFRatingLabel() {}
 
 function setCFRating(which, val) {
   const v = parseInt(val);
@@ -2213,8 +2213,7 @@ async function loadAllCSVs() {
           return;
         }
       }
-    } catch (_) {
-    }
+    } catch (_) {}
   }
 
   console.log("[cache] miss — fetching CSVs + metadata");
@@ -2386,17 +2385,19 @@ function renderDiffCheckboxList() {
   const list = document.getElementById("diff-checkbox-list");
   if (!list) return;
   const diffs = ["Easy", "Medium", "Hard"];
-  
-  list.innerHTML = diffs.map((d) => {
-    const val = d.toLowerCase();
-    const checked = state.filters.difficulties.includes(val);
-    return `
+
+  list.innerHTML = diffs
+    .map((d) => {
+      const val = d.toLowerCase();
+      const checked = state.filters.difficulties.includes(val);
+      return `
       <label class="company-checkbox-item ${checked ? "checked" : ""}">
         <input type="checkbox" ${checked ? "checked" : ""} onchange="toggleDiffFilter('${val}')" onclick="event.stopPropagation()">
         <span>${d}</span>
       </label>
     `;
-  }).join("");
+    })
+    .join("");
 
   const count = state.filters.difficulties.length;
   const countEl = document.getElementById("diff-filter-count");
@@ -2406,7 +2407,7 @@ function renderDiffCheckboxList() {
     countEl.textContent = count;
     countEl.style.display = count ? "inline-flex" : "none";
   }
-  
+
   if (btn) {
     btn.classList.toggle("active", count > 0);
   }
@@ -2423,7 +2424,7 @@ function toggleDiffFilter(diff) {
   if (idx === -1) state.filters.difficulties.push(diff);
   else state.filters.difficulties.splice(idx, 1);
 
-  renderDiffCheckboxList(); 
+  renderDiffCheckboxList();
   applyFilters();
 }
 function toggleStarredFilter() {
@@ -3212,7 +3213,7 @@ function calcReadinessScore() {
   return {
     total,
     breakdown: {
-      top5: Math.round(coverageScore), 
+      top5: Math.round(coverageScore),
       volume: Math.round(qualityScore),
       balance: 15,
       consistency: Math.round(consistencyScore),
@@ -3498,7 +3499,7 @@ function renderProfilePlatformTabs(platform) {
 }
 
 function switchProfilePlatform(platform) {
-  window.location.hash = `profile/${platform}`; 
+  window.location.hash = `profile/${platform}`;
   renderProfilePlatformTabs(platform);
 }
 
@@ -5585,17 +5586,17 @@ async function init() {
 }
 
 const contestsState = {
-  cfContests: [], 
-  cfContestHistory: [], 
-  cfHistoryFiltered: [], 
+  cfContests: [],
+  cfContestHistory: [],
+  cfHistoryFiltered: [],
   cfHistoryPage: 1,
   cfPastVisible: 10,
   cfLoaded: false,
   cfHistoryLoaded: false,
   cfParticipatedOnly: false,
 
-  acContests: [], 
-  acContestHistory: [], 
+  acContests: [],
+  acContestHistory: [],
   acHistoryFiltered: [],
   acHistoryPage: 1,
   acPastVisible: 10,
@@ -5624,7 +5625,7 @@ function getContestCache(key) {
     const raw = localStorage.getItem(`contest_cache_${key}`);
     if (!raw) return null;
     const { ts, data } = JSON.parse(raw);
-    if (Date.now() - ts > CONTEST_CACHE_TTL[key]) return null; 
+    if (Date.now() - ts > CONTEST_CACHE_TTL[key]) return null;
     return data;
   } catch (_) {
     return null;
@@ -6181,7 +6182,7 @@ async function loadCFContestHistory() {
     }
     contestsState.cfHistoryFiltered = [
       ...contestsState.cfContestHistory,
-    ].reverse(); 
+    ].reverse();
     contestsState.cfHistoryLoaded = true;
     renderCFContestHistory();
     renderCFRatingGraph();
@@ -6329,7 +6330,7 @@ function filterCFContestHistory(search) {
   const q = (search || "").toLowerCase();
   const resultFilter =
     document.getElementById("cf-contest-result-filter")?.value || "all";
-  const hist = [...contestsState.cfContestHistory].reverse(); 
+  const hist = [...contestsState.cfContestHistory].reverse();
 
   contestsState.cfHistoryFiltered = hist.filter((h) => {
     if (q && !h.contestName.toLowerCase().includes(q)) return false;
@@ -7491,7 +7492,7 @@ function toggleCFParticipatedFilter() {
   const btn = document.getElementById("cf-participated-filter");
   if (btn) btn.classList.toggle("active", contestsState.cfParticipatedOnly);
   if (contestsState.cfParticipatedOnly && !contestsState.cfHistoryLoaded) {
-    renderCFContestLists(); 
+    renderCFContestLists();
     loadCFContestHistory().then(() => renderCFContestLists());
   } else {
     renderCFContestLists();
@@ -7633,16 +7634,20 @@ function updateNavBadge() {
   const badge = document.getElementById("nav-contest-badge");
   if (!badge) return;
   const now = Math.floor(Date.now() / 1000);
+
+  // 1. Find the next contest
   const all = [
     ...(contestsState.cfContests || []).map((c) => ({
-      name: c.name,
+      ...c,
       _start: c.startTimeSeconds,
       _plat: "CF",
+      _title: c.name,
     })),
     ...(contestsState.acContests || []).map((c) => ({
-      name: c.title,
+      ...c,
       _start: c.start_epoch_second,
       _plat: "AC",
+      _title: c.title,
     })),
   ]
     .filter((c) => c._start > now)
@@ -7652,14 +7657,76 @@ function updateNavBadge() {
     return;
   }
   const next = all[0];
+  state.nextContestData = next;
   const diff = next._start - now;
   const h = Math.floor(diff / 3600),
     m = Math.floor((diff % 3600) / 60);
   const label =
     h > 48 ? `${Math.floor(h / 24)}d` : h > 0 ? `${h}h ${m}m` : `${m}m`;
   badge.style.display = "flex";
-  badge.title = `Next: ${next.name} in ${label}`;
+  badge.title = `Next: ${next._title} in ${label}`;
   badge.innerHTML = `<span class="nav-badge-dot"></span><span>${next._plat} · ${label}</span>`;
+  badge.onclick = function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log(
+      "Badge clicked! Opening modal for:",
+      state.nextContestData._title,
+    );
+    openUpcomingContestModal(state.nextContestData);
+  };
+}
+
+function openUpcomingContestModal(c) {
+  if (!c) return;
+
+  const modalTitle = document.getElementById("contest-detail-title");
+  const modalSubtitle = document.getElementById("contest-detail-subtitle");
+  const modalBody = document.getElementById("contest-detail-body");
+  const overlay = document.getElementById("contest-detail-overlay");
+
+  if (!modalTitle || !overlay) return;
+
+  modalTitle.textContent = c._title;
+  modalSubtitle.innerHTML = `<span class="contest-div-badge ${c._plat === "CF" ? "div2" : "abc"}">${c._plat} Contest</span> · Starts ${fmtContestDate(c._start)}`;
+
+  const regLink =
+    c._plat === "CF"
+      ? `https://codeforces.com/contestRegistration/${c.id}`
+      : `https://atcoder.jp/contests/${c.id}`;
+
+  const infoLink =
+    c._plat === "CF"
+      ? `https://codeforces.com/contests`
+      : `https://atcoder.jp/contests/${c.id}`;
+
+  modalBody.innerHTML = `
+    <div style="background:var(--bg-3); padding:16px; border-radius:8px; border:1px solid var(--border); margin-bottom:16px; text-align:center">
+      <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px">Starts in</div>
+      <div style="font-size:24px; font-weight:800; color:var(--accent); font-family:var(--display)">
+        ${fmtRelativeTime(c._start).replace("in ", "")}
+      </div>
+    </div>
+    
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px">
+      <div class="cd-stat">
+        <div class="cd-stat-val">${fmtDuration(c.durationSeconds || c.duration_second)}</div>
+        <div class="cd-stat-label">Duration</div>
+      </div>
+      <div class="cd-stat">
+        <div class="cd-stat-val">${c._plat}</div>
+        <div class="cd-stat-label">Platform</div>
+      </div>
+    </div>
+
+    <div class="cd-actions" style="border-top:none; padding-top:0; display:flex; gap:10px">
+      <a href="${regLink}" target="_blank" class="btn-primary" style="flex:1; text-align:center; padding:10px; text-decoration:none; color:black">Register / Info</a>
+      <a href="${infoLink}" target="_blank" class="btn-secondary" style="flex:1; text-align:center; padding:10px; text-decoration:none">All Contests</a>
+    </div>
+    <button class="coverage-toggle" onclick="closeContestDetail(); showPage('contests');" style="margin-top:10px; border-style:solid; width:100%; cursor:pointer">View Inside App Schedule →</button>
+  `;
+
+  overlay.style.display = "flex";
 }
 
 function renderCFPersonalRecords() {
@@ -8536,7 +8603,7 @@ async function loadSavedACRivals() {
       contestsState.acRivals.push({ handle, history, rating });
       renderACRivals();
     } catch (_) {}
-    await new Promise((r) => setTimeout(r, 300)); 
+    await new Promise((r) => setTimeout(r, 300));
   }
   renderACRivals();
 }

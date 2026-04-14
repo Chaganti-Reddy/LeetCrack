@@ -1,1374 +1,2542 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AlgoTrack — Multi-Platform Problem Tracker</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="stylesheet" href="style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <script>
+      window.SUPABASE_URL = "https://ziwaxepqjpxljbbcxnqd.supabase.co";
+      window.SUPABASE_ANON =
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inppd2F4ZXBxanB4bGpiYmN4bnFkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwNjQ2NzcsImV4cCI6MjA5MTY0MDY3N30._K0LSSs-ZtuLI1mLRq-DIxa5Gpl47586-NUZQwtboEQ";
+    </script>
+  </head>
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AlgoTrack — Multi-Platform Problem Tracker</title>
-  <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="stylesheet" href="style.css">
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <script>
-    window.SUPABASE_URL = "https://ziwaxepqjpxljbbcxnqd.supabase.co";
-    window.SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inppd2F4ZXBxanB4bGpiYmN4bnFkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwNjQ2NzcsImV4cCI6MjA5MTY0MDY3N30._K0LSSs-ZtuLI1mLRq-DIxa5Gpl47586-NUZQwtboEQ";
-  </script>
-</head>
+  <body>
+    <input
+      type="file"
+      id="import-file-input"
+      accept=".json"
+      style="display: none"
+    />
 
-<body>
-
-  <input type="file" id="import-file-input" accept=".json" style="display:none">
-
-  <nav class="topnav">
-    <div class="nav-inner">
-      <div class="logo" onclick="showPage('tracker')"><img src="logo.svg" alt="" class="logo-img">Algo<span>Track</span></div>
-      <div class="nav-links">
-        <button class="nav-btn active" id="nav-tracker" onclick="showPage('tracker')">Problems</button>
-        <button class="nav-btn" id="nav-profile" onclick="showPage('profile')">Profile</button>
-        <button class="nav-btn" id="nav-insights" onclick="showPage('insights')">Insights</button>
-        <button class="nav-btn" id="nav-contests" onclick="showPage('contests')">Contests</button>
-        <div id="nav-contest-badge" class="nav-contest-badge" onclick="showPage('contests')" style="display:none"></div>
-      </div>
-      <div class="nav-actions">
-        <div id="interview-countdown" class="interview-countdown"></div>
-        <button class="nav-icon-btn" onclick="openWeeklyDigest()" title="Weekly Digest">📊</button>
-        <button class="nav-icon-btn" onclick="openRandomPicker()" title="Random Problem (R)">🎲</button>
-        <button id="theme-toggle" class="theme-toggle" title="Toggle theme">☀️</button>
-      </div>
-      <div id="auth-area"></div>
-    </div>
-  </nav>
-
-  <div id="page-tracker" class="page active">
-    <div class="app-wrapper">
-
-      <div class="platform-tabs">
-        <button class="platform-tab active" id="platform-tab-lc" onclick="switchPlatform('lc')">⚡ LeetCode</button>
-        <button class="platform-tab" id="platform-tab-cf" onclick="switchPlatform('cf')">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px">
-            <path
-              d="M4.5 7.5C4.5 5.84 5.84 4.5 7.5 4.5h9C18.16 4.5 19.5 5.84 19.5 7.5v9c0 1.66-1.34 3-3 3h-9c-1.66 0-3-1.34-3-3v-9z"
-              opacity=".3" />
-            <path
-              d="M7.5 3A4.5 4.5 0 0 0 3 7.5v9A4.5 4.5 0 0 0 7.5 21h9a4.5 4.5 0 0 0 4.5-4.5v-9A4.5 4.5 0 0 0 16.5 3h-9zm0 1.5h9A3 3 0 0 1 19.5 7.5v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9a3 3 0 0 1 3-3z" />
-          </svg>
-          Codeforces
-        </button>
-        <button class="platform-tab" id="platform-tab-ac" onclick="switchPlatform('ac')">🔵 AtCoder</button>
-      </div>
-
-      <div id="lc-tracker-content">
-
-        <div class="cf-sync-bar">
-          <div id="lc-connect-area" class="cf-connect-area" style="display:none">
-            <input id="lc-username-input-tracker" class="lc-input" placeholder="LeetCode username…" style="width:200px">
-            <button class="btn-primary" onclick="saveLCUsernameFromTracker()">Sync</button>
-          </div>
-          <div id="lc-connected-area" style="display:none"></div>
+    <nav class="topnav">
+      <div class="nav-inner">
+        <div class="logo" onclick="showPage('tracker')">
+          <img src="logo.svg" alt="" class="logo-img" />Algo<span>Track</span>
         </div>
-
-      <div class="stats-bar">
-        <div class="stat-item">
-          <div class="stat-value" id="stat-total">—</div>
-          <div class="stat-label">Total</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-value easy-text" id="stat-easy">—</div>
-          <div class="stat-label">Easy</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-value medium-text" id="stat-medium">—</div>
-          <div class="stat-label">Medium</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-value hard-text" id="stat-hard">—</div>
-          <div class="stat-label">Hard</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-value accent" id="stat-solved">0</div>
-          <div class="stat-label">Solved</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-value accent" id="stat-pct">0%</div>
-          <div class="stat-label">Done</div>
-        </div>
-      </div>
-      <div class="progress-wrap">
-        <div id="progress-bar-fill"></div>
-      </div>
-
-      <div id="loading">
-        <div class="loader-inner"><span class="spinner"></span><span>Loading questions from CSVs…</span></div>
-      </div>
-
-      <div id="main-content" style="display:none">
-        <div class="filters-row">
-          <div class="search-wrap">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-            <input type="text" id="search-input" placeholder="Search problems or companies… ( / )" autocomplete="off">
-          </div>
-
-          <div id="lc-curated-container"></div>
-          <div class="company-filter-wrap" id="diff-filter-wrap">
-            <button class="filter-dropdown-btn" id="diff-filter-btn" onclick="toggleDiffDropdown()">
-              Difficulty <span id="diff-filter-count" class="filter-count" style="display:none">0</span><span
-                class="dropdown-arrow">▾</span>
-            </button>
-            <div class="company-dropdown" id="diff-dropdown" style="display:none">
-              <div class="company-checkbox-list" id="diff-checkbox-list">
-              </div>
-              <div class="company-dropdown-footer">
-                <button class="dropdown-clear-btn" onclick="clearDiffFilters()">Clear</button>
-              </div>
-              </div>
-          </div>
-
-          <div class="filter-group">
-            <div class="company-filter-wrap" id="company-filter-wrap">
-              <button class="filter-dropdown-btn" id="company-filter-btn" onclick="toggleCompanyDropdown()">
-                Companies <span id="company-filter-count" class="filter-count" style="display:none">0</span><span
-                  class="dropdown-arrow">▾</span>
-              </button>
-              <div class="company-dropdown" id="company-dropdown" style="display:none">
-                <div class="company-dropdown-search">
-                  <input type="text" id="company-search-input" placeholder="Search companies…"
-                    oninput="filterCompanyList(this.value)" autocomplete="off">
-                </div>
-                <div class="company-checkbox-list" id="company-checkbox-list"></div>
-                <div class="company-dropdown-footer"><button class="dropdown-clear-btn"
-                    onclick="clearCompanyFilters()">Clear</button>
-                </div>
-              </div>
-            </div>
-
-            <div class="company-filter-wrap" id="pattern-filter-wrap" style="display:none">
-              <button class="filter-dropdown-btn" id="pattern-filter-btn" onclick="togglePatternDropdown()">
-                Patterns <span id="pattern-filter-count" class="filter-count" style="display:none">0</span><span
-                  class="dropdown-arrow">▾</span>
-              </button>
-              <div class="company-dropdown" id="pattern-dropdown" style="display:none">
-                <div class="company-dropdown-search">
-                  <input type="text" id="pattern-search-input" placeholder="Search patterns…"
-                    oninput="filterPatternList(this.value)" autocomplete="off">
-                </div>
-                <div class="company-checkbox-list" id="pattern-checkbox-list"></div>
-                <div class="company-dropdown-footer">
-                  <button class="dropdown-clear-btn" onclick="clearPatternFilters()">Clear</button>
-                </div>
-              </div>
-            </div>
-
-            <div class="status-filter-wrap" id="status-filter-wrap">
-              <button class="filter-dropdown-btn" id="status-filter-btn" onclick="toggleStatusDropdown()">
-                <span class="status-filter-label">All Status</span><span class="dropdown-arrow">▾</span>
-              </button>
-              <div class="status-dropdown" id="status-dropdown" style="display:none">
-                <div class="status-option" onclick="setStatusFilter('all')">All Status</div>
-                <div class="status-option" onclick="setStatusFilter('unsolved')">Unsolved</div>
-                <div class="status-option" onclick="setStatusFilter('solved')">Solved ✓</div>
-              </div>
-            </div>
-            <div class="sort-wrap" id="sort-wrap">
-              <button class="filter-dropdown-btn" id="sort-btn" onclick="toggleSortDropdown()">
-                <span class="sort-btn-label">Sort</span><span class="dropdown-arrow">▾</span>
-              </button>
-              <div class="sort-dropdown" id="sort-dropdown" style="display:none">
-                <div class="sort-option" onclick="setSortFromDropdown('id','asc')"># ID (asc)</div>
-                <div class="sort-option" onclick="setSortFromDropdown('id','desc')"># ID (desc)</div>
-                <div class="sort-option" onclick="setSortFromDropdown('title','asc')">Title A→Z</div>
-                <div class="sort-option" onclick="setSortFromDropdown('difficulty','asc')">Difficulty Easy→Hard</div>
-                <div class="sort-option" onclick="setSortFromDropdown('difficulty','desc')">Difficulty Hard→Easy</div>
-                <div class="sort-option" onclick="setSortFromDropdown('acceptance','desc')">Acceptance High→Low</div>
-                <div class="sort-option" onclick="setSortFromDropdown('solveDate','desc')">Solve Date Newest</div>
-                <div class="sort-option" onclick="setSortFromDropdown('solveDate','asc')">Solve Date Oldest</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="filter-pills-group">
-            <button class="pill filter-pill" id="filter-starred-btn" onclick="toggleStarredFilter()"
-              title="Show bookmarked only">★ Starred</button>
-            <button class="pill filter-pill" id="filter-review-btn" onclick="toggleReviewFilter()"
-              title="Solved 7+ days ago">🔁
-              Review</button>
-          </div>
-
-          <button id="clear-filters" style="display:none">✕ Clear</button>
-        </div>
-
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th class="col-check">✓</th>
-                <th class="col-title" data-sort="title">Question</th>
-                <th class="col-diff" data-sort="difficulty">Difficulty</th>
-                <th class="col-accept" data-sort="acceptance">Accept %</th>
-                <th class="col-companies">Companies</th>
-              </tr>
-            </thead>
-            <tbody id="questions-tbody"></tbody>
-          </table>
-        </div>
-        <div id="pagination"></div>
-        <div class="keyboard-hint">
-          <span>Press <kbd>/</kbd> to search</span>
-          <span><kbd>R</kbd> random problem</span>
-          <span><kbd>S</kbd> sync accounts</span>
-          <span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> switch pages</span>
-        </div>
-      </div>
-    </div> 
-
-    <div id="cf-tracker-content" style="display:none">
-      <div class="cf-sync-bar">
-        <div id="cf-connect-area" class="cf-connect-area">
-          <input id="cf-username-input" class="lc-input" placeholder="Codeforces handle…" style="width:200px">
-          <button id="cf-sync-btn" class="btn-primary" onclick="syncCFUser()">Sync</button>
-        </div>
-        <div id="cf-connected-area" style="display:none"></div>
-      </div>
-      <div id="cf-stats-bar" class="stats-bar"></div>
-      <div class="progress-wrap">
-        <div id="cf-progress-bar-fill" class="platform-progress-fill cf-progress-fill"></div>
-      </div>
-      <div class="filters-row">
-        <div class="search-wrap">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          <input type="text" id="cf-search-input" placeholder="Search problems or tags…" oninput="setCFSearch(this.value)"
-            autocomplete="off">
-        </div>
-        <div class="cf-rating-filter">
-          <span class="filter-label">Rating:</span>
-          <select id="cf-min-rating" class="cf-rating-select" onchange="setCFRating('min',this.value)">
-            <option value="800">800</option>
-            <option value="900">900</option>
-            <option value="1000">1000</option>
-            <option value="1100">1100</option>
-            <option value="1200">1200</option>
-            <option value="1300">1300</option>
-            <option value="1400">1400</option>
-            <option value="1500">1500</option>
-            <option value="1600">1600</option>
-            <option value="1700">1700</option>
-            <option value="1800">1800</option>
-            <option value="1900">1900</option>
-            <option value="2000">2000</option>
-            <option value="2100">2100</option>
-            <option value="2200">2200</option>
-            <option value="2300">2300</option>
-            <option value="2400">2400</option>
-            <option value="2500">2500</option>
-            <option value="2600">2600</option>
-            <option value="2700">2700</option>
-            <option value="2800">2800</option>
-            <option value="2900">2900</option>
-            <option value="3000">3000</option>
-            <option value="3500">3500</option>
-          </select>
-          <span style="color:var(--text-muted);font-size:12px">–</span>
-          <select id="cf-max-rating" class="cf-rating-select" onchange="setCFRating('max',this.value)">
-            <option value="800">800</option>
-            <option value="900">900</option>
-            <option value="1000">1000</option>
-            <option value="1100">1100</option>
-            <option value="1200">1200</option>
-            <option value="1300">1300</option>
-            <option value="1400">1400</option>
-            <option value="1500">1500</option>
-            <option value="1600">1600</option>
-            <option value="1700">1700</option>
-            <option value="1800">1800</option>
-            <option value="1900">1900</option>
-            <option value="2000">2000</option>
-            <option value="2100">2100</option>
-            <option value="2200">2200</option>
-            <option value="2300">2300</option>
-            <option value="2400">2400</option>
-            <option value="2500">2500</option>
-            <option value="2600">2600</option>
-            <option value="2700">2700</option>
-            <option value="2800">2800</option>
-            <option value="2900">2900</option>
-            <option value="3000">3000</option>
-            <option value="3500" selected>3500</option>
-          </select>
-        </div>
-        <select class="filter-dropdown-btn" onchange="setCFTagFilter(this.value)" id="cf-tag-select"></select>
-        <select class="filter-dropdown-btn" id="cf-status-select" onchange="setCFStatusFilter(this.value)">
-          <option value="all">All Status</option>
-          <option value="unsolved">Unsolved</option>
-          <option value="solved">Solved ✓</option>
-        </select>
-        <div id="cf-curated-container"></div>
-        <div class="filter-pills-group">
-          <button class="pill filter-pill" id="cf-filter-starred-btn" onclick="toggleCFStarredFilter()" title="Show bookmarked only">★ Starred</button>
-          <button class="pill filter-pill" id="cf-filter-review-btn" onclick="toggleCFReviewFilter()" title="Due for SM2 review">🔁 Review</button>
-        </div>
-        <button id="cf-clear-filters" onclick="clearCFFilters()"
-          style="display:none;background:transparent;border:1px solid var(--border);color:var(--text-muted);padding:8px 14px;border-radius:var(--radius);font-size:12px;font-family:var(--mono);cursor:pointer;transition:border-color .15s,color .15s">✕
-          Clear</button>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th class="col-status">✓</th>
-              <th class="col-title">Problem</th>
-              <th class="col-diff">Rating</th>
-              <th class="col-contest">Contest</th>
-              <th class="col-solves">Solves</th>
-            </tr>
-          </thead>
-          <tbody id="cf-tbody"></tbody>
-        </table>
-      </div>
-      <div id="cf-pagination"></div>
-      <div class="keyboard-hint">
-        <span>Press <kbd>/</kbd> to search</span>
-        <span><kbd>R</kbd> random problem</span>
-        <span><kbd>S</kbd> sync accounts</span>
-        <span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> switch pages</span>
-      </div>
-    </div> 
-
-    <div id="ac-tracker-content" style="display:none">
-      <div class="cf-sync-bar">
-        <div id="ac-connect-area" class="cf-connect-area">
-          <input id="ac-username-input" class="lc-input" placeholder="AtCoder username…" style="width:200px">
-          <button id="ac-sync-btn" class="btn-primary" onclick="syncACUser()">Sync</button>
-        </div>
-        <div id="ac-connected-area" style="display:none"></div>
-      </div>
-      <div id="ac-stats-bar" class="stats-bar"></div>
-      <div class="progress-wrap">
-        <div id="ac-progress-bar-fill" class="platform-progress-fill ac-progress-fill"></div>
-      </div>
-      <div class="filters-row">
-        <div class="search-wrap">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          <input type="text" id="ac-search-input" placeholder="Search problems…" oninput="setACSearch(this.value)" autocomplete="off">
-        </div>
-        <div class="cf-rating-filter">
-          <span class="filter-label">Difficulty:</span>
-          <select id="ac-min-diff" class="cf-rating-select" onchange="setACDiffFilter('min',this.value)">
-            <option value="0">0</option>
-            <option value="400">400</option>
-            <option value="800">800</option>
-            <option value="1200">1200</option>
-            <option value="1600">1600</option>
-            <option value="2000">2000</option>
-            <option value="2400">2400</option>
-            <option value="2800">2800</option>
-            <option value="3200">3200</option>
-          </select>
-          <span style="color:var(--text-muted);font-size:12px">–</span>
-          <select id="ac-max-diff" class="cf-rating-select" onchange="setACDiffFilter('max',this.value)">
-            <option value="400">400</option>
-            <option value="800">800</option>
-            <option value="1200">1200</option>
-            <option value="1600">1600</option>
-            <option value="2000">2000</option>
-            <option value="2400">2400</option>
-            <option value="2800">2800</option>
-            <option value="3200">3200</option>
-            <option value="4000" selected>4000</option>
-          </select>
-        </div>
-        <select class="filter-dropdown-btn" id="ac-status-select" onchange="setACStatusFilter(this.value)">
-          <option value="all">All Status</option>
-          <option value="unsolved">Unsolved</option>
-          <option value="solved">Solved ✓</option>
-        </select>
-        <div id="ac-curated-container"></div>
-        <div class="filter-pills-group">
-          <button class="pill filter-pill" id="ac-filter-starred-btn" onclick="toggleACStarredFilter()" title="Show bookmarked only">★ Starred</button>
-          <button class="pill filter-pill" id="ac-filter-review-btn" onclick="toggleACReviewFilter()" title="Due for SM2 review">🔁 Review</button>
-        </div>
-        <button id="ac-clear-filters" onclick="clearACFilters()"
-          style="display:none;background:transparent;border:1px solid var(--border);color:var(--text-muted);padding:8px 14px;border-radius:var(--radius);font-size:12px;font-family:var(--mono);cursor:pointer;transition:border-color .15s,color .15s">✕ Clear</button>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th class="col-status">✓</th>
-              <th class="col-title">Problem</th>
-              <th class="col-diff">Difficulty</th>
-              <th class="col-contest">Contest</th>
-            </tr>
-          </thead>
-          <tbody id="ac-tbody"></tbody>
-        </table>
-      </div>
-      <div id="ac-pagination"></div>
-      <div class="keyboard-hint">
-        <span>Press <kbd>/</kbd> to search</span>
-        <span><kbd>R</kbd> random problem</span>
-        <span><kbd>S</kbd> sync accounts</span>
-        <span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> switch pages</span>
-      </div>
-    </div>
-
-    </div>
-  </div>
-
-  <div id="page-profile" class="page">
-    <div class="app-wrapper profile-wrapper">
-
-      <div id="profile-guest" style="display:none">
-        <div class="guest-card">
-          <div class="guest-icon">⚡</div>
-          <h2>Sync your progress</h2>
-          <p>Login with GitHub to track streaks, see detailed stats, and sync across all your devices — stored privately
-            in your GitHub Gist.</p>
-          <button class="btn-github-large" onclick="loginWithGitHub()">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-              <path
-                d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
-            </svg>
-            Continue with GitHub
+        <div class="nav-links">
+          <button
+            class="nav-btn active"
+            id="nav-tracker"
+            onclick="showPage('tracker')"
+          >
+            Problems
           </button>
-          <p class="guest-note">No database. No tracking. Just your own GitHub Gist.</p>
+          <button
+            class="nav-btn"
+            id="nav-profile"
+            onclick="showPage('profile')"
+          >
+            Profile
+          </button>
+          <button
+            class="nav-btn"
+            id="nav-insights"
+            onclick="showPage('insights')"
+          >
+            Insights
+          </button>
+          <button
+            class="nav-btn"
+            id="nav-contests"
+            onclick="showPage('contests')"
+          >
+            Contests
+          </button>
+          <div
+            id="nav-contest-badge"
+            class="nav-contest-badge"
+            style="display: none"
+          ></div>
         </div>
+        <div class="nav-actions">
+          <div id="interview-countdown" class="interview-countdown"></div>
+          <button
+            class="nav-icon-btn"
+            onclick="openWeeklyDigest()"
+            title="Weekly Digest"
+          >
+            📊
+          </button>
+          <button
+            class="nav-icon-btn"
+            onclick="openRandomPicker()"
+            title="Random Problem (R)"
+          >
+            🎲
+          </button>
+          <button id="theme-toggle" class="theme-toggle" title="Toggle theme">
+            ☀️
+          </button>
+        </div>
+        <div id="auth-area"></div>
       </div>
+    </nav>
 
-      <div id="profile-content" style="display:none">
-        <div class="profile-header">
-          <div class="profile-avatar-wrap"><img id="profile-avatar" src="" alt="" class="profile-avatar"></div>
-          <div class="profile-info">
-            <div class="profile-name" id="profile-name"></div>
-            <div class="profile-handle" id="profile-handle"></div>
-            <div id="profile-avg-time" class="profile-avg-time"></div>
-          </div>
-          <div class="profile-actions">
-            <button class="btn-outline-danger" onclick="confirmClearData()">🗑 Clear</button>
-            <button class="btn-secondary" onclick="logout()">Logout</button>
-          </div>
-        </div>
-
-        <div class="streak-section">
-          <div class="streak-card main-streak" id="streak-card">
-            <div class="streak-bg-glow"></div>
-            <div class="streak-flame" id="streak-flame">🔥</div>
-            <div class="streak-number" id="streak-number">0</div>
-            <div class="streak-label">Day Streak</div>
-            <div class="streak-sub" id="streak-sub">Start solving to build your streak!</div>
-          </div>
-          <div class="streak-card side-streak">
-            <div class="streak-emoji">⚡</div>
-            <div class="streak-number-sm" id="longest-streak">0</div>
-            <div class="streak-label">Longest Streak</div>
-          </div>
-          <div class="streak-card side-streak">
-            <div class="streak-emoji">📅</div>
-            <div class="streak-number-sm" id="total-days">0</div>
-            <div class="streak-label">Active Days</div>
-          </div>
-          <div class="streak-card side-streak">
-            <div class="streak-emoji">🏆</div>
-            <div class="streak-number-sm" id="total-solved-profile">0</div>
-            <div class="streak-label">Total Solved</div>
-            <div style="font-size:9px;color:var(--text-dim);margin-top:2px">LC + CF + AC</div>
-          </div>
-        </div>
-
-        <div class="section-block">
-          <div class="section-title"
-            style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-            <span>Solve Activity — Last 52 Weeks <span
-                style="font-size:9px;color:var(--text-dim);font-weight:400;letter-spacing:0;text-transform:none">LC + CF + AC
-                combined</span></span>
-                <select id="heatmap-rival-select" onchange="setHeatmapRival(this.value)" class="contest-filter-select"
-                  style="font-size:10px; padding:2px 8px; height:22px;">
-                  <option value="">Compare with Rival...</option>
-                </select>
-                </div>
-          <div id="heatmap" class="heatmap"></div>
-          <div class="heatmap-legend">
-            <span>Less</span>
-            <div class="legend-box l0"></div>
-            <div class="legend-box l1"></div>
-            <div class="legend-box l2"></div>
-            <div class="legend-box l3"></div>
-            <div class="legend-box l4"></div>
-            <span>More</span>
-          </div>
-        </div>
-
-        <div class="profile-platform-tabs">
-          <button class="profile-plat-tab active" id="profile-tab-lc" onclick="switchProfilePlatform('lc')">⚡ LeetCode</button>
-          <button class="profile-plat-tab" id="profile-tab-cf" onclick="switchProfilePlatform('cf')">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px">
+    <div id="page-tracker" class="page active">
+      <div class="app-wrapper">
+        <div class="platform-tabs">
+          <button
+            class="platform-tab active"
+            id="platform-tab-lc"
+            onclick="switchPlatform('lc')"
+          >
+            ⚡ LeetCode
+          </button>
+          <button
+            class="platform-tab"
+            id="platform-tab-cf"
+            onclick="switchPlatform('cf')"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              style="vertical-align: -2px"
+            >
               <path
-                d="M7.5 3A4.5 4.5 0 0 0 3 7.5v9A4.5 4.5 0 0 0 7.5 21h9a4.5 4.5 0 0 0 4.5-4.5v-9A4.5 4.5 0 0 0 16.5 3h-9zm0 1.5h9A3 3 0 0 1 19.5 7.5v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9a3 3 0 0 1 3-3z" />
+                d="M4.5 7.5C4.5 5.84 5.84 4.5 7.5 4.5h9C18.16 4.5 19.5 5.84 19.5 7.5v9c0 1.66-1.34 3-3 3h-9c-1.66 0-3-1.34-3-3v-9z"
+                opacity=".3"
+              />
+              <path
+                d="M7.5 3A4.5 4.5 0 0 0 3 7.5v9A4.5 4.5 0 0 0 7.5 21h9a4.5 4.5 0 0 0 4.5-4.5v-9A4.5 4.5 0 0 0 16.5 3h-9zm0 1.5h9A3 3 0 0 1 19.5 7.5v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9a3 3 0 0 1 3-3z"
+              />
             </svg>
             Codeforces
           </button>
-          <button class="profile-plat-tab" id="profile-tab-ac" onclick="switchProfilePlatform('ac')">🔵 AtCoder</button>
+          <button
+            class="platform-tab"
+            id="platform-tab-ac"
+            onclick="switchPlatform('ac')"
+          >
+            🔵 AtCoder
+          </button>
         </div>
-        
-        <div id="profile-lc-section">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
-            <div id="profile-lc-badge" class="profile-lc-badge"></div>
-            <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
-              <button class="btn-export" onclick="exportProgress()">⬇ Export LC</button>
-              <button class="btn-export" onclick="exportLCFilteredCSV()" title="Export current filtered view as CSV">⬇ Filtered CSV</button>
-              <button class="btn-export" onclick="triggerImport()">⬆ Import LC</button>
-              <button class="btn-full-sync" onclick="openFullSyncModal()"
-                title="Import your complete LeetCode history using session cookie">⚡ Full History Sync</button>
+
+        <div id="lc-tracker-content">
+          <div class="cf-sync-bar">
+            <div
+              id="lc-connect-area"
+              class="cf-connect-area"
+              style="display: none"
+            >
+              <input
+                id="lc-username-input-tracker"
+                class="lc-input"
+                placeholder="LeetCode username…"
+                style="width: 200px"
+              />
+              <button class="btn-primary" onclick="saveLCUsernameFromTracker()">
+                Sync
+              </button>
+            </div>
+            <div id="lc-connected-area" style="display: none"></div>
+          </div>
+
+          <div class="stats-bar">
+            <div class="stat-item">
+              <div class="stat-value" id="stat-total">—</div>
+              <div class="stat-label">Total</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value easy-text" id="stat-easy">—</div>
+              <div class="stat-label">Easy</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value medium-text" id="stat-medium">—</div>
+              <div class="stat-label">Medium</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value hard-text" id="stat-hard">—</div>
+              <div class="stat-label">Hard</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value accent" id="stat-solved">0</div>
+              <div class="stat-label">Solved</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value accent" id="stat-pct">0%</div>
+              <div class="stat-label">Done</div>
+            </div>
+          </div>
+          <div class="progress-wrap">
+            <div id="progress-bar-fill"></div>
+          </div>
+
+          <div id="loading">
+            <div class="loader-inner">
+              <span class="spinner"></span
+              ><span>Loading questions from CSVs…</span>
             </div>
           </div>
 
-          <div class="section-block readiness-section" style="position:relative;padding-top:44px">
-            <div class="section-title"
-              style="position:absolute;top:22px;left:24px;display:flex;align-items:center;gap:12px;width:calc(100% - 48px)">
-              <span>Interview Readiness Score</span>
-              <select id="readiness-company-filter" onchange="state.readinessCompany = this.value; renderProfileLC();"
-                class="cf-rating-select" style="margin-left:auto;padding:2px 8px;font-size:10px;height:24px">
-                <option value="all">Overall Prep</option>
-                <option value="google">Google</option>
-                <option value="amazon">Amazon</option>
-                <option value="meta">Meta</option>
-                <option value="microsoft">Microsoft</option>
-                <option value="apple">Apple</option>
+          <div id="main-content" style="display: none">
+            <div class="filters-row">
+              <div class="search-wrap">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="m21 21-4.35-4.35" />
+                </svg>
+                <input
+                  type="text"
+                  id="search-input"
+                  placeholder="Search problems or companies… ( / )"
+                  autocomplete="off"
+                />
+              </div>
+
+              <div id="lc-curated-container"></div>
+              <div class="company-filter-wrap" id="diff-filter-wrap">
+                <button
+                  class="filter-dropdown-btn"
+                  id="diff-filter-btn"
+                  onclick="toggleDiffDropdown()"
+                >
+                  Difficulty
+                  <span
+                    id="diff-filter-count"
+                    class="filter-count"
+                    style="display: none"
+                    >0</span
+                  ><span class="dropdown-arrow">▾</span>
+                </button>
+                <div
+                  class="company-dropdown"
+                  id="diff-dropdown"
+                  style="display: none"
+                >
+                  <div
+                    class="company-checkbox-list"
+                    id="diff-checkbox-list"
+                  ></div>
+                  <div class="company-dropdown-footer">
+                    <button
+                      class="dropdown-clear-btn"
+                      onclick="clearDiffFilters()"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="filter-group">
+                <div class="company-filter-wrap" id="company-filter-wrap">
+                  <button
+                    class="filter-dropdown-btn"
+                    id="company-filter-btn"
+                    onclick="toggleCompanyDropdown()"
+                  >
+                    Companies
+                    <span
+                      id="company-filter-count"
+                      class="filter-count"
+                      style="display: none"
+                      >0</span
+                    ><span class="dropdown-arrow">▾</span>
+                  </button>
+                  <div
+                    class="company-dropdown"
+                    id="company-dropdown"
+                    style="display: none"
+                  >
+                    <div class="company-dropdown-search">
+                      <input
+                        type="text"
+                        id="company-search-input"
+                        placeholder="Search companies…"
+                        oninput="filterCompanyList(this.value)"
+                        autocomplete="off"
+                      />
+                    </div>
+                    <div
+                      class="company-checkbox-list"
+                      id="company-checkbox-list"
+                    ></div>
+                    <div class="company-dropdown-footer">
+                      <button
+                        class="dropdown-clear-btn"
+                        onclick="clearCompanyFilters()"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  class="company-filter-wrap"
+                  id="pattern-filter-wrap"
+                  style="display: none"
+                >
+                  <button
+                    class="filter-dropdown-btn"
+                    id="pattern-filter-btn"
+                    onclick="togglePatternDropdown()"
+                  >
+                    Patterns
+                    <span
+                      id="pattern-filter-count"
+                      class="filter-count"
+                      style="display: none"
+                      >0</span
+                    ><span class="dropdown-arrow">▾</span>
+                  </button>
+                  <div
+                    class="company-dropdown"
+                    id="pattern-dropdown"
+                    style="display: none"
+                  >
+                    <div class="company-dropdown-search">
+                      <input
+                        type="text"
+                        id="pattern-search-input"
+                        placeholder="Search patterns…"
+                        oninput="filterPatternList(this.value)"
+                        autocomplete="off"
+                      />
+                    </div>
+                    <div
+                      class="company-checkbox-list"
+                      id="pattern-checkbox-list"
+                    ></div>
+                    <div class="company-dropdown-footer">
+                      <button
+                        class="dropdown-clear-btn"
+                        onclick="clearPatternFilters()"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="status-filter-wrap" id="status-filter-wrap">
+                  <button
+                    class="filter-dropdown-btn"
+                    id="status-filter-btn"
+                    onclick="toggleStatusDropdown()"
+                  >
+                    <span class="status-filter-label">All Status</span
+                    ><span class="dropdown-arrow">▾</span>
+                  </button>
+                  <div
+                    class="status-dropdown"
+                    id="status-dropdown"
+                    style="display: none"
+                  >
+                    <div class="status-option" onclick="setStatusFilter('all')">
+                      All Status
+                    </div>
+                    <div
+                      class="status-option"
+                      onclick="setStatusFilter('unsolved')"
+                    >
+                      Unsolved
+                    </div>
+                    <div
+                      class="status-option"
+                      onclick="setStatusFilter('solved')"
+                    >
+                      Solved ✓
+                    </div>
+                  </div>
+                </div>
+                <div class="sort-wrap" id="sort-wrap">
+                  <button
+                    class="filter-dropdown-btn"
+                    id="sort-btn"
+                    onclick="toggleSortDropdown()"
+                  >
+                    <span class="sort-btn-label">Sort</span
+                    ><span class="dropdown-arrow">▾</span>
+                  </button>
+                  <div
+                    class="sort-dropdown"
+                    id="sort-dropdown"
+                    style="display: none"
+                  >
+                    <div
+                      class="sort-option"
+                      onclick="setSortFromDropdown('id', 'asc')"
+                    >
+                      # ID (asc)
+                    </div>
+                    <div
+                      class="sort-option"
+                      onclick="setSortFromDropdown('id', 'desc')"
+                    >
+                      # ID (desc)
+                    </div>
+                    <div
+                      class="sort-option"
+                      onclick="setSortFromDropdown('title', 'asc')"
+                    >
+                      Title A→Z
+                    </div>
+                    <div
+                      class="sort-option"
+                      onclick="setSortFromDropdown('difficulty', 'asc')"
+                    >
+                      Difficulty Easy→Hard
+                    </div>
+                    <div
+                      class="sort-option"
+                      onclick="setSortFromDropdown('difficulty', 'desc')"
+                    >
+                      Difficulty Hard→Easy
+                    </div>
+                    <div
+                      class="sort-option"
+                      onclick="setSortFromDropdown('acceptance', 'desc')"
+                    >
+                      Acceptance High→Low
+                    </div>
+                    <div
+                      class="sort-option"
+                      onclick="setSortFromDropdown('solveDate', 'desc')"
+                    >
+                      Solve Date Newest
+                    </div>
+                    <div
+                      class="sort-option"
+                      onclick="setSortFromDropdown('solveDate', 'asc')"
+                    >
+                      Solve Date Oldest
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="filter-pills-group">
+                <button
+                  class="pill filter-pill"
+                  id="filter-starred-btn"
+                  onclick="toggleStarredFilter()"
+                  title="Show bookmarked only"
+                >
+                  ★ Starred
+                </button>
+                <button
+                  class="pill filter-pill"
+                  id="filter-review-btn"
+                  onclick="toggleReviewFilter()"
+                  title="Solved 7+ days ago"
+                >
+                  🔁 Review
+                </button>
+              </div>
+
+              <button id="clear-filters" style="display: none">✕ Clear</button>
+            </div>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="col-check">✓</th>
+                    <th class="col-title" data-sort="title">Question</th>
+                    <th class="col-diff" data-sort="difficulty">Difficulty</th>
+                    <th class="col-accept" data-sort="acceptance">Accept %</th>
+                    <th class="col-companies">Companies</th>
+                  </tr>
+                </thead>
+                <tbody id="questions-tbody"></tbody>
+              </table>
+            </div>
+            <div id="pagination"></div>
+            <div class="keyboard-hint">
+              <span>Press <kbd>/</kbd> to search</span>
+              <span><kbd>R</kbd> random problem</span>
+              <span><kbd>S</kbd> sync accounts</span>
+              <span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> switch pages</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="cf-tracker-content" style="display: none">
+          <div class="cf-sync-bar">
+            <div id="cf-connect-area" class="cf-connect-area">
+              <input
+                id="cf-username-input"
+                class="lc-input"
+                placeholder="Codeforces handle…"
+                style="width: 200px"
+              />
+              <button
+                id="cf-sync-btn"
+                class="btn-primary"
+                onclick="syncCFUser()"
+              >
+                Sync
+              </button>
+            </div>
+            <div id="cf-connected-area" style="display: none"></div>
+          </div>
+          <div id="cf-stats-bar" class="stats-bar"></div>
+          <div class="progress-wrap">
+            <div
+              id="cf-progress-bar-fill"
+              class="platform-progress-fill cf-progress-fill"
+            ></div>
+          </div>
+          <div class="filters-row">
+            <div class="search-wrap">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+              </svg>
+              <input
+                type="text"
+                id="cf-search-input"
+                placeholder="Search problems or tags…"
+                oninput="setCFSearch(this.value)"
+                autocomplete="off"
+              />
+            </div>
+            <div class="cf-rating-filter">
+              <span class="filter-label">Rating:</span>
+              <select
+                id="cf-min-rating"
+                class="cf-rating-select"
+                onchange="setCFRating('min', this.value)"
+              >
+                <option value="800">800</option>
+                <option value="900">900</option>
+                <option value="1000">1000</option>
+                <option value="1100">1100</option>
+                <option value="1200">1200</option>
+                <option value="1300">1300</option>
+                <option value="1400">1400</option>
+                <option value="1500">1500</option>
+                <option value="1600">1600</option>
+                <option value="1700">1700</option>
+                <option value="1800">1800</option>
+                <option value="1900">1900</option>
+                <option value="2000">2000</option>
+                <option value="2100">2100</option>
+                <option value="2200">2200</option>
+                <option value="2300">2300</option>
+                <option value="2400">2400</option>
+                <option value="2500">2500</option>
+                <option value="2600">2600</option>
+                <option value="2700">2700</option>
+                <option value="2800">2800</option>
+                <option value="2900">2900</option>
+                <option value="3000">3000</option>
+                <option value="3500">3500</option>
+              </select>
+              <span style="color: var(--text-muted); font-size: 12px">–</span>
+              <select
+                id="cf-max-rating"
+                class="cf-rating-select"
+                onchange="setCFRating('max', this.value)"
+              >
+                <option value="800">800</option>
+                <option value="900">900</option>
+                <option value="1000">1000</option>
+                <option value="1100">1100</option>
+                <option value="1200">1200</option>
+                <option value="1300">1300</option>
+                <option value="1400">1400</option>
+                <option value="1500">1500</option>
+                <option value="1600">1600</option>
+                <option value="1700">1700</option>
+                <option value="1800">1800</option>
+                <option value="1900">1900</option>
+                <option value="2000">2000</option>
+                <option value="2100">2100</option>
+                <option value="2200">2200</option>
+                <option value="2300">2300</option>
+                <option value="2400">2400</option>
+                <option value="2500">2500</option>
+                <option value="2600">2600</option>
+                <option value="2700">2700</option>
+                <option value="2800">2800</option>
+                <option value="2900">2900</option>
+                <option value="3000">3000</option>
+                <option value="3500" selected>3500</option>
               </select>
             </div>
-            <div id="readiness-gauge" style="margin-top:8px; width: 100%;"></div>
+            <select
+              class="filter-dropdown-btn"
+              onchange="setCFTagFilter(this.value)"
+              id="cf-tag-select"
+            ></select>
+            <select
+              class="filter-dropdown-btn"
+              id="cf-status-select"
+              onchange="setCFStatusFilter(this.value)"
+            >
+              <option value="all">All Status</option>
+              <option value="unsolved">Unsolved</option>
+              <option value="solved">Solved ✓</option>
+            </select>
+            <div id="cf-curated-container"></div>
+            <div class="filter-pills-group">
+              <button
+                class="pill filter-pill"
+                id="cf-filter-starred-btn"
+                onclick="toggleCFStarredFilter()"
+                title="Show bookmarked only"
+              >
+                ★ Starred
+              </button>
+              <button
+                class="pill filter-pill"
+                id="cf-filter-review-btn"
+                onclick="toggleCFReviewFilter()"
+                title="Due for SM2 review"
+              >
+                🔁 Review
+              </button>
+            </div>
+            <button
+              id="cf-clear-filters"
+              onclick="clearCFFilters()"
+              style="
+                display: none;
+                background: transparent;
+                border: 1px solid var(--border);
+                color: var(--text-muted);
+                padding: 8px 14px;
+                border-radius: var(--radius);
+                font-size: 12px;
+                font-family: var(--mono);
+                cursor: pointer;
+                transition:
+                  border-color 0.15s,
+                  color 0.15s;
+              "
+            >
+              ✕ Clear
+            </button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="col-status">✓</th>
+                  <th class="col-title">Problem</th>
+                  <th class="col-diff">Rating</th>
+                  <th class="col-contest">Contest</th>
+                  <th class="col-solves">Solves</th>
+                </tr>
+              </thead>
+              <tbody id="cf-tbody"></tbody>
+            </table>
+          </div>
+          <div id="cf-pagination"></div>
+          <div class="keyboard-hint">
+            <span>Press <kbd>/</kbd> to search</span>
+            <span><kbd>R</kbd> random problem</span>
+            <span><kbd>S</kbd> sync accounts</span>
+            <span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> switch pages</span>
+          </div>
+        </div>
+
+        <div id="ac-tracker-content" style="display: none">
+          <div class="cf-sync-bar">
+            <div id="ac-connect-area" class="cf-connect-area">
+              <input
+                id="ac-username-input"
+                class="lc-input"
+                placeholder="AtCoder username…"
+                style="width: 200px"
+              />
+              <button
+                id="ac-sync-btn"
+                class="btn-primary"
+                onclick="syncACUser()"
+              >
+                Sync
+              </button>
+            </div>
+            <div id="ac-connected-area" style="display: none"></div>
+          </div>
+          <div id="ac-stats-bar" class="stats-bar"></div>
+          <div class="progress-wrap">
+            <div
+              id="ac-progress-bar-fill"
+              class="platform-progress-fill ac-progress-fill"
+            ></div>
+          </div>
+          <div class="filters-row">
+            <div class="search-wrap">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+              </svg>
+              <input
+                type="text"
+                id="ac-search-input"
+                placeholder="Search problems…"
+                oninput="setACSearch(this.value)"
+                autocomplete="off"
+              />
+            </div>
+            <div class="cf-rating-filter">
+              <span class="filter-label">Difficulty:</span>
+              <select
+                id="ac-min-diff"
+                class="cf-rating-select"
+                onchange="setACDiffFilter('min', this.value)"
+              >
+                <option value="0">0</option>
+                <option value="400">400</option>
+                <option value="800">800</option>
+                <option value="1200">1200</option>
+                <option value="1600">1600</option>
+                <option value="2000">2000</option>
+                <option value="2400">2400</option>
+                <option value="2800">2800</option>
+                <option value="3200">3200</option>
+              </select>
+              <span style="color: var(--text-muted); font-size: 12px">–</span>
+              <select
+                id="ac-max-diff"
+                class="cf-rating-select"
+                onchange="setACDiffFilter('max', this.value)"
+              >
+                <option value="400">400</option>
+                <option value="800">800</option>
+                <option value="1200">1200</option>
+                <option value="1600">1600</option>
+                <option value="2000">2000</option>
+                <option value="2400">2400</option>
+                <option value="2800">2800</option>
+                <option value="3200">3200</option>
+                <option value="4000" selected>4000</option>
+              </select>
+            </div>
+            <select
+              class="filter-dropdown-btn"
+              id="ac-status-select"
+              onchange="setACStatusFilter(this.value)"
+            >
+              <option value="all">All Status</option>
+              <option value="unsolved">Unsolved</option>
+              <option value="solved">Solved ✓</option>
+            </select>
+            <div id="ac-curated-container"></div>
+            <div class="filter-pills-group">
+              <button
+                class="pill filter-pill"
+                id="ac-filter-starred-btn"
+                onclick="toggleACStarredFilter()"
+                title="Show bookmarked only"
+              >
+                ★ Starred
+              </button>
+              <button
+                class="pill filter-pill"
+                id="ac-filter-review-btn"
+                onclick="toggleACReviewFilter()"
+                title="Due for SM2 review"
+              >
+                🔁 Review
+              </button>
+            </div>
+            <button
+              id="ac-clear-filters"
+              onclick="clearACFilters()"
+              style="
+                display: none;
+                background: transparent;
+                border: 1px solid var(--border);
+                color: var(--text-muted);
+                padding: 8px 14px;
+                border-radius: var(--radius);
+                font-size: 12px;
+                font-family: var(--mono);
+                cursor: pointer;
+                transition:
+                  border-color 0.15s,
+                  color 0.15s;
+              "
+            >
+              ✕ Clear
+            </button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="col-status">✓</th>
+                  <th class="col-title">Problem</th>
+                  <th class="col-diff">Difficulty</th>
+                  <th class="col-contest">Contest</th>
+                </tr>
+              </thead>
+              <tbody id="ac-tbody"></tbody>
+            </table>
+          </div>
+          <div id="ac-pagination"></div>
+          <div class="keyboard-hint">
+            <span>Press <kbd>/</kbd> to search</span>
+            <span><kbd>R</kbd> random problem</span>
+            <span><kbd>S</kbd> sync accounts</span>
+            <span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> switch pages</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="page-profile" class="page">
+      <div class="app-wrapper profile-wrapper">
+        <div id="profile-guest" style="display: none">
+          <div class="guest-card">
+            <div class="guest-icon">⚡</div>
+            <h2>Sync your progress</h2>
+            <p>
+              Login with GitHub to track streaks, see detailed stats, and sync
+              across all your devices — stored privately in your GitHub Gist.
+            </p>
+            <button class="btn-github-large" onclick="loginWithGitHub()">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+              >
+                <path
+                  d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"
+                />
+              </svg>
+              Continue with GitHub
+            </button>
+            <p class="guest-note">
+              No database. No tracking. Just your own GitHub Gist.
+            </p>
+          </div>
+        </div>
+
+        <div id="profile-content" style="display: none">
+          <div class="profile-header">
+            <div class="profile-avatar-wrap">
+              <img id="profile-avatar" src="" alt="" class="profile-avatar" />
+            </div>
+            <div class="profile-info">
+              <div class="profile-name" id="profile-name"></div>
+              <div class="profile-handle" id="profile-handle"></div>
+              <div id="profile-avg-time" class="profile-avg-time"></div>
+            </div>
+            <div class="profile-actions">
+              <button class="btn-outline-danger" onclick="confirmClearData()">
+                🗑 Clear
+              </button>
+              <button class="btn-secondary" onclick="logout()">Logout</button>
+            </div>
           </div>
 
-          <div class="profile-grid">
-            <div class="section-block">
-              <div class="section-title">Progress by Difficulty</div>
-              <div class="diff-breakdown">
-                <div class="diff-row"><span class="diff-label easy-text">Easy</span>
-                  <div class="diff-bar-wrap">
-                    <div class="diff-bar easy-bar" id="bar-easy"></div>
+          <div class="streak-section">
+            <div class="streak-card main-streak" id="streak-card">
+              <div class="streak-bg-glow"></div>
+              <div class="streak-flame" id="streak-flame">🔥</div>
+              <div class="streak-number" id="streak-number">0</div>
+              <div class="streak-label">Day Streak</div>
+              <div class="streak-sub" id="streak-sub">
+                Start solving to build your streak!
+              </div>
+            </div>
+            <div class="streak-card side-streak">
+              <div class="streak-emoji">⚡</div>
+              <div class="streak-number-sm" id="longest-streak">0</div>
+              <div class="streak-label">Longest Streak</div>
+            </div>
+            <div class="streak-card side-streak">
+              <div class="streak-emoji">📅</div>
+              <div class="streak-number-sm" id="total-days">0</div>
+              <div class="streak-label">Active Days</div>
+            </div>
+            <div class="streak-card side-streak">
+              <div class="streak-emoji">🏆</div>
+              <div class="streak-number-sm" id="total-solved-profile">0</div>
+              <div class="streak-label">Total Solved</div>
+              <div
+                style="font-size: 9px; color: var(--text-dim); margin-top: 2px"
+              >
+                LC + CF + AC
+              </div>
+            </div>
+          </div>
+
+          <div class="section-block">
+            <div
+              class="section-title"
+              style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 10px;
+              "
+            >
+              <span
+                >Solve Activity — Last 52 Weeks
+                <span
+                  style="
+                    font-size: 9px;
+                    color: var(--text-dim);
+                    font-weight: 400;
+                    letter-spacing: 0;
+                    text-transform: none;
+                  "
+                  >LC + CF + AC combined</span
+                ></span
+              >
+              <select
+                id="heatmap-rival-select"
+                onchange="setHeatmapRival(this.value)"
+                class="contest-filter-select"
+                style="font-size: 10px; padding: 2px 8px; height: 22px"
+              >
+                <option value="">Compare with Rival...</option>
+              </select>
+            </div>
+            <div id="heatmap" class="heatmap"></div>
+            <div class="heatmap-legend">
+              <span>Less</span>
+              <div class="legend-box l0"></div>
+              <div class="legend-box l1"></div>
+              <div class="legend-box l2"></div>
+              <div class="legend-box l3"></div>
+              <div class="legend-box l4"></div>
+              <span>More</span>
+            </div>
+          </div>
+
+          <div class="profile-platform-tabs">
+            <button
+              class="profile-plat-tab active"
+              id="profile-tab-lc"
+              onclick="switchProfilePlatform('lc')"
+            >
+              ⚡ LeetCode
+            </button>
+            <button
+              class="profile-plat-tab"
+              id="profile-tab-cf"
+              onclick="switchProfilePlatform('cf')"
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                style="vertical-align: -2px"
+              >
+                <path
+                  d="M7.5 3A4.5 4.5 0 0 0 3 7.5v9A4.5 4.5 0 0 0 7.5 21h9a4.5 4.5 0 0 0 4.5-4.5v-9A4.5 4.5 0 0 0 16.5 3h-9zm0 1.5h9A3 3 0 0 1 19.5 7.5v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9a3 3 0 0 1 3-3z"
+                />
+              </svg>
+              Codeforces
+            </button>
+            <button
+              class="profile-plat-tab"
+              id="profile-tab-ac"
+              onclick="switchProfilePlatform('ac')"
+            >
+              🔵 AtCoder
+            </button>
+          </div>
+
+          <div id="profile-lc-section">
+            <div
+              style="
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                margin-bottom: 16px;
+                flex-wrap: wrap;
+              "
+            >
+              <div id="profile-lc-badge" class="profile-lc-badge"></div>
+              <div
+                style="
+                  margin-left: auto;
+                  display: flex;
+                  gap: 8px;
+                  flex-wrap: wrap;
+                "
+              >
+                <button class="btn-export" onclick="exportProgress()">
+                  ⬇ Export LC
+                </button>
+                <button
+                  class="btn-export"
+                  onclick="exportLCFilteredCSV()"
+                  title="Export current filtered view as CSV"
+                >
+                  ⬇ Filtered CSV
+                </button>
+                <button class="btn-export" onclick="triggerImport()">
+                  ⬆ Import LC
+                </button>
+                <button
+                  class="btn-full-sync"
+                  onclick="openFullSyncModal()"
+                  title="Import your complete LeetCode history using session cookie"
+                >
+                  ⚡ Full History Sync
+                </button>
+              </div>
+            </div>
+
+            <div
+              class="section-block readiness-section"
+              style="position: relative; padding-top: 44px"
+            >
+              <div
+                class="section-title"
+                style="
+                  position: absolute;
+                  top: 22px;
+                  left: 24px;
+                  display: flex;
+                  align-items: center;
+                  gap: 12px;
+                  width: calc(100% - 48px);
+                "
+              >
+                <span>Interview Readiness Score</span>
+                <select
+                  id="readiness-company-filter"
+                  onchange="
+                    state.readinessCompany = this.value;
+                    renderProfileLC();
+                  "
+                  class="cf-rating-select"
+                  style="
+                    margin-left: auto;
+                    padding: 2px 8px;
+                    font-size: 10px;
+                    height: 24px;
+                  "
+                >
+                  <option value="all">Overall Prep</option>
+                  <option value="google">Google</option>
+                  <option value="amazon">Amazon</option>
+                  <option value="meta">Meta</option>
+                  <option value="microsoft">Microsoft</option>
+                  <option value="apple">Apple</option>
+                </select>
+              </div>
+              <div
+                id="readiness-gauge"
+                style="margin-top: 8px; width: 100%"
+              ></div>
+            </div>
+
+            <div class="profile-grid">
+              <div class="section-block">
+                <div class="section-title">Progress by Difficulty</div>
+                <div class="diff-breakdown">
+                  <div class="diff-row">
+                    <span class="diff-label easy-text">Easy</span>
+                    <div class="diff-bar-wrap">
+                      <div class="diff-bar easy-bar" id="bar-easy"></div>
+                    </div>
+                    <span class="diff-count" id="count-easy">0 / 0</span>
                   </div>
-                  <span class="diff-count" id="count-easy">0 / 0</span>
-                  </div>
-                  <div class="diff-row"><span class="diff-label medium-text">Medium</span>
+                  <div class="diff-row">
+                    <span class="diff-label medium-text">Medium</span>
                     <div class="diff-bar-wrap">
                       <div class="diff-bar medium-bar" id="bar-medium"></div>
+                    </div>
+                    <span class="diff-count" id="count-medium">0 / 0</span>
                   </div>
-                  <span class="diff-count" id="count-medium">0 / 0</span>
-                  </div>
-                  <div class="diff-row"><span class="diff-label hard-text">Hard</span>
+                  <div class="diff-row">
+                    <span class="diff-label hard-text">Hard</span>
                     <div class="diff-bar-wrap">
                       <div class="diff-bar hard-bar" id="bar-hard"></div>
+                    </div>
+                    <span class="diff-count" id="count-hard">0 / 0</span>
                   </div>
-                  <span class="diff-count" id="count-hard">0 / 0</span>
-                  </div>
-                  </div>
-                  </div>
-                  <div class="section-block">
-                    <div class="section-title">Company Coverage</div>
-                    <div id="company-coverage" class="company-coverage"></div>
-                  </div>
-                  </div>
+                </div>
+              </div>
+              <div class="section-block">
+                <div class="section-title">Company Coverage</div>
+                <div id="company-coverage" class="company-coverage"></div>
+              </div>
+            </div>
 
-          <div class="section-block">
-            <div class="section-title">Recently Solved</div>
-            <div id="recent-solves" class="recent-list"></div>
+            <div class="section-block">
+              <div class="section-title">Recently Solved</div>
+              <div id="recent-solves" class="recent-list"></div>
+            </div>
+
+            <div class="section-block">
+              <div class="section-title">Notes Search</div>
+              <div class="notes-search-wrap">
+                <input
+                  type="text"
+                  class="notes-search-input"
+                  placeholder="Search your notes…"
+                  oninput="renderNotesSearch(this.value)"
+                  autocomplete="off"
+                />
+              </div>
+              <div id="notes-search-results" class="notes-search-results"></div>
+            </div>
           </div>
 
-          <div class="section-block">
-            <div class="section-title">Notes Search</div>
-            <div class="notes-search-wrap">
-              <input type="text" class="notes-search-input" placeholder="Search your notes…" oninput="renderNotesSearch(this.value)"
-                autocomplete="off">
-            </div>
-            <div id="notes-search-results" class="notes-search-results"></div>
-            </div>
-            </div>
-            
-            <div id="profile-cf-section" style="display:none">
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
-                <div id="profile-cf-badge" class="profile-lc-badge"></div>
-                <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
-                  <button class="btn-export" onclick="exportCFProgress()">⬇ Export CF</button>
-                  <button class="btn-export" onclick="exportCFFilteredCSV()" title="Export current filtered view as CSV">⬇ Filtered CSV</button>
-                  <button class="btn-export" onclick="triggerImport()">⬆ Import CF</button>
-                </div>
-              </div>
-            
-              <div class="section-block">
-                <div class="section-title">Codeforces Stats</div>
-                <div id="profile-cf-stats"></div>
-              </div>
-            
-              <div class="profile-grid">
-                <div class="section-block">
-                  <div class="section-title">Solved by Rating Band</div>
-                  <div id="profile-cf-rating-dist" class="company-coverage"></div>
-                </div>
-                <div class="section-block">
-                  <div class="section-title">Top Tags Solved</div>
-                  <div id="profile-cf-tags" class="company-coverage"></div>
-                </div>
-              </div>
-            
-              <div class="section-block">
-                <div class="section-title">Recently Solved on Codeforces</div>
-                <div id="cf-recent-solves" class="recent-list"></div>
+          <div id="profile-cf-section" style="display: none">
+            <div
+              style="
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                margin-bottom: 16px;
+                flex-wrap: wrap;
+              "
+            >
+              <div id="profile-cf-badge" class="profile-lc-badge"></div>
+              <div
+                style="
+                  margin-left: auto;
+                  display: flex;
+                  gap: 8px;
+                  flex-wrap: wrap;
+                "
+              >
+                <button class="btn-export" onclick="exportCFProgress()">
+                  ⬇ Export CF
+                </button>
+                <button
+                  class="btn-export"
+                  onclick="exportCFFilteredCSV()"
+                  title="Export current filtered view as CSV"
+                >
+                  ⬇ Filtered CSV
+                </button>
+                <button class="btn-export" onclick="triggerImport()">
+                  ⬆ Import CF
+                </button>
               </div>
             </div>
 
-            <div id="profile-ac-section" style="display:none">
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
-                <div id="profile-ac-badge" class="profile-lc-badge"></div>
-                <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
-                  <button class="btn-export" onclick="exportACProgress()">⬇ Export AC</button>
-                  <button class="btn-export" onclick="exportACFilteredCSV()" title="Export current filtered view as CSV">⬇ Filtered CSV</button>
-                </div>
-              </div>
+            <div class="section-block">
+              <div class="section-title">Codeforces Stats</div>
+              <div id="profile-cf-stats"></div>
+            </div>
 
+            <div class="profile-grid">
               <div class="section-block">
-                <div class="section-title">AtCoder Stats</div>
-                <div id="profile-ac-stats"></div>
+                <div class="section-title">Solved by Rating Band</div>
+                <div id="profile-cf-rating-dist" class="company-coverage"></div>
               </div>
-
               <div class="section-block">
-                <div class="section-title">Solved by Difficulty Band</div>
-                <div id="profile-ac-diff-dist" class="company-coverage"></div>
-              </div>
-
-              <div class="section-block">
-                <div class="section-title">Recently Solved on AtCoder</div>
-                <div id="ac-recent-solves" class="recent-list"></div>
+                <div class="section-title">Top Tags Solved</div>
+                <div id="profile-cf-tags" class="company-coverage"></div>
               </div>
             </div>
 
+            <div class="section-block">
+              <div class="section-title">Recently Solved on Codeforces</div>
+              <div id="cf-recent-solves" class="recent-list"></div>
+            </div>
+          </div>
+
+          <div id="profile-ac-section" style="display: none">
+            <div
+              style="
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                margin-bottom: 16px;
+                flex-wrap: wrap;
+              "
+            >
+              <div id="profile-ac-badge" class="profile-lc-badge"></div>
+              <div
+                style="
+                  margin-left: auto;
+                  display: flex;
+                  gap: 8px;
+                  flex-wrap: wrap;
+                "
+              >
+                <button class="btn-export" onclick="exportACProgress()">
+                  ⬇ Export AC
+                </button>
+                <button
+                  class="btn-export"
+                  onclick="exportACFilteredCSV()"
+                  title="Export current filtered view as CSV"
+                >
+                  ⬇ Filtered CSV
+                </button>
+              </div>
+            </div>
+
+            <div class="section-block">
+              <div class="section-title">AtCoder Stats</div>
+              <div id="profile-ac-stats"></div>
+            </div>
+
+            <div class="section-block">
+              <div class="section-title">Solved by Difficulty Band</div>
+              <div id="profile-ac-diff-dist" class="company-coverage"></div>
+            </div>
+
+            <div class="section-block">
+              <div class="section-title">Recently Solved on AtCoder</div>
+              <div id="ac-recent-solves" class="recent-list"></div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
-  </div>
 
-  <div id="page-insights" class="page">
-    <div class="app-wrapper insights-wrapper">
-      <div id="insights-guest" style="display:none">
-        <div class="guest-card">
-          <div class="guest-icon">📈</div>
-          <h2>Sync your progress</h2>
-          <p>Login with GitHub to unlock personal insights — solve trends, pattern coverage, company breakdown and more.</p>
-          <button class="btn-github-large" onclick="loginWithGitHub()">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-              <path
-                d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
-            </svg>
-            Continue with GitHub
+    <div id="page-insights" class="page">
+      <div class="app-wrapper insights-wrapper">
+        <div id="insights-guest" style="display: none">
+          <div class="guest-card">
+            <div class="guest-icon">📈</div>
+            <h2>Sync your progress</h2>
+            <p>
+              Login with GitHub to unlock personal insights — solve trends,
+              pattern coverage, company breakdown and more.
+            </p>
+            <button class="btn-github-large" onclick="loginWithGitHub()">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+              >
+                <path
+                  d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"
+                />
+              </svg>
+              Continue with GitHub
+            </button>
+            <p class="guest-note">
+              No database. No tracking. Just your own GitHub Gist.
+            </p>
+          </div>
+        </div>
+
+        <div id="insights-no-handle" style="display: none">
+          <div class="contests-no-user">
+            <div class="contests-no-user-icon">📈</div>
+            <div class="contests-no-user-title">
+              Connect a platform to see Insights
+            </div>
+            <div class="contests-no-user-sub">
+              Link your LeetCode, Codeforces, or AtCoder handle from the Tracker
+              page to unlock solve trends, pattern coverage, and more.
+            </div>
+            <button class="btn-primary" onclick="showPage('tracker')">
+              → Go to Tracker
+            </button>
+          </div>
+        </div>
+
+        <div id="insights-content">
+          <div class="profile-platform-tabs">
+            <button
+              class="profile-plat-tab active"
+              id="insights-tab-lc"
+              onclick="switchInsightsPlatform('lc')"
+            >
+              ⚡ LeetCode
+            </button>
+            <button
+              class="profile-plat-tab"
+              id="insights-tab-cf"
+              onclick="switchInsightsPlatform('cf')"
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                style="vertical-align: -2px"
+              >
+                <path
+                  d="M7.5 3A4.5 4.5 0 0 0 3 7.5v9A4.5 4.5 0 0 0 7.5 21h9a4.5 4.5 0 0 0 4.5-4.5v-9A4.5 4.5 0 0 0 16.5 3h-9zm0 1.5h9A3 3 0 0 1 19.5 7.5v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9a3 3 0 0 1 3-3z"
+                />
+              </svg>
+              Codeforces
+            </button>
+            <button
+              class="profile-plat-tab"
+              id="insights-tab-ac"
+              onclick="switchInsightsPlatform('ac')"
+            >
+              🔵 AtCoder
+            </button>
+          </div>
+
+          <div id="insights-lc-section">
+            <div class="insights-ribbon" id="insights-ribbon"></div>
+            <div class="insights-grid">
+              <div class="insights-card insights-card-wide">
+                <div class="insights-card-header">
+                  <span class="insights-card-icon">🔥</span>
+                  <div>
+                    <div class="insights-card-title">Hot Questions</div>
+                    <div class="insights-card-sub">
+                      Ranked by company frequency
+                    </div>
+                  </div>
+                </div>
+                <div id="insights-hot" class="insights-hot-list"></div>
+              </div>
+              <div class="insights-card">
+                <div class="insights-card-header">
+                  <span class="insights-card-icon">📊</span>
+                  <div>
+                    <div class="insights-card-title">
+                      Difficulty Distribution
+                    </div>
+                    <div class="insights-card-sub">Across all questions</div>
+                  </div>
+                </div>
+                <div id="insights-diff-chart" class="insights-diff-chart"></div>
+              </div>
+              <div class="insights-card">
+                <div class="insights-card-header">
+                  <span class="insights-card-icon">🎯</span>
+                  <div>
+                    <div class="insights-card-title">Solve Rate</div>
+                    <div class="insights-card-sub">Progress by difficulty</div>
+                  </div>
+                </div>
+                <div id="insights-solve-rate" class="insights-solve-rate"></div>
+              </div>
+              <div class="insights-card insights-card-wide">
+                <div class="insights-card-header">
+                  <span class="insights-card-icon">🏢</span>
+                  <div>
+                    <div class="insights-card-title">Companies</div>
+                    <div class="insights-card-sub">
+                      Click 📋 for company study plan
+                    </div>
+                  </div>
+                  <input
+                    type="text"
+                    class="insights-search"
+                    id="insights-company-search"
+                    placeholder="Filter companies…"
+                    oninput="renderCompanyLeaderboard(this.value)"
+                  />
+                </div>
+                <div
+                  id="insights-companies"
+                  class="insights-companies-list"
+                ></div>
+              </div>
+              <div class="insights-card">
+                <div class="insights-card-header">
+                  <span class="insights-card-icon">⏳</span>
+                  <div>
+                    <div class="insights-card-title">Still To Do</div>
+                    <div class="insights-card-sub">Unsolved breakdown</div>
+                  </div>
+                </div>
+                <div id="insights-todo" class="insights-todo"></div>
+              </div>
+              <div class="insights-card">
+                <div class="insights-card-header">
+                  <span class="insights-card-icon">⚡</span>
+                  <div>
+                    <div class="insights-card-title">Next to Solve</div>
+                    <div class="insights-card-sub">High-frequency unsolved</div>
+                  </div>
+                </div>
+                <div id="insights-next" class="insights-hot-list"></div>
+              </div>
+              <div class="insights-card insights-card-wide">
+                <div class="insights-card-header">
+                  <span class="insights-card-icon">📈</span>
+                  <div>
+                    <div class="insights-card-title">
+                      Weekly Solve Progression
+                    </div>
+                    <div class="insights-card-sub">
+                      Problems solved per week (last 12 weeks)
+                    </div>
+                  </div>
+                </div>
+                <div id="insights-weekly"></div>
+              </div>
+              <div class="insights-card insights-card-wide">
+                <div class="insights-card-header">
+                  <span class="insights-card-icon">🧩</span>
+                  <div>
+                    <div class="insights-card-title">Pattern Coverage</div>
+                    <div class="insights-card-sub">
+                      Click a row to filter by that pattern · requires
+                      data/leetcode-meta.json
+                    </div>
+                  </div>
+                </div>
+                <div id="insights-patterns" class="insights-hot-list"></div>
+              </div>
+            </div>
+          </div>
+
+          <div id="insights-cf-section" style="display: none">
+            <div class="insights-ribbon" id="cf-insights-ribbon"></div>
+            <div class="insights-grid">
+              <div class="insights-card insights-card-wide">
+                <div class="insights-card-header">
+                  <span class="insights-card-icon">📊</span>
+                  <div>
+                    <div class="insights-card-title">Rating Distribution</div>
+                    <div class="insights-card-sub">
+                      Problems by difficulty band — total vs solved
+                    </div>
+                  </div>
+                </div>
+                <div id="cf-insights-rating-chart"></div>
+              </div>
+              <div class="insights-card">
+                <div class="insights-card-header">
+                  <span class="insights-card-icon">🎯</span>
+                  <div>
+                    <div class="insights-card-title">Solve Rate by Rating</div>
+                    <div class="insights-card-sub">
+                      How many you've solved in each band
+                    </div>
+                  </div>
+                </div>
+                <div
+                  id="cf-insights-solve-rate"
+                  class="insights-solve-rate"
+                ></div>
+              </div>
+              <div class="insights-card">
+                <div class="insights-card-header">
+                  <span class="insights-card-icon">📈</span>
+                  <div>
+                    <div class="insights-card-title">Weekly CF Activity</div>
+                    <div class="insights-card-sub">
+                      Problems solved per week (last 12 weeks)
+                    </div>
+                  </div>
+                </div>
+                <div id="cf-insights-weekly"></div>
+              </div>
+              <div class="insights-card insights-card-wide">
+                <div class="insights-card-header">
+                  <span class="insights-card-icon">🧩</span>
+                  <div>
+                    <div class="insights-card-title">Tag Coverage</div>
+                    <div class="insights-card-sub">
+                      Algorithm topics across all CF problems
+                    </div>
+                  </div>
+                </div>
+                <div id="cf-insights-tags" class="insights-hot-list"></div>
+              </div>
+            </div>
+          </div>
+
+          <div id="insights-ac-section" style="display: none">
+            <div class="insights-ribbon" id="ac-insights-ribbon"></div>
+            <div class="insights-grid">
+              <div class="insights-card insights-card-wide">
+                <div class="insights-card-header">
+                  <span class="insights-card-icon">📊</span>
+                  <div>
+                    <div class="insights-card-title">
+                      Difficulty Distribution
+                    </div>
+                    <div class="insights-card-sub">
+                      Problems by difficulty band — total vs solved
+                    </div>
+                  </div>
+                </div>
+                <div id="ac-insights-rating-chart"></div>
+              </div>
+              <div class="insights-card">
+                <div class="insights-card-header">
+                  <span class="insights-card-icon">🎯</span>
+                  <div>
+                    <div class="insights-card-title">
+                      Solve Rate by Difficulty
+                    </div>
+                    <div class="insights-card-sub">
+                      How many you've solved in each band
+                    </div>
+                  </div>
+                </div>
+                <div
+                  id="ac-insights-solve-rate"
+                  class="insights-solve-rate"
+                ></div>
+              </div>
+              <div class="insights-card">
+                <div class="insights-card-header">
+                  <span class="insights-card-icon">📈</span>
+                  <div>
+                    <div class="insights-card-title">
+                      Weekly AtCoder Activity
+                    </div>
+                    <div class="insights-card-sub">
+                      Problems solved per week (last 12 weeks)
+                    </div>
+                  </div>
+                </div>
+                <div id="ac-insights-weekly"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="modal-overlay"
+      class="modal-overlay"
+      style="display: none"
+      onclick="closeModal()"
+    >
+      <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-title">Clear all progress?</div>
+        <div class="modal-body">
+          This permanently deletes all solved questions, bookmarks, notes, time
+          logs, streaks, and activity data. Cannot be undone.
+        </div>
+        <div class="modal-actions">
+          <button class="btn-secondary" onclick="closeModal()">Cancel</button
+          ><button class="btn-danger" onclick="clearAllData()">
+            Yes, delete everything
           </button>
-          <p class="guest-note">No database. No tracking. Just your own GitHub Gist.</p>
-        </div>
-      </div>
-      
-      <div id="insights-no-handle" style="display:none">
-        <div class="contests-no-user">
-          <div class="contests-no-user-icon">📈</div>
-          <div class="contests-no-user-title">Connect a platform to see Insights</div>
-          <div class="contests-no-user-sub">Link your LeetCode, Codeforces, or AtCoder handle from the Tracker page to unlock
-            solve trends, pattern coverage, and more.</div>
-          <button class="btn-primary" onclick="showPage('tracker')">→ Go to Tracker</button>
-        </div>
-      </div>
-      
-      <div id="insights-content">
-<div class="profile-platform-tabs">
-  <button class="profile-plat-tab active" id="insights-tab-lc" onclick="switchInsightsPlatform('lc')">⚡
-    LeetCode</button>
-  <button class="profile-plat-tab" id="insights-tab-cf" onclick="switchInsightsPlatform('cf')">
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px">
-      <path
-        d="M7.5 3A4.5 4.5 0 0 0 3 7.5v9A4.5 4.5 0 0 0 7.5 21h9a4.5 4.5 0 0 0 4.5-4.5v-9A4.5 4.5 0 0 0 16.5 3h-9zm0 1.5h9A3 3 0 0 1 19.5 7.5v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9a3 3 0 0 1 3-3z" />
-    </svg>
-    Codeforces
-  </button>
-  <button class="profile-plat-tab" id="insights-tab-ac" onclick="switchInsightsPlatform('ac')">🔵 AtCoder</button>
-</div>
-
-<div id="insights-lc-section">
-        <div class="insights-ribbon" id="insights-ribbon"></div>
-        <div class="insights-grid">
-          <div class="insights-card insights-card-wide">
-            <div class="insights-card-header"><span class="insights-card-icon">🔥</span>
-              <div>
-                <div class="insights-card-title">Hot Questions</div>
-                <div class="insights-card-sub">Ranked by company frequency</div>
-              </div>
-            </div>
-            <div id="insights-hot" class="insights-hot-list"></div>
-          </div>
-          <div class="insights-card">
-            <div class="insights-card-header"><span class="insights-card-icon">📊</span>
-              <div>
-                <div class="insights-card-title">Difficulty Distribution</div>
-                <div class="insights-card-sub">Across all questions</div>
-              </div>
-            </div>
-            <div id="insights-diff-chart" class="insights-diff-chart"></div>
-          </div>
-          <div class="insights-card">
-            <div class="insights-card-header"><span class="insights-card-icon">🎯</span>
-              <div>
-                <div class="insights-card-title">Solve Rate</div>
-                <div class="insights-card-sub">Progress by difficulty</div>
-              </div>
-            </div>
-            <div id="insights-solve-rate" class="insights-solve-rate"></div>
-          </div>
-          <div class="insights-card insights-card-wide">
-            <div class="insights-card-header"><span class="insights-card-icon">🏢</span>
-              <div>
-                <div class="insights-card-title">Companies</div>
-                <div class="insights-card-sub">Click 📋 for company study plan</div>
-              </div>
-              <input type="text" class="insights-search" id="insights-company-search" placeholder="Filter companies…"
-                oninput="renderCompanyLeaderboard(this.value)">
-            </div>
-            <div id="insights-companies" class="insights-companies-list"></div>
-          </div>
-          <div class="insights-card">
-            <div class="insights-card-header"><span class="insights-card-icon">⏳</span>
-              <div>
-                <div class="insights-card-title">Still To Do</div>
-                <div class="insights-card-sub">Unsolved breakdown</div>
-              </div>
-            </div>
-            <div id="insights-todo" class="insights-todo"></div>
-          </div>
-          <div class="insights-card">
-            <div class="insights-card-header"><span class="insights-card-icon">⚡</span>
-              <div>
-                <div class="insights-card-title">Next to Solve</div>
-                <div class="insights-card-sub">High-frequency unsolved</div>
-              </div>
-            </div>
-            <div id="insights-next" class="insights-hot-list"></div>
-          </div>
-          <div class="insights-card insights-card-wide">
-            <div class="insights-card-header"><span class="insights-card-icon">📈</span>
-              <div>
-                <div class="insights-card-title">Weekly Solve Progression</div>
-                <div class="insights-card-sub">Problems solved per week (last 12 weeks)</div>
-              </div>
-            </div>
-            <div id="insights-weekly"></div>
-            </div>
-          <div class="insights-card insights-card-wide">
-            <div class="insights-card-header"><span class="insights-card-icon">🧩</span>
-              <div>
-                <div class="insights-card-title">Pattern Coverage</div>
-                <div class="insights-card-sub">Click a row to filter by that pattern · requires data/leetcode-meta.json</div>
-              </div>
-            </div>
-            <div id="insights-patterns" class="insights-hot-list"></div>
-            </div>
-          </div>
-          </div>
-
-      <div id="insights-cf-section" style="display:none">
-        <div class="insights-ribbon" id="cf-insights-ribbon"></div>
-        <div class="insights-grid">
-          <div class="insights-card insights-card-wide">
-            <div class="insights-card-header"><span class="insights-card-icon">📊</span>
-              <div>
-                <div class="insights-card-title">Rating Distribution</div>
-                <div class="insights-card-sub">Problems by difficulty band — total vs solved</div>
-              </div>
-            </div>
-            <div id="cf-insights-rating-chart"></div>
-          </div>
-          <div class="insights-card">
-            <div class="insights-card-header"><span class="insights-card-icon">🎯</span>
-              <div>
-                <div class="insights-card-title">Solve Rate by Rating</div>
-                <div class="insights-card-sub">How many you've solved in each band</div>
-              </div>
-            </div>
-            <div id="cf-insights-solve-rate" class="insights-solve-rate"></div>
-          </div>
-          <div class="insights-card">
-            <div class="insights-card-header"><span class="insights-card-icon">📈</span>
-              <div>
-                <div class="insights-card-title">Weekly CF Activity</div>
-                <div class="insights-card-sub">Problems solved per week (last 12 weeks)</div>
-              </div>
-            </div>
-            <div id="cf-insights-weekly"></div>
-          </div>
-          <div class="insights-card insights-card-wide">
-            <div class="insights-card-header"><span class="insights-card-icon">🧩</span>
-              <div>
-                <div class="insights-card-title">Tag Coverage</div>
-                <div class="insights-card-sub">Algorithm topics across all CF problems</div>
-              </div>
-            </div>
-            <div id="cf-insights-tags" class="insights-hot-list"></div>
-          </div>
-        </div>
-      </div>
-
-      <div id="insights-ac-section" style="display:none">
-        <div class="insights-ribbon" id="ac-insights-ribbon"></div>
-        <div class="insights-grid">
-          <div class="insights-card insights-card-wide">
-            <div class="insights-card-header"><span class="insights-card-icon">📊</span>
-              <div>
-                <div class="insights-card-title">Difficulty Distribution</div>
-                <div class="insights-card-sub">Problems by difficulty band — total vs solved</div>
-              </div>
-            </div>
-            <div id="ac-insights-rating-chart"></div>
-          </div>
-          <div class="insights-card">
-            <div class="insights-card-header"><span class="insights-card-icon">🎯</span>
-              <div>
-                <div class="insights-card-title">Solve Rate by Difficulty</div>
-                <div class="insights-card-sub">How many you've solved in each band</div>
-              </div>
-            </div>
-            <div id="ac-insights-solve-rate" class="insights-solve-rate"></div>
-          </div>
-          <div class="insights-card">
-            <div class="insights-card-header"><span class="insights-card-icon">📈</span>
-              <div>
-                <div class="insights-card-title">Weekly AtCoder Activity</div>
-                <div class="insights-card-sub">Problems solved per week (last 12 weeks)</div>
-              </div>
-            </div>
-            <div id="ac-insights-weekly"></div>
-          </div>
         </div>
       </div>
     </div>
-    </div>
-  </div>
 
-  <div id="modal-overlay" class="modal-overlay" style="display:none" onclick="closeModal()">
-    <div class="modal" onclick="event.stopPropagation()">
-      <div class="modal-title">Clear all progress?</div>
-      <div class="modal-body">This permanently deletes all solved questions, bookmarks, notes, time logs, streaks, and
-        activity data. Cannot be undone.</div>
-      <div class="modal-actions"><button class="btn-secondary" onclick="closeModal()">Cancel</button><button
-          class="btn-danger" onclick="clearAllData()">Yes, delete everything</button></div>
-    </div>
-  </div>
-
-  <div id="note-modal-overlay" class="modal-overlay" style="display:none">
-    <div class="modal note-modal" onclick="event.stopPropagation()">
-      <div class="modal-title" id="note-modal-title">Problem Notes</div>
-      <input type="hidden" id="note-modal-id">
-      <textarea id="note-textarea" class="note-textarea"
-        placeholder="Approach, complexity, patterns, mistakes…"></textarea>
-      <div class="modal-actions"><button class="btn-secondary" onclick="closeNoteModal()">Cancel</button><button
-          class="btn-primary" onclick="saveNote()">Save</button></div>
-    </div>
-  </div>
-
-  <div id="study-plan-overlay" class="modal-overlay" style="display:none"
-    onclick="if(event.target===this)closeStudyPlan()">
-    <div class="modal study-plan-modal" onclick="event.stopPropagation()">
-      <div class="study-plan-header">
-        <div>
-          <div class="modal-title" id="study-plan-title">Study Plan</div>
-          <div class="study-plan-meta" id="study-plan-meta"></div>
+    <div id="note-modal-overlay" class="modal-overlay" style="display: none">
+      <div class="modal note-modal" onclick="event.stopPropagation()">
+        <div class="modal-title" id="note-modal-title">Problem Notes</div>
+        <input type="hidden" id="note-modal-id" />
+        <textarea
+          id="note-textarea"
+          class="note-textarea"
+          placeholder="Approach, complexity, patterns, mistakes…"
+        ></textarea>
+        <div class="modal-actions">
+          <button class="btn-secondary" onclick="closeNoteModal()">
+            Cancel</button
+          ><button class="btn-primary" onclick="saveNote()">Save</button>
         </div>
-        <button class="sp-close-btn" onclick="closeStudyPlan()">✕</button>
-      </div>
-      <div id="study-plan-body" class="study-plan-body"></div>
-    </div>
-  </div>
-
-  <div id="random-modal-overlay" class="modal-overlay" style="display:none"
-    onclick="if(event.target===this)closeRandomPicker()">
-    <div class="modal random-modal" onclick="event.stopPropagation()">
-      <div class="random-modal-header">
-        <div class="modal-title">🎲 Random Problem</div>
-        <button class="sp-close-btn" onclick="closeRandomPicker()">✕</button>
-      </div>
-      <div style="display:flex;gap:4px;padding:0 24px 0;border-bottom:1px solid var(--border);margin-bottom:0">
-        <button id="random-tab-lc" onclick="switchRandomPlatform('lc')"
-          style="background:none;border:none;border-bottom:2px solid var(--accent);padding:8px 16px;font-size:12px;font-weight:600;font-family:var(--mono);color:var(--accent);cursor:pointer;margin-bottom:-1px;transition:color .15s,border-color .15s">⚡
-          LeetCode</button>
-        <button id="random-tab-cf" onclick="switchRandomPlatform('cf')"
-          style="background:none;border:none;border-bottom:2px solid transparent;padding:8px 16px;font-size:12px;font-weight:600;font-family:var(--mono);color:var(--text-muted);cursor:pointer;margin-bottom:-1px;transition:color .15s,border-color .15s">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-1px">
-            <path
-              d="M7.5 3A4.5 4.5 0 0 0 3 7.5v9A4.5 4.5 0 0 0 7.5 21h9a4.5 4.5 0 0 0 4.5-4.5v-9A4.5 4.5 0 0 0 16.5 3h-9zm0 1.5h9A3 3 0 0 1 19.5 7.5v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9a3 3 0 0 1 3-3z" />
-          </svg>
-          Codeforces</button>
-        <button id="random-tab-ac" onclick="switchRandomPlatform('ac')"
-          style="background:none;border:none;border-bottom:2px solid transparent;padding:8px 16px;font-size:12px;font-weight:600;font-family:var(--mono);color:var(--text-muted);cursor:pointer;margin-bottom:-1px;transition:color .15s,border-color .15s">🔵 AtCoder</button>
-      </div>
-      <div id="random-problem-content" class="random-problem-content"></div>
-      <div class="random-modal-footer">
-        <button class="btn-secondary" onclick="pickRandom()">🔀 Pick Another</button>
-        <button class="btn-secondary" onclick="closeRandomPicker()">Close</button>
       </div>
     </div>
-  </div>
 
-  <div id="onboarding-overlay" class="modal-overlay" style="display:none">
-    <div class="modal onboarding-modal" onclick="event.stopPropagation()">
-      <div class="onboarding-header">
-        <div class="onboarding-logo">Algo<span>Track</span></div>
-        <div class="onboarding-tagline">Your multi-platform competitive programming companion</div>
-      </div>
-      <div class="onboarding-steps">
-        <div class="onboarding-step">
-          <div class="onboarding-step-icon">🔐</div>
+    <div
+      id="study-plan-overlay"
+      class="modal-overlay"
+      style="display: none"
+      onclick="if (event.target === this) closeStudyPlan();"
+    >
+      <div class="modal study-plan-modal" onclick="event.stopPropagation()">
+        <div class="study-plan-header">
           <div>
-            <div class="onboarding-step-title">Sign in with GitHub</div>
-            <div class="onboarding-step-desc">Your progress syncs to the cloud automatically. Sign in once and access your data from
-              any device.</div>
+            <div class="modal-title" id="study-plan-title">Study Plan</div>
+            <div class="study-plan-meta" id="study-plan-meta"></div>
+          </div>
+          <button class="sp-close-btn" onclick="closeStudyPlan()">✕</button>
+        </div>
+        <div id="study-plan-body" class="study-plan-body"></div>
+      </div>
+    </div>
+
+    <div
+      id="random-modal-overlay"
+      class="modal-overlay"
+      style="display: none"
+      onclick="if (event.target === this) closeRandomPicker();"
+    >
+      <div class="modal random-modal" onclick="event.stopPropagation()">
+        <div class="random-modal-header">
+          <div class="modal-title">🎲 Random Problem</div>
+          <button class="sp-close-btn" onclick="closeRandomPicker()">✕</button>
+        </div>
+        <div
+          style="
+            display: flex;
+            gap: 4px;
+            padding: 0 24px 0;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 0;
+          "
+        >
+          <button
+            id="random-tab-lc"
+            onclick="switchRandomPlatform('lc')"
+            style="
+              background: none;
+              border: none;
+              border-bottom: 2px solid var(--accent);
+              padding: 8px 16px;
+              font-size: 12px;
+              font-weight: 600;
+              font-family: var(--mono);
+              color: var(--accent);
+              cursor: pointer;
+              margin-bottom: -1px;
+              transition:
+                color 0.15s,
+                border-color 0.15s;
+            "
+          >
+            ⚡ LeetCode
+          </button>
+          <button
+            id="random-tab-cf"
+            onclick="switchRandomPlatform('cf')"
+            style="
+              background: none;
+              border: none;
+              border-bottom: 2px solid transparent;
+              padding: 8px 16px;
+              font-size: 12px;
+              font-weight: 600;
+              font-family: var(--mono);
+              color: var(--text-muted);
+              cursor: pointer;
+              margin-bottom: -1px;
+              transition:
+                color 0.15s,
+                border-color 0.15s;
+            "
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              style="vertical-align: -1px"
+            >
+              <path
+                d="M7.5 3A4.5 4.5 0 0 0 3 7.5v9A4.5 4.5 0 0 0 7.5 21h9a4.5 4.5 0 0 0 4.5-4.5v-9A4.5 4.5 0 0 0 16.5 3h-9zm0 1.5h9A3 3 0 0 1 19.5 7.5v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9a3 3 0 0 1 3-3z"
+              />
+            </svg>
+            Codeforces
+          </button>
+          <button
+            id="random-tab-ac"
+            onclick="switchRandomPlatform('ac')"
+            style="
+              background: none;
+              border: none;
+              border-bottom: 2px solid transparent;
+              padding: 8px 16px;
+              font-size: 12px;
+              font-weight: 600;
+              font-family: var(--mono);
+              color: var(--text-muted);
+              cursor: pointer;
+              margin-bottom: -1px;
+              transition:
+                color 0.15s,
+                border-color 0.15s;
+            "
+          >
+            🔵 AtCoder
+          </button>
+        </div>
+        <div id="random-problem-content" class="random-problem-content"></div>
+        <div class="random-modal-footer">
+          <button class="btn-secondary" onclick="pickRandom()">
+            🔀 Pick Another
+          </button>
+          <button class="btn-secondary" onclick="closeRandomPicker()">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="onboarding-overlay" class="modal-overlay" style="display: none">
+      <div class="modal onboarding-modal" onclick="event.stopPropagation()">
+        <div class="onboarding-header">
+          <div class="onboarding-logo">Algo<span>Track</span></div>
+          <div class="onboarding-tagline">
+            Your multi-platform competitive programming companion
           </div>
         </div>
-        <div class="onboarding-step">
-          <div class="onboarding-step-icon">🔗</div>
-          <div>
-            <div class="onboarding-step-title">Connect your accounts</div>
-            <div class="onboarding-step-desc">Link LeetCode, Codeforces, and AtCoder from your Profile page. AlgoTrack will sync
-              your solved problems automatically.</div>
-            </div>
-            </div>
-            <div class="onboarding-step">
-              <div class="onboarding-step-icon">✓</div>
-              <div>
-                <div class="onboarding-step-title">Track solves across all platforms</div>
-                <div class="onboarding-step-desc">Problems you solve on LC, CF, and AC appear as solved here. You can also manually
-                  mark any problem solved.</div>
+        <div class="onboarding-steps">
+          <div class="onboarding-step">
+            <div class="onboarding-step-icon">🔐</div>
+            <div>
+              <div class="onboarding-step-title">Sign in with GitHub</div>
+              <div class="onboarding-step-desc">
+                Your progress syncs to the cloud automatically. Sign in once and
+                access your data from any device.
               </div>
             </div>
-        <div class="onboarding-step">
-          <div class="onboarding-step-icon">↺</div>
-          <div>
-            <div class="onboarding-step-title">SM2 Spaced Repetition</div>
-            <div class="onboarding-step-desc">Problems are scheduled for review at 1, 3, 7, 14, 30, and 90 day intervals. Hit the 🔁
-              Review filter to see what's due today.</div>
           </div>
-        </div>
-        <div class="onboarding-step">
-          <div class="onboarding-step-icon">🏢</div>
-          <div>
-            <div class="onboarding-step-title">Filter by company &amp; pattern</div>
-            <div class="onboarding-step-desc">Use the Companies dropdown to target your dream company. The Patterns dropdown filters
-              by algorithm category (e.g. DP, Sliding Window).</div>
-          </div>
-        </div>
-        <div class="onboarding-step">
-          <div class="onboarding-step-icon">⚡</div>
-          <div>
-            <div class="onboarding-step-title">Keyboard shortcuts</div>
-            <div class="onboarding-step-desc"><kbd>/</kbd> to search · <kbd>R</kbd> random · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd>
-              switch pages · <kbd>Esc</kbd> close modals</div>
-          </div>
-        </div>
-      </div>
-      <div class="onboarding-footer">
-        <button class="btn-primary onboarding-btn" onclick="closeOnboarding()">Let's go! →</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="lc-modal-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeLCModal()">
-    <div class="modal lc-modal" onclick="event.stopPropagation()">
-      <div class="modal-title">Connect LeetCode</div>
-      <div class="modal-body">Enter your LeetCode username. Your profile must be <strong>public</strong> for sync to work.
-      </div>
-      <input type="text" id="lc-username-input" class="lc-username-input" placeholder="e.g. neal_wu" autocomplete="off">
-      <div class="modal-actions">
-        <button class="btn-secondary" onclick="closeLCModal()">Cancel</button>
-        <button class="btn-primary" onclick="saveLCUsername()">Connect & Sync</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="full-sync-modal-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeFullSyncModal()">
-    <div class="modal lc-modal" onclick="event.stopPropagation()">
-      <div class="modal-title">⚡ Full History Sync</div>
-      <div class="modal-body">
-        This will fetch your <strong>complete LeetCode solve history</strong> and overwrite your current progress with the full data.<br><br>
-        <strong>How to get your session cookie:</strong><br>
-        1. Log into leetcode.com<br>
-        2. Open DevTools → Application → Cookies → leetcode.com<br>
-        3. Copy the value of <code>LEETCODE_SESSION</code>
-      </div>
-      <input type="password" id="full-sync-session-input" class="lc-username-input" placeholder="Paste LEETCODE_SESSION cookie value here" autocomplete="off">
-      <div id="full-sync-status" style="font-size:12px;color:var(--text-muted);margin-bottom:12px;min-height:18px"></div>
-      <div class="modal-actions">
-        <button class="btn-secondary" onclick="closeFullSyncModal()">Cancel</button>
-        <button class="btn-primary" onclick="runFullHistorySync()">Sync Full History</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="page-contests" class="page">
-    <div class="app-wrapper contests-wrapper">
-
-<div id="contests-guest" style="display:none">
-  <div class="guest-card">
-    <div class="guest-icon">🏆</div>
-    <h2>Sync your progress</h2>
-    <p>Login with GitHub to track your contest history, rating graph, rivals, and performance predictions.</p>
-    <button class="btn-github-large" onclick="loginWithGitHub()">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
-      </svg>
-      Continue with GitHub
-    </button>
-    <p class="guest-note">No database. No tracking. Just your own GitHub Gist.</p>
-  </div>
-</div>
-
-<div id="contests-no-handle" style="display:none">
-  <div class="contests-no-user">
-    <div class="contests-no-user-icon">🏆</div>
-    <div class="contests-no-user-title">Connect a platform to see Contests</div>
-    <div class="contests-no-user-sub">Link your Codeforces or AtCoder handle from the Tracker page to see your contest history, rating graph, rivals, and predictions.</div>
-    <button class="btn-primary" onclick="showPage('tracker')">→ Go to Tracker</button>
-  </div>
-</div>
-
-<div id="contests-content">
-  
-      <div class="contests-plat-tabs">
-        <button class="contests-plat-tab active" id="ctab-cf" onclick="switchContestPlatform('cf')">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px">
-            <path
-              d="M7.5 3A4.5 4.5 0 0 0 3 7.5v9A4.5 4.5 0 0 0 7.5 21h9a4.5 4.5 0 0 0 4.5-4.5v-9A4.5 4.5 0 0 0 16.5 3h-9zm0 1.5h9A3 3 0 0 1 19.5 7.5v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9a3 3 0 0 1 3-3z" />
-          </svg>
-          Codeforces
-        </button>
-        <button class="contests-plat-tab" id="ctab-ac" onclick="switchContestPlatform('ac')">🔵 AtCoder</button>
-      </div>
-  
-      <div id="contests-cf-section">
-  
-        <div id="cf-contest-user-panel" style="display:none">
-          <div class="section-block">
-            <div class="section-title-row">
-              <span class="section-title">📈 Your Rating History</span>
-              <span class="contests-user-tag" id="cf-contests-user-tag"></span>
+          <div class="onboarding-step">
+            <div class="onboarding-step-icon">🔗</div>
+            <div>
+              <div class="onboarding-step-title">Connect your accounts</div>
+              <div class="onboarding-step-desc">
+                Link LeetCode, Codeforces, and AtCoder from your Profile page.
+                AlgoTrack will sync your solved problems automatically.
+              </div>
             </div>
-  
-            <div class="contests-ribbon" id="cf-contests-ribbon"></div>
-  
-            <div class="rating-graph-wrap">
-              <div class="rating-graph-header">
-                <span class="rating-graph-title">Rating over time</span>
-                <div class="rating-graph-legend">
-                  <span class="rg-legend-dot" style="background:#4fc3f7"></span><span>Current</span>
-                  <span class="rg-legend-dot" style="background:#81c784"></span><span>Peak</span>
+          </div>
+          <div class="onboarding-step">
+            <div class="onboarding-step-icon">✓</div>
+            <div>
+              <div class="onboarding-step-title">
+                Track solves across all platforms
+              </div>
+              <div class="onboarding-step-desc">
+                Problems you solve on LC, CF, and AC appear as solved here. You
+                can also manually mark any problem solved.
+              </div>
+            </div>
+          </div>
+          <div class="onboarding-step">
+            <div class="onboarding-step-icon">↺</div>
+            <div>
+              <div class="onboarding-step-title">SM2 Spaced Repetition</div>
+              <div class="onboarding-step-desc">
+                Problems are scheduled for review at 1, 3, 7, 14, 30, and 90 day
+                intervals. Hit the 🔁 Review filter to see what's due today.
+              </div>
+            </div>
+          </div>
+          <div class="onboarding-step">
+            <div class="onboarding-step-icon">🏢</div>
+            <div>
+              <div class="onboarding-step-title">
+                Filter by company &amp; pattern
+              </div>
+              <div class="onboarding-step-desc">
+                Use the Companies dropdown to target your dream company. The
+                Patterns dropdown filters by algorithm category (e.g. DP,
+                Sliding Window).
+              </div>
+            </div>
+          </div>
+          <div class="onboarding-step">
+            <div class="onboarding-step-icon">⚡</div>
+            <div>
+              <div class="onboarding-step-title">Keyboard shortcuts</div>
+              <div class="onboarding-step-desc">
+                <kbd>/</kbd> to search · <kbd>R</kbd> random · <kbd>1</kbd
+                ><kbd>2</kbd><kbd>3</kbd> switch pages · <kbd>Esc</kbd> close
+                modals
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="onboarding-footer">
+          <button
+            class="btn-primary onboarding-btn"
+            onclick="closeOnboarding()"
+          >
+            Let's go! →
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="lc-modal-overlay"
+      class="modal-overlay"
+      style="display: none"
+      onclick="if (event.target === this) closeLCModal();"
+    >
+      <div class="modal lc-modal" onclick="event.stopPropagation()">
+        <div class="modal-title">Connect LeetCode</div>
+        <div class="modal-body">
+          Enter your LeetCode username. Your profile must be
+          <strong>public</strong> for sync to work.
+        </div>
+        <input
+          type="text"
+          id="lc-username-input"
+          class="lc-username-input"
+          placeholder="e.g. neal_wu"
+          autocomplete="off"
+        />
+        <div class="modal-actions">
+          <button class="btn-secondary" onclick="closeLCModal()">Cancel</button>
+          <button class="btn-primary" onclick="saveLCUsername()">
+            Connect & Sync
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="full-sync-modal-overlay"
+      class="modal-overlay"
+      style="display: none"
+      onclick="if (event.target === this) closeFullSyncModal();"
+    >
+      <div class="modal lc-modal" onclick="event.stopPropagation()">
+        <div class="modal-title">⚡ Full History Sync</div>
+        <div class="modal-body">
+          This will fetch your
+          <strong>complete LeetCode solve history</strong> and overwrite your
+          current progress with the full data.<br /><br />
+          <strong>How to get your session cookie:</strong><br />
+          1. Log into leetcode.com<br />
+          2. Open DevTools → Application → Cookies → leetcode.com<br />
+          3. Copy the value of <code>LEETCODE_SESSION</code>
+        </div>
+        <input
+          type="password"
+          id="full-sync-session-input"
+          class="lc-username-input"
+          placeholder="Paste LEETCODE_SESSION cookie value here"
+          autocomplete="off"
+        />
+        <div
+          id="full-sync-status"
+          style="
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+            min-height: 18px;
+          "
+        ></div>
+        <div class="modal-actions">
+          <button class="btn-secondary" onclick="closeFullSyncModal()">
+            Cancel
+          </button>
+          <button class="btn-primary" onclick="runFullHistorySync()">
+            Sync Full History
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="page-contests" class="page">
+      <div class="app-wrapper contests-wrapper">
+        <div id="contests-guest" style="display: none">
+          <div class="guest-card">
+            <div class="guest-icon">🏆</div>
+            <h2>Sync your progress</h2>
+            <p>
+              Login with GitHub to track your contest history, rating graph,
+              rivals, and performance predictions.
+            </p>
+            <button class="btn-github-large" onclick="loginWithGitHub()">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+              >
+                <path
+                  d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"
+                />
+              </svg>
+              Continue with GitHub
+            </button>
+            <p class="guest-note">
+              No database. No tracking. Just your own GitHub Gist.
+            </p>
+          </div>
+        </div>
+
+        <div id="contests-no-handle" style="display: none">
+          <div class="contests-no-user">
+            <div class="contests-no-user-icon">🏆</div>
+            <div class="contests-no-user-title">
+              Connect a platform to see Contests
+            </div>
+            <div class="contests-no-user-sub">
+              Link your Codeforces or AtCoder handle from the Tracker page to
+              see your contest history, rating graph, rivals, and predictions.
+            </div>
+            <button class="btn-primary" onclick="showPage('tracker')">
+              → Go to Tracker
+            </button>
+          </div>
+        </div>
+
+        <div id="contests-content">
+          <div class="contests-plat-tabs">
+            <button
+              class="contests-plat-tab active"
+              id="ctab-cf"
+              onclick="switchContestPlatform('cf')"
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                style="vertical-align: -2px"
+              >
+                <path
+                  d="M7.5 3A4.5 4.5 0 0 0 3 7.5v9A4.5 4.5 0 0 0 7.5 21h9a4.5 4.5 0 0 0 4.5-4.5v-9A4.5 4.5 0 0 0 16.5 3h-9zm0 1.5h9A3 3 0 0 1 19.5 7.5v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9a3 3 0 0 1 3-3z"
+                />
+              </svg>
+              Codeforces
+            </button>
+            <button
+              class="contests-plat-tab"
+              id="ctab-ac"
+              onclick="switchContestPlatform('ac')"
+            >
+              🔵 AtCoder
+            </button>
+          </div>
+
+          <div id="contests-cf-section">
+            <div id="cf-contest-user-panel" style="display: none">
+              <div class="section-block">
+                <div class="section-title-row">
+                  <span class="section-title">📈 Your Rating History</span>
+                  <span
+                    class="contests-user-tag"
+                    id="cf-contests-user-tag"
+                  ></span>
+                </div>
+
+                <div class="contests-ribbon" id="cf-contests-ribbon"></div>
+
+                <div class="rating-graph-wrap">
+                  <div class="rating-graph-header">
+                    <span class="rating-graph-title">Rating over time</span>
+                    <div class="rating-graph-legend">
+                      <span
+                        class="rg-legend-dot"
+                        style="background: #4fc3f7"
+                      ></span
+                      ><span>Current</span>
+                      <span
+                        class="rg-legend-dot"
+                        style="background: #81c784"
+                      ></span
+                      ><span>Peak</span>
+                    </div>
+                  </div>
+                  <div
+                    id="cf-rating-graph"
+                    class="rating-graph-container"
+                  ></div>
+                </div>
+
+                <div class="section-title" style="margin-top: 20px">
+                  Contest History
+                </div>
+                <div class="contests-history-controls">
+                  <input
+                    type="text"
+                    id="cf-contest-search"
+                    class="contest-search-input"
+                    placeholder="Search contests…"
+                    oninput="filterCFContestHistory(this.value)"
+                    autocomplete="off"
+                  />
+                  <select
+                    id="cf-contest-result-filter"
+                    class="contest-filter-select"
+                    onchange="
+                      filterCFContestHistory(
+                        document.getElementById('cf-contest-search').value,
+                      )
+                    "
+                  >
+                    <option value="all">All Results</option>
+                    <option value="up">Rating Up ↑</option>
+                    <option value="down">Rating Down ↓</option>
+                    <option value="good">Top 25%</option>
+                  </select>
+                </div>
+                <div
+                  id="cf-contest-history-table"
+                  class="contests-history-table"
+                ></div>
+                <div
+                  id="cf-contest-history-pagination"
+                  class="contests-pagination"
+                ></div>
+              </div>
+
+              <div class="contests-insight-grid">
+                <div class="section-block">
+                  <div class="section-title">🏆 Best Performances</div>
+                  <div id="cf-best-contests" class="contests-best-list"></div>
+                </div>
+                <div class="section-block">
+                  <div class="section-title">📉 Rank Distribution</div>
+                  <div
+                    id="cf-rank-distribution"
+                    class="contests-rank-dist"
+                  ></div>
+                </div>
+                <div class="section-block">
+                  <div class="section-title">💡 Where to Improve</div>
+                  <div id="cf-improvement-tips" class="contests-tips"></div>
                 </div>
               </div>
-              <div id="cf-rating-graph" class="rating-graph-container"></div>
-            </div>
-  
-            <div class="section-title" style="margin-top:20px">Contest History</div>
-            <div class="contests-history-controls">
-              <input type="text" id="cf-contest-search" class="contest-search-input" placeholder="Search contests…"
-                oninput="filterCFContestHistory(this.value)" autocomplete="off">
-              <select id="cf-contest-result-filter" class="contest-filter-select"
-                onchange="filterCFContestHistory(document.getElementById('cf-contest-search').value)">
-                <option value="all">All Results</option>
-                <option value="up">Rating Up ↑</option>
-                <option value="down">Rating Down ↓</option>
-                <option value="good">Top 25%</option>
-              </select>
-            </div>
-            <div id="cf-contest-history-table" class="contests-history-table"></div>
-            <div id="cf-contest-history-pagination" class="contests-pagination"></div>
-          </div>
-  
-          <div class="contests-insight-grid">
-            <div class="section-block">
-              <div class="section-title">🏆 Best Performances</div>
-              <div id="cf-best-contests" class="contests-best-list"></div>
-            </div>
-            <div class="section-block">
-              <div class="section-title">📉 Rank Distribution</div>
-              <div id="cf-rank-distribution" class="contests-rank-dist"></div>
-            </div>
-            <div class="section-block">
-              <div class="section-title">💡 Where to Improve</div>
-              <div id="cf-improvement-tips" class="contests-tips"></div>
-            </div>
-          </div>
 
-          <div class="section-block" id="cf-records-panel" style="display:none">
-            <div class="section-title">🏅 Personal Records</div>
-            <div id="cf-personal-records" class="pr-grid"></div>
-          </div>
-
-          <div class="section-block" id="cf-upsolver-panel" style="display:none">
-            <div class="section-title">⟳ Post-Contest Upsolver</div>
-            <div class="upsolver-select-row">
-              <select id="cf-upsolver-contest-select" class="contest-filter-select" onchange="renderCFUpsolver(this.value)" style="flex:1;max-width:420px">
-                <option value="">Select a contest you participated in…</option>
-              </select>
-            </div>
-            <div id="cf-upsolver-body"></div>
-          </div>
-
-          <div class="section-block" id="cf-predictor-panel" style="display:none">
-            <div class="section-title">🔮 Rating Predictor</div>
-            <div id="cf-predictor-body"></div>
-          </div>
-
-          <div class="section-block" id="cf-rivals-panel">
-            <div class="section-title-row">
-              <span class="section-title">⚔️ Rivals Tracker</span>
-            </div>
-            <div class="rivals-add-row">
-              <input type="text" id="cf-rival-input" class="contest-search-input" placeholder="Add rival CF handle…" autocomplete="off" onkeydown="if(event.key==='Enter')addCFRival()" style="flex:1;max-width:260px">
-              <button class="btn-primary" onclick="addCFRival()" style="font-size:12px;padding:6px 14px">Add Rival</button>
-            </div>
-            <div id="cf-rivals-body"></div>
-          </div>
-          <div class="insights-card" style="margin-top: 16px; margin-bottom: 16px;">
-            <div class="insights-card-title">🕸️ Tag Coverage Radar</div>
-<div style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Solve rate % per topic · <span
-    style="color:var(--accent);font-weight:600">click to expand</span></div>
-            <div id="cf-radar-chart"></div>
-          </div>
-
-        </div>
-  
-        <div id="cf-contest-no-user" class="contests-no-user" style="display:none">
-          <div class="contests-no-user-icon">📊</div>
-          <div class="contests-no-user-title">Connect Codeforces to see your contest history</div>
-          <div class="contests-no-user-sub">Your rating trajectory, rank history, and personalized improvement tips appear
-            here once you sync.</div>
-          <button class="btn-primary" onclick="switchPlatform('cf'); showPage('tracker')">→ Connect Codeforces</button>
-        </div>
-
-        <div class="section-block" id="cf-recommender-panel" style="display:none">
-          <div class="section-title-row">
-            <span class="section-title">🎯 What to Solve Next</span>
-            <button class="contests-refresh-btn" onclick="renderCFRecommender()">⟳ Refresh</button>
-          </div>
-          <div id="cf-recommender-body"></div>
-        </div>
-
-        <div class="section-block">
-          <div class="section-title-row">
-            <span class="section-title">🚀 Upcoming Contests</span>
-            <button class="contests-refresh-btn" id="cf-contests-refresh" onclick="refreshContestData()">⟳
-              Refresh</button>
-          </div>
-          <div id="cf-upcoming-contests" class="contests-list"></div>
-        </div>
-  
-        <div class="section-block" id="cf-live-section" style="display:none">
-          <div class="section-title-row">
-            <span class="section-title live-indicator">🔴 Live Now</span>
-          </div>
-          <div id="cf-live-contests" class="contests-list"></div>
-        </div>
-  
-        <div class="section-block">
-          <div class="section-title-row">
-            <span class="section-title">📋 Recent Past Contests</span>
-            <div style="display:flex;align-items:center;gap:8px">
-              <button class="contests-participated-filter" id="cf-participated-filter"
-                onclick="toggleCFParticipatedFilter()">✓ Participated</button>
-              <span id="cf-past-count" class="contests-count-badge"></span>
-            </div>
-          </div>
-          <div id="cf-past-contests" class="contests-list"></div>
-          <button id="cf-past-more-btn" class="contests-more-btn" onclick="showMoreCFPast()" style="display:none">Show
-            more</button>
-        </div>  
-      </div>
-  
-      <div id="contests-ac-section" style="display:none">
-  
-        <div id="ac-contest-user-panel" style="display:none">
-          <div class="section-block">
-            <div class="section-title-row">
-              <span class="section-title">📈 Your AtCoder Contest History</span>
-              <span class="contests-user-tag" id="ac-contests-user-tag"></span>
-            </div>
-  
-            <div class="rating-graph-wrap">
-              <div class="rating-graph-header">
-                <span class="rating-graph-title">Performance over time</span>
+              <div
+                class="section-block"
+                id="cf-records-panel"
+                style="display: none"
+              >
+                <div class="section-title">🏅 Personal Records</div>
+                <div id="cf-personal-records" class="pr-grid"></div>
               </div>
-              <div id="ac-rating-graph" class="rating-graph-container"></div>
+
+              <div
+                class="section-block"
+                id="cf-upsolver-panel"
+                style="display: none"
+              >
+                <div class="section-title">⟳ Post-Contest Upsolver</div>
+                <div class="upsolver-select-row">
+                  <select
+                    id="cf-upsolver-contest-select"
+                    class="contest-filter-select"
+                    onchange="renderCFUpsolver(this.value)"
+                    style="flex: 1; max-width: 420px"
+                  >
+                    <option value="">
+                      Select a contest you participated in…
+                    </option>
+                  </select>
+                </div>
+                <div id="cf-upsolver-body"></div>
+              </div>
+
+              <div
+                class="section-block"
+                id="cf-predictor-panel"
+                style="display: none"
+              >
+                <div class="section-title">🔮 Rating Predictor</div>
+                <div id="cf-predictor-body"></div>
+              </div>
+
+              <div class="section-block" id="cf-rivals-panel">
+                <div class="section-title-row">
+                  <span class="section-title">⚔️ Rivals Tracker</span>
+                </div>
+                <div class="rivals-add-row">
+                  <input
+                    type="text"
+                    id="cf-rival-input"
+                    class="contest-search-input"
+                    placeholder="Add rival CF handle…"
+                    autocomplete="off"
+                    onkeydown="if (event.key === 'Enter') addCFRival();"
+                    style="flex: 1; max-width: 260px"
+                  />
+                  <button
+                    class="btn-primary"
+                    onclick="addCFRival()"
+                    style="font-size: 12px; padding: 6px 14px"
+                  >
+                    Add Rival
+                  </button>
+                </div>
+                <div id="cf-rivals-body"></div>
+              </div>
+              <div
+                class="insights-card"
+                style="margin-top: 16px; margin-bottom: 16px"
+              >
+                <div class="insights-card-title">🕸️ Tag Coverage Radar</div>
+                <div
+                  style="
+                    font-size: 11px;
+                    color: var(--text-muted);
+                    margin-bottom: 12px;
+                  "
+                >
+                  Solve rate % per topic ·
+                  <span style="color: var(--accent); font-weight: 600"
+                    >click to expand</span
+                  >
+                </div>
+                <div id="cf-radar-chart"></div>
+              </div>
             </div>
-  
-            <div class="section-title" style="margin-top:20px">Contest History</div>
-            <div class="contests-history-controls">
-              <input type="text" id="ac-contest-search" class="contest-search-input" placeholder="Search contests…"
-                oninput="filterACContestHistory(this.value)" autocomplete="off">
-              <select id="ac-contest-result-filter" class="contest-filter-select"
-                onchange="filterACContestHistory(document.getElementById('ac-contest-search').value)">
-                <option value="all">All Results</option>
-                <option value="rated">Rated Only</option>
-                <option value="up">Performance Up ↑</option>
-                <option value="down">Performance Down ↓</option>
-              </select>
+
+            <div
+              id="cf-contest-no-user"
+              class="contests-no-user"
+              style="display: none"
+            >
+              <div class="contests-no-user-icon">📊</div>
+              <div class="contests-no-user-title">
+                Connect Codeforces to see your contest history
+              </div>
+              <div class="contests-no-user-sub">
+                Your rating trajectory, rank history, and personalized
+                improvement tips appear here once you sync.
+              </div>
+              <button
+                class="btn-primary"
+                onclick="
+                  switchPlatform('cf');
+                  showPage('tracker');
+                "
+              >
+                → Connect Codeforces
+              </button>
             </div>
-            <div id="ac-contest-history-table" class="contests-history-table"></div>
-            <div id="ac-contest-history-pagination" class="contests-pagination"></div>
-          </div>
-  
-          <div class="contests-insight-grid">
+
+            <div
+              class="section-block"
+              id="cf-recommender-panel"
+              style="display: none"
+            >
+              <div class="section-title-row">
+                <span class="section-title">🎯 What to Solve Next</span>
+                <button
+                  class="contests-refresh-btn"
+                  onclick="renderCFRecommender()"
+                >
+                  ⟳ Refresh
+                </button>
+              </div>
+              <div id="cf-recommender-body"></div>
+            </div>
+
             <div class="section-block">
-              <div class="section-title">🏆 Best Performances</div>
-              <div id="ac-best-contests" class="contests-best-list"></div>
+              <div class="section-title-row">
+                <span class="section-title">🚀 Upcoming Contests</span>
+                <button
+                  class="contests-refresh-btn"
+                  id="cf-contests-refresh"
+                  onclick="refreshContestData()"
+                >
+                  ⟳ Refresh
+                </button>
+              </div>
+              <div id="cf-upcoming-contests" class="contests-list"></div>
             </div>
+
+            <div
+              class="section-block"
+              id="cf-live-section"
+              style="display: none"
+            >
+              <div class="section-title-row">
+                <span class="section-title live-indicator">🔴 Live Now</span>
+              </div>
+              <div id="cf-live-contests" class="contests-list"></div>
+            </div>
+
             <div class="section-block">
-              <div class="section-title">📊 Performance Stats</div>
-              <div id="ac-perf-stats" class="contests-perf-stats"></div>
+              <div class="section-title-row">
+                <span class="section-title">📋 Recent Past Contests</span>
+                <div style="display: flex; align-items: center; gap: 8px">
+                  <button
+                    class="contests-participated-filter"
+                    id="cf-participated-filter"
+                    onclick="toggleCFParticipatedFilter()"
+                  >
+                    ✓ Participated
+                  </button>
+                  <span id="cf-past-count" class="contests-count-badge"></span>
+                </div>
+              </div>
+              <div id="cf-past-contests" class="contests-list"></div>
+              <button
+                id="cf-past-more-btn"
+                class="contests-more-btn"
+                onclick="showMoreCFPast()"
+                style="display: none"
+              >
+                Show more
+              </button>
             </div>
+          </div>
+
+          <div id="contests-ac-section" style="display: none">
+            <div id="ac-contest-user-panel" style="display: none">
+              <div class="section-block">
+                <div class="section-title-row">
+                  <span class="section-title"
+                    >📈 Your AtCoder Contest History</span
+                  >
+                  <span
+                    class="contests-user-tag"
+                    id="ac-contests-user-tag"
+                  ></span>
+                </div>
+
+                <div class="rating-graph-wrap">
+                  <div class="rating-graph-header">
+                    <span class="rating-graph-title"
+                      >Performance over time</span
+                    >
+                  </div>
+                  <div
+                    id="ac-rating-graph"
+                    class="rating-graph-container"
+                  ></div>
+                </div>
+
+                <div class="section-title" style="margin-top: 20px">
+                  Contest History
+                </div>
+                <div class="contests-history-controls">
+                  <input
+                    type="text"
+                    id="ac-contest-search"
+                    class="contest-search-input"
+                    placeholder="Search contests…"
+                    oninput="filterACContestHistory(this.value)"
+                    autocomplete="off"
+                  />
+                  <select
+                    id="ac-contest-result-filter"
+                    class="contest-filter-select"
+                    onchange="
+                      filterACContestHistory(
+                        document.getElementById('ac-contest-search').value,
+                      )
+                    "
+                  >
+                    <option value="all">All Results</option>
+                    <option value="rated">Rated Only</option>
+                    <option value="up">Performance Up ↑</option>
+                    <option value="down">Performance Down ↓</option>
+                  </select>
+                </div>
+                <div
+                  id="ac-contest-history-table"
+                  class="contests-history-table"
+                ></div>
+                <div
+                  id="ac-contest-history-pagination"
+                  class="contests-pagination"
+                ></div>
+              </div>
+
+              <div class="contests-insight-grid">
+                <div class="section-block">
+                  <div class="section-title">🏆 Best Performances</div>
+                  <div id="ac-best-contests" class="contests-best-list"></div>
+                </div>
+                <div class="section-block">
+                  <div class="section-title">📊 Performance Stats</div>
+                  <div id="ac-perf-stats" class="contests-perf-stats"></div>
+                </div>
+                <div class="section-block">
+                  <div class="section-title">💡 Where to Improve</div>
+                  <div id="ac-improvement-tips" class="contests-tips"></div>
+                </div>
+              </div>
+              <div
+                class="section-block"
+                id="ac-records-panel"
+                style="display: none"
+              >
+                <div class="section-title">🏅 Personal Records</div>
+                <div id="ac-personal-records" class="pr-grid"></div>
+              </div>
+
+              <div
+                class="section-block"
+                id="ac-upsolver-panel"
+                style="display: none"
+              >
+                <div class="section-title">⟳ Post-Contest Upsolver</div>
+                <div class="upsolver-select-row">
+                  <select
+                    id="ac-upsolver-contest-select"
+                    class="contest-filter-select"
+                    onchange="renderACUpsolver(this.value)"
+                    style="flex: 1; max-width: 420px"
+                  >
+                    <option value="">
+                      Select a contest you participated in…
+                    </option>
+                  </select>
+                </div>
+                <div id="ac-upsolver-body"></div>
+              </div>
+
+              <div
+                class="section-block"
+                id="ac-predictor-panel"
+                style="display: none"
+              >
+                <div class="section-title">🔮 Performance Predictor</div>
+                <div id="ac-predictor-body"></div>
+              </div>
+
+              <div class="section-block" id="ac-rivals-panel">
+                <div class="section-title-row">
+                  <span class="section-title">⚔️ Rivals Tracker</span>
+                </div>
+                <div class="rivals-add-row">
+                  <input
+                    type="text"
+                    id="ac-rival-input"
+                    class="contest-search-input"
+                    placeholder="Add rival AtCoder handle…"
+                    autocomplete="off"
+                    onkeydown="if (event.key === 'Enter') addACRival();"
+                    style="flex: 1; max-width: 260px"
+                  />
+                  <button
+                    class="btn-primary"
+                    onclick="addACRival()"
+                    style="font-size: 12px; padding: 6px 14px"
+                  >
+                    Add Rival
+                  </button>
+                </div>
+                <div id="ac-rivals-body"></div>
+              </div>
+
+              <div
+                class="insights-card"
+                style="margin-top: 16px; margin-bottom: 16px"
+              >
+                <div class="insights-card-title">
+                  🕸️ Difficulty Coverage Radar
+                </div>
+                <div
+                  style="
+                    font-size: 11px;
+                    color: var(--text-muted);
+                    margin-bottom: 12px;
+                  "
+                >
+                  Solve rate % per difficulty band ·
+                  <span style="color: var(--accent); font-weight: 600"
+                    >click to expand</span
+                  >
+                </div>
+                <div id="ac-radar-chart"></div>
+              </div>
+            </div>
+
+            <div
+              id="ac-contest-no-user"
+              class="contests-no-user"
+              style="display: none"
+            >
+              <div class="contests-no-user-icon">📊</div>
+              <div class="contests-no-user-title">
+                Connect AtCoder to see your contest history
+              </div>
+              <div class="contests-no-user-sub">
+                Performance trajectory, ranked contest history, and tips appear
+                here once you sync.
+              </div>
+              <button
+                class="btn-primary"
+                onclick="
+                  switchPlatform('ac');
+                  showPage('tracker');
+                "
+              >
+                → Connect AtCoder
+              </button>
+            </div>
+
+            <div
+              class="section-block"
+              id="ac-recommender-panel"
+              style="display: none"
+            >
+              <div class="section-title-row">
+                <span class="section-title">🎯 What to Solve Next</span>
+                <button
+                  class="contests-refresh-btn"
+                  onclick="renderACRecommender()"
+                >
+                  ⟳ Refresh
+                </button>
+              </div>
+              <div id="ac-recommender-body"></div>
+            </div>
+
             <div class="section-block">
-              <div class="section-title">💡 Where to Improve</div>
-              <div id="ac-improvement-tips" class="contests-tips"></div>
+              <div class="section-title-row">
+                <span class="section-title">🚀 Upcoming AtCoder Contests</span>
+                <button
+                  class="contests-refresh-btn"
+                  id="ac-contests-refresh"
+                  onclick="refreshContestData()"
+                >
+                  ⟳ Refresh
+                </button>
+              </div>
+              <div id="ac-upcoming-contests" class="contests-list"></div>
+            </div>
+
+            <div
+              class="section-block"
+              id="ac-live-section"
+              style="display: none"
+            >
+              <div class="section-title-row">
+                <span class="section-title live-indicator">🔴 Live Now</span>
+              </div>
+              <div id="ac-live-contests" class="contests-list"></div>
+            </div>
+
+            <div class="section-block">
+              <div class="section-title-row">
+                <span class="section-title"
+                  >📋 Recent Past AtCoder Contests</span
+                >
+                <div style="display: flex; align-items: center; gap: 8px">
+                  <button
+                    class="contests-participated-filter"
+                    id="ac-participated-filter"
+                    onclick="toggleACParticipatedFilter()"
+                  >
+                    ✓ Participated
+                  </button>
+                  <span id="ac-past-count" class="contests-count-badge"></span>
+                </div>
+              </div>
+              <div id="ac-past-contests" class="contests-list"></div>
+              <button
+                id="ac-past-more-btn"
+                class="contests-more-btn"
+                onclick="showMoreACPast()"
+                style="display: none"
+              >
+                Show more
+              </button>
             </div>
           </div>
-<div class="section-block" id="ac-records-panel" style="display:none">
-  <div class="section-title">🏅 Personal Records</div>
-  <div id="ac-personal-records" class="pr-grid"></div>
-</div>
-
-<div class="section-block" id="ac-upsolver-panel" style="display:none">
-  <div class="section-title">⟳ Post-Contest Upsolver</div>
-  <div class="upsolver-select-row">
-    <select id="ac-upsolver-contest-select" class="contest-filter-select" onchange="renderACUpsolver(this.value)"
-      style="flex:1;max-width:420px">
-      <option value="">Select a contest you participated in…</option>
-    </select>
-  </div>
-  <div id="ac-upsolver-body"></div>
-</div>
-
-<div class="section-block" id="ac-predictor-panel" style="display:none">
-  <div class="section-title">🔮 Performance Predictor</div>
-  <div id="ac-predictor-body"></div>
-</div>
-
-<div class="section-block" id="ac-rivals-panel">
-  <div class="section-title-row">
-    <span class="section-title">⚔️ Rivals Tracker</span>
-  </div>
-  <div class="rivals-add-row">
-    <input type="text" id="ac-rival-input" class="contest-search-input" placeholder="Add rival AtCoder handle…"
-      autocomplete="off" onkeydown="if(event.key==='Enter')addACRival()" style="flex:1;max-width:260px">
-    <button class="btn-primary" onclick="addACRival()" style="font-size:12px;padding:6px 14px">Add Rival</button>
-  </div>
-  <div id="ac-rivals-body"></div>
-</div>
-
-<div class="insights-card" style="margin-top:16px; margin-bottom: 16px;">
-  <div class="insights-card-title">🕸️ Difficulty Coverage Radar</div>
-<div style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Solve rate % per difficulty band · <span
-    style="color:var(--accent);font-weight:600">click to expand</span></div>
-  <div id="ac-radar-chart"></div>
-</div>
-
         </div>
-  
-        <div id="ac-contest-no-user" class="contests-no-user" style="display:none">
-          <div class="contests-no-user-icon">📊</div>
-          <div class="contests-no-user-title">Connect AtCoder to see your contest history</div>
-          <div class="contests-no-user-sub">Performance trajectory, ranked contest history, and tips appear here once you
-            sync.</div>
-          <button class="btn-primary" onclick="switchPlatform('ac'); showPage('tracker')">→ Connect AtCoder</button>
+      </div>
+    </div>
+
+    <div
+      id="cf-note-modal-overlay"
+      class="modal-overlay"
+      style="display: none"
+      onclick="closeCFNoteModal()"
+    >
+      <div class="modal note-modal" onclick="event.stopPropagation()">
+        <div class="modal-title" id="cf-note-modal-title">CF Problem Notes</div>
+        <input type="hidden" id="cf-note-modal-key" />
+        <textarea
+          id="cf-note-textarea"
+          class="note-textarea"
+          placeholder="Add your notes, approach, or key insights..."
+          rows="8"
+        ></textarea>
+        <div class="modal-actions">
+          <button class="btn-secondary" onclick="closeCFNoteModal()">
+            Cancel
+          </button>
+          <button class="btn-primary" onclick="saveCFNote()">Save Note</button>
         </div>
-  
-        <div class="section-block" id="ac-recommender-panel" style="display:none">
-          <div class="section-title-row">
-            <span class="section-title">🎯 What to Solve Next</span>
-            <button class="contests-refresh-btn" onclick="renderACRecommender()">⟳ Refresh</button>
+      </div>
+    </div>
+
+    <div
+      id="ac-note-modal-overlay"
+      class="modal-overlay"
+      style="display: none"
+      onclick="closeACNoteModal()"
+    >
+      <div class="modal note-modal" onclick="event.stopPropagation()">
+        <div class="modal-title" id="ac-note-modal-title">AC Problem Notes</div>
+        <input type="hidden" id="ac-note-modal-key" />
+        <textarea
+          id="ac-note-textarea"
+          class="note-textarea"
+          placeholder="Add your notes, approach, or key insights..."
+          rows="8"
+        ></textarea>
+        <div class="modal-actions">
+          <button class="btn-secondary" onclick="closeACNoteModal()">
+            Cancel
+          </button>
+          <button class="btn-primary" onclick="saveACNote()">Save Note</button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="weekly-digest-overlay"
+      class="modal-overlay"
+      style="display: none"
+      onclick="closeWeeklyDigest()"
+    >
+      <div
+        class="modal"
+        onclick="event.stopPropagation()"
+        style="max-width: 400px"
+      >
+        <div class="modal-title">📊 Weekly Digest</div>
+        <div id="weekly-digest-body"></div>
+        <div class="modal-actions">
+          <button class="btn-secondary" onclick="closeWeeklyDigest()">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="contest-detail-overlay"
+      class="modal-overlay"
+      style="display: none"
+      onclick="if (event.target === this) closeContestDetail();"
+    >
+      <div class="modal contest-detail-modal" onclick="event.stopPropagation()">
+        <div class="contest-detail-header">
+          <div>
+            <div class="modal-title" id="contest-detail-title"></div>
+            <div
+              class="contest-detail-subtitle"
+              id="contest-detail-subtitle"
+            ></div>
           </div>
-          <div id="ac-recommender-body"></div>
+          <button class="sp-close-btn" onclick="closeContestDetail()">✕</button>
         </div>
-
-        <div class="section-block">
-          <div class="section-title-row">
-            <span class="section-title">🚀 Upcoming AtCoder Contests</span>
-            <button class="contests-refresh-btn" id="ac-contests-refresh" onclick="refreshContestData()">⟳
-              Refresh</button>
-          </div>
-          <div id="ac-upcoming-contests" class="contests-list"></div>
-        </div>
-  
-        <div class="section-block" id="ac-live-section" style="display:none">
-          <div class="section-title-row">
-            <span class="section-title live-indicator">🔴 Live Now</span>
-          </div>
-          <div id="ac-live-contests" class="contests-list"></div>
-        </div>
-  
-        <div class="section-block">
-          <div class="section-title-row">
-            <span class="section-title">📋 Recent Past AtCoder Contests</span>
-            <div style="display:flex;align-items:center;gap:8px">
-              <button class="contests-participated-filter" id="ac-participated-filter" onclick="toggleACParticipatedFilter()">✓ Participated</button>
-              <span id="ac-past-count" class="contests-count-badge"></span>
-            </div>
-          </div>
-          <div id="ac-past-contests" class="contests-list"></div>
-          <button id="ac-past-more-btn" class="contests-more-btn" onclick="showMoreACPast()" style="display:none">Show
-            more</button>
-        </div>
-  
-      </div>
-  
-    </div>
-
-<div id="contest-detail-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeContestDetail()">
-  <div class="modal contest-detail-modal" onclick="event.stopPropagation()">
-    <div class="contest-detail-header">
-      <div>
-        <div class="modal-title" id="contest-detail-title"></div>
-        <div class="contest-detail-subtitle" id="contest-detail-subtitle"></div>
-      </div>
-      <button class="sp-close-btn" onclick="closeContestDetail()">✕</button>
-    </div>
-    <div id="contest-detail-body" class="contest-detail-body"></div>
-  </div>
-</div>
-</div>
-  </div>
-
-  <div id="cf-note-modal-overlay" class="modal-overlay" style="display:none" onclick="closeCFNoteModal()">
-    <div class="modal note-modal" onclick="event.stopPropagation()">
-      <div class="modal-title" id="cf-note-modal-title">CF Problem Notes</div>
-      <input type="hidden" id="cf-note-modal-key">
-      <textarea id="cf-note-textarea" class="note-textarea" placeholder="Add your notes, approach, or key insights..." rows="8"></textarea>
-      <div class="modal-actions">
-        <button class="btn-secondary" onclick="closeCFNoteModal()">Cancel</button>
-        <button class="btn-primary" onclick="saveCFNote()">Save Note</button>
+        <div id="contest-detail-body" class="contest-detail-body"></div>
       </div>
     </div>
-  </div>
 
-  <div id="ac-note-modal-overlay" class="modal-overlay" style="display:none" onclick="closeACNoteModal()">
-    <div class="modal note-modal" onclick="event.stopPropagation()">
-      <div class="modal-title" id="ac-note-modal-title">AC Problem Notes</div>
-      <input type="hidden" id="ac-note-modal-key">
-      <textarea id="ac-note-textarea" class="note-textarea" placeholder="Add your notes, approach, or key insights..." rows="8"></textarea>
-      <div class="modal-actions">
-        <button class="btn-secondary" onclick="closeACNoteModal()">Cancel</button>
-        <button class="btn-primary" onclick="saveACNote()">Save Note</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="weekly-digest-overlay" class="modal-overlay" style="display:none" onclick="closeWeeklyDigest()">
-    <div class="modal" onclick="event.stopPropagation()" style="max-width:400px">
-      <div class="modal-title">📊 Weekly Digest</div>
-      <div id="weekly-digest-body"></div>
-      <div class="modal-actions">
-        <button class="btn-secondary" onclick="closeWeeklyDigest()">Close</button>
-      </div>
-    </div>
-  </div>
-
-  <script src="app.js"></script>
-</body>
-
+    <script src="app.js"></script>
+  </body>
 </html>
