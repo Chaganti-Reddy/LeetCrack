@@ -22,28 +22,8 @@ if ! command -v browser-sync &>/dev/null; then
   npm install -g browser-sync
 fi
 
-node generate-manifest.js
-
-node -e "
-  const fs  = require('fs');
-  const dir = require('path').join(process.cwd(), 'data');
-  let debounce = null;
-  fs.watch(dir, (_, filename) => {
-    if (!filename || !filename.endsWith('.csv')) return;
-    clearTimeout(debounce);
-    debounce = setTimeout(() => {
-      console.log('⚙  CSV change detected — regenerating manifest…');
-      require('child_process').execSync('node generate-manifest.js', { stdio: 'inherit' });
-    }, 300);
-  });
-  console.log('👀 Watching data/*.csv for changes…');
-  process.stdin.resume();
-" &
-WATCHER_PID=$!
-
 cleanup() {
   echo ""
-  kill $WATCHER_PID 2>/dev/null
   kill $NETLIFY_PID 2>/dev/null
 }
 trap cleanup EXIT
@@ -61,7 +41,7 @@ done
 echo "Starting browser-sync with live reload at http://localhost:4000"
 browser-sync start \
   --proxy "localhost:8888" \
-  --files "index.html, style.css, app.js, data/manifest.json" \
+  --files "index.html, style.css, app.js" \
   --port 4000 \
   --no-notify \
   --no-open
