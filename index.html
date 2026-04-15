@@ -180,13 +180,13 @@
           <div id="loading">
             <div class="loader-inner">
               <span class="spinner"></span
-              ><span>Loading questions from CSVs…</span>
+              ><span>Loading problems…</span>
             </div>
           </div>
 
           <div id="main-content" style="display: none">
             <div class="filters-row">
-              <div class="search-wrap">
+              <div class="search-wrap search-bar-limited">
                 <svg
                   width="14"
                   height="14"
@@ -201,7 +201,7 @@
                 <input
                   type="text"
                   id="search-input"
-                  placeholder="Search problems or companies… ( / )"
+                  placeholder="Search problems... ( / )"
                   autocomplete="off"
                 />
               </div>
@@ -242,49 +242,6 @@
               </div>
 
               <div class="filter-group">
-                <div class="company-filter-wrap" id="company-filter-wrap">
-                  <button
-                    class="filter-dropdown-btn"
-                    id="company-filter-btn"
-                    onclick="toggleCompanyDropdown()"
-                  >
-                    Companies
-                    <span
-                      id="company-filter-count"
-                      class="filter-count"
-                      style="display: none"
-                      >0</span
-                    ><span class="dropdown-arrow">▾</span>
-                  </button>
-                  <div
-                    class="company-dropdown"
-                    id="company-dropdown"
-                    style="display: none"
-                  >
-                    <div class="company-dropdown-search">
-                      <input
-                        type="text"
-                        id="company-search-input"
-                        placeholder="Search companies…"
-                        oninput="filterCompanyList(this.value)"
-                        autocomplete="off"
-                      />
-                    </div>
-                    <div
-                      class="company-checkbox-list"
-                      id="company-checkbox-list"
-                    ></div>
-                    <div class="company-dropdown-footer">
-                      <button
-                        class="dropdown-clear-btn"
-                        onclick="clearCompanyFilters()"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
                 <div
                   class="company-filter-wrap"
                   id="pattern-filter-wrap"
@@ -448,6 +405,8 @@
                 </button>
               </div>
 
+              <button class="nav-icon-btn" onclick="exportLCFilteredCSV()" title="Download Filtered CSV" style="margin-left: 4px;">📥 CSV</button>
+
               <button id="clear-filters" style="display: none">✕ Clear</button>
             </div>
 
@@ -459,7 +418,6 @@
                     <th class="col-title" data-sort="title">Question</th>
                     <th class="col-diff" data-sort="difficulty">Difficulty</th>
                     <th class="col-accept" data-sort="acceptance">Accept %</th>
-                    <th class="col-companies">Companies</th>
                   </tr>
                 </thead>
                 <tbody id="questions-tbody"></tbody>
@@ -502,7 +460,7 @@
             ></div>
           </div>
           <div class="filters-row">
-            <div class="search-wrap">
+            <div class="search-wrap cf-search-bar">
               <svg
                 width="14"
                 height="14"
@@ -586,14 +544,26 @@
                 <option value="3500" selected>3500</option>
               </select>
             </div>
-            <select
-              class="filter-dropdown-btn"
-              onchange="setCFTagFilter(this.value)"
-              id="cf-tag-select"
-            ></select>
+            <div class="company-filter-wrap" id="cf-tag-filter-wrap">
+              <button class="filter-dropdown-btn" id="cf-tag-filter-btn" onclick="toggleCFTagDropdown()">
+                  Tags
+                  <span id="cf-tag-filter-count" class="filter-count" style="display: none">0</span>
+                  <span class="dropdown-arrow">▾</span>
+              </button>
+              <div class="company-dropdown" id="cf-tag-dropdown" style="display: none">
+                  <div class="company-dropdown-search">
+                      <input type="text" id="cf-tag-search-input" placeholder="Search tags…" oninput="filterCFTagList(this.value)" autocomplete="off" />
+                  </div>
+                  <div class="company-checkbox-list" id="cf-tag-checkbox-list"></div>
+                  <div class="company-dropdown-footer">
+                      <button class="dropdown-clear-btn" onclick="clearCFTagFilters()">Clear</button>
+                  </div>
+              </div>
+          </div>
             <select
               class="filter-dropdown-btn"
               id="cf-status-select"
+              style="min-width: 120px;"
               onchange="setCFStatusFilter(this.value)"
             >
               <option value="all">All Status</option>
@@ -619,6 +589,7 @@
                 🔁 Review
               </button>
             </div>
+            <button class="nav-icon-btn" onclick="exportCFFilteredCSV()" title="Download Filtered CSV" style="margin-left: 4px;">📥 CSV</button>
             <button
               id="cf-clear-filters"
               onclick="clearCFFilters()"
@@ -690,7 +661,7 @@
             ></div>
           </div>
           <div class="filters-row">
-            <div class="search-wrap">
+            <div class="search-wrap search-bar-limited">
               <svg
                 width="14"
                 height="14"
@@ -772,6 +743,7 @@
                 🔁 Review
               </button>
             </div>
+            <button class="nav-icon-btn" onclick="exportACFilteredCSV()" title="Download Filtered CSV" style="margin-left: 4px;">📥 CSV</button>
             <button
               id="ac-clear-filters"
               onclick="clearACFilters()"
@@ -897,49 +869,18 @@
           </div>
 
           <div class="section-block">
-            <div
-              class="section-title"
-              style="
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                flex-wrap: wrap;
-                gap: 10px;
-              "
-            >
-              <span
-                >Solve Activity — Last 52 Weeks
-                <span
-                  style="
-                    font-size: 9px;
-                    color: var(--text-dim);
-                    font-weight: 400;
-                    letter-spacing: 0;
-                    text-transform: none;
-                  "
-                  >LC + CF + AC combined</span
-                ></span
-              >
-              <select
-                id="heatmap-rival-select"
-                onchange="setHeatmapRival(this.value)"
-                class="contest-filter-select"
-                style="font-size: 10px; padding: 2px 8px; height: 22px"
-              >
-                <option value="">Compare with Rival...</option>
-              </select>
+            <div class="section-title">6-Month Activity Heatmap</div>
+            <div id="heatmap"></div>
+            <div class="heatmap-legend" style="display:flex; align-items:center; gap:4px; font-size:10px; color:var(--text-dim); margin-top:8px">
+                <span>Less</span>
+                <div class="heatmap-cell l0"></div>
+                <div class="heatmap-cell l1"></div>
+                <div class="heatmap-cell l2"></div>
+                <div class="heatmap-cell l3"></div>
+                <div class="heatmap-cell l4"></div>
+                <span>More</span>
             </div>
-            <div id="heatmap" class="heatmap"></div>
-            <div class="heatmap-legend">
-              <span>Less</span>
-              <div class="legend-box l0"></div>
-              <div class="legend-box l1"></div>
-              <div class="legend-box l2"></div>
-              <div class="legend-box l3"></div>
-              <div class="legend-box l4"></div>
-              <span>More</span>
-            </div>
-          </div>
+        </div>
 
           <div class="profile-platform-tabs">
             <button
@@ -998,13 +939,6 @@
                 <button class="btn-export" onclick="exportProgress()">
                   ⬇ Export LC
                 </button>
-                <button
-                  class="btn-export"
-                  onclick="exportLCFilteredCSV()"
-                  title="Export current filtered view as CSV"
-                >
-                  ⬇ Filtered CSV
-                </button>
                 <button class="btn-export" onclick="triggerImport()">
                   ⬆ Import LC
                 </button>
@@ -1035,65 +969,11 @@
                 "
               >
                 <span>Interview Readiness Score</span>
-                <select
-                  id="readiness-company-filter"
-                  onchange="
-                    state.readinessCompany = this.value;
-                    renderProfileLC();
-                  "
-                  class="cf-rating-select"
-                  style="
-                    margin-left: auto;
-                    padding: 2px 8px;
-                    font-size: 10px;
-                    height: 24px;
-                  "
-                >
-                  <option value="all">Overall Prep</option>
-                  <option value="google">Google</option>
-                  <option value="amazon">Amazon</option>
-                  <option value="meta">Meta</option>
-                  <option value="microsoft">Microsoft</option>
-                  <option value="apple">Apple</option>
-                </select>
               </div>
               <div
                 id="readiness-gauge"
                 style="margin-top: 8px; width: 100%"
               ></div>
-            </div>
-
-            <div class="profile-grid">
-              <div class="section-block">
-                <div class="section-title">Progress by Difficulty</div>
-                <div class="diff-breakdown">
-                  <div class="diff-row">
-                    <span class="diff-label easy-text">Easy</span>
-                    <div class="diff-bar-wrap">
-                      <div class="diff-bar easy-bar" id="bar-easy"></div>
-                    </div>
-                    <span class="diff-count" id="count-easy">0 / 0</span>
-                  </div>
-                  <div class="diff-row">
-                    <span class="diff-label medium-text">Medium</span>
-                    <div class="diff-bar-wrap">
-                      <div class="diff-bar medium-bar" id="bar-medium"></div>
-                    </div>
-                    <span class="diff-count" id="count-medium">0 / 0</span>
-                  </div>
-                  <div class="diff-row">
-                    <span class="diff-label hard-text">Hard</span>
-                    <div class="diff-bar-wrap">
-                      <div class="diff-bar hard-bar" id="bar-hard"></div>
-                    </div>
-                    <span class="diff-count" id="count-hard">0 / 0</span>
-                  </div>
-                </div>
-              </div>
-              <div class="section-block">
-                <div class="section-title">Company Coverage</div>
-                <div id="company-coverage" class="company-coverage"></div>
-              </div>
             </div>
 
             <div class="section-block">
@@ -1138,13 +1018,6 @@
                 <button class="btn-export" onclick="exportCFProgress()">
                   ⬇ Export CF
                 </button>
-                <button
-                  class="btn-export"
-                  onclick="exportCFFilteredCSV()"
-                  title="Export current filtered view as CSV"
-                >
-                  ⬇ Filtered CSV
-                </button>
                 <button class="btn-export" onclick="triggerImport()">
                   ⬆ Import CF
                 </button>
@@ -1154,6 +1027,33 @@
             <div class="section-block">
               <div class="section-title">Codeforces Stats</div>
               <div id="profile-cf-stats"></div>
+            </div>
+
+            <div class="section-block">
+              <div class="section-title">Progress by Difficulty</div>
+              <div class="diff-breakdown">
+                <div class="diff-row">
+                  <span class="diff-label easy-text">Easy</span>
+                  <div class="diff-bar-wrap">
+                    <div class="diff-bar easy-bar" id="bar-easy"></div>
+                  </div>
+                  <span class="diff-count" id="count-easy">0 / 0</span>
+                </div>
+                <div class="diff-row">
+                  <span class="diff-label medium-text">Medium</span>
+                  <div class="diff-bar-wrap">
+                    <div class="diff-bar medium-bar" id="bar-medium"></div>
+                  </div>
+                  <span class="diff-count" id="count-medium">0 / 0</span>
+                </div>
+                <div class="diff-row">
+                  <span class="diff-label hard-text">Hard</span>
+                  <div class="diff-bar-wrap">
+                    <div class="diff-bar hard-bar" id="bar-hard"></div>
+                  </div>
+                  <span class="diff-count" id="count-hard">0 / 0</span>
+                </div>
+              </div>
             </div>
 
             <div class="profile-grid">
@@ -1170,6 +1070,14 @@
             <div class="section-block">
               <div class="section-title">Recently Solved on Codeforces</div>
               <div id="cf-recent-solves" class="recent-list"></div>
+            </div>
+
+            <div class="section-block">
+              <div class="section-title">Codeforces Notes Search</div>
+              <div class="notes-search-wrap">
+                <input type="text" class="notes-search-input" placeholder="Search your CF notes…" oninput="renderCFNotesSearch(this.value)" autocomplete="off" />
+              </div>
+              <div id="cf-notes-search-results" class="notes-search-results"></div>
             </div>
           </div>
 
@@ -1195,13 +1103,6 @@
                 <button class="btn-export" onclick="exportACProgress()">
                   ⬇ Export AC
                 </button>
-                <button
-                  class="btn-export"
-                  onclick="exportACFilteredCSV()"
-                  title="Export current filtered view as CSV"
-                >
-                  ⬇ Filtered CSV
-                </button>
               </div>
             </div>
 
@@ -1219,6 +1120,13 @@
               <div class="section-title">Recently Solved on AtCoder</div>
               <div id="ac-recent-solves" class="recent-list"></div>
             </div>
+            <div class="section-block">
+              <div class="section-title">AtCoder Notes Search</div>
+              <div class="notes-search-wrap">
+                <input type="text" class="notes-search-input" placeholder="Search your AC notes…" oninput="renderACNotesSearch(this.value)" autocomplete="off" />
+              </div>
+              <div id="ac-notes-search-results" class="notes-search-results"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -1232,7 +1140,7 @@
             <h2>Sync your progress</h2>
             <p>
               Login with GitHub to unlock personal insights — solve trends,
-              pattern coverage, company breakdown and more.
+              pattern coverage, solve trends and more.
             </p>
             <button class="btn-github-large" onclick="loginWithGitHub()">
               <svg
@@ -1308,30 +1216,16 @@
           <div id="insights-lc-section">
             <div class="insights-ribbon" id="insights-ribbon"></div>
             <div class="insights-grid">
-              <div class="insights-card insights-card-wide">
-                <div class="insights-card-header">
-                  <span class="insights-card-icon">🔥</span>
-                  <div>
-                    <div class="insights-card-title">Hot Questions</div>
-                    <div class="insights-card-sub">
-                      Ranked by company frequency
-                    </div>
-                  </div>
-                </div>
-                <div id="insights-hot" class="insights-hot-list"></div>
-              </div>
               <div class="insights-card">
                 <div class="insights-card-header">
-                  <span class="insights-card-icon">📊</span>
-                  <div>
-                    <div class="insights-card-title">
-                      Difficulty Distribution
-                    </div>
-                    <div class="insights-card-sub">Across all questions</div>
-                  </div>
+                    <span class="insights-card-icon">📊</span>
+                    <div>
+                        <div class="insights-card-title">Difficulty Distribution</div>
+                        <div class="insights-card-sub">Total problem counts by level</div>
+                        </div>
                 </div>
-                <div id="insights-diff-chart" class="insights-diff-chart"></div>
-              </div>
+                <div id="insights-diff-chart"></div>
+                </div>
               <div class="insights-card">
                 <div class="insights-card-header">
                   <span class="insights-card-icon">🎯</span>
@@ -1341,28 +1235,6 @@
                   </div>
                 </div>
                 <div id="insights-solve-rate" class="insights-solve-rate"></div>
-              </div>
-              <div class="insights-card insights-card-wide">
-                <div class="insights-card-header">
-                  <span class="insights-card-icon">🏢</span>
-                  <div>
-                    <div class="insights-card-title">Companies</div>
-                    <div class="insights-card-sub">
-                      Click 📋 for company study plan
-                    </div>
-                  </div>
-                  <input
-                    type="text"
-                    class="insights-search"
-                    id="insights-company-search"
-                    placeholder="Filter companies…"
-                    oninput="renderCompanyLeaderboard(this.value)"
-                  />
-                </div>
-                <div
-                  id="insights-companies"
-                  class="insights-companies-list"
-                ></div>
               </div>
               <div class="insights-card">
                 <div class="insights-card-header">
@@ -1446,15 +1318,13 @@
               </div>
               <div class="insights-card">
                 <div class="insights-card-header">
-                  <span class="insights-card-icon">📈</span>
+                  <span class="insights-card-icon">⚡</span>
                   <div>
-                    <div class="insights-card-title">Weekly CF Activity</div>
-                    <div class="insights-card-sub">
-                      Problems solved per week (last 12 weeks)
-                    </div>
+                    <div class="insights-card-title">Next to Solve</div>
+                    <div class="insights-card-sub">Achievable unsolved problems</div>
                   </div>
                 </div>
-                <div id="cf-insights-weekly"></div>
+                <div id="cf-insights-next" class="insights-hot-list"></div>
               </div>
               <div class="insights-card insights-card-wide">
                 <div class="insights-card-header">
@@ -1462,7 +1332,7 @@
                   <div>
                     <div class="insights-card-title">Tag Coverage</div>
                     <div class="insights-card-sub">
-                      Algorithm topics across all CF problems
+                      Algorithm topics across all problems
                     </div>
                   </div>
                 </div>
@@ -1507,17 +1377,13 @@
               </div>
               <div class="insights-card">
                 <div class="insights-card-header">
-                  <span class="insights-card-icon">📈</span>
+                  <span class="insights-card-icon">⚡</span>
                   <div>
-                    <div class="insights-card-title">
-                      Weekly AtCoder Activity
-                    </div>
-                    <div class="insights-card-sub">
-                      Problems solved per week (last 12 weeks)
-                    </div>
+                    <div class="insights-card-title">Next to Solve (AC)</div>
+                    <div class="insights-card-sub">Achievable unsolved problems</div>
                   </div>
                 </div>
-                <div id="ac-insights-weekly"></div>
+                <div id="ac-insights-next" class="insights-hot-list"></div>
               </div>
             </div>
           </div>
@@ -1560,24 +1426,6 @@
             Cancel</button
           ><button class="btn-primary" onclick="saveNote()">Save</button>
         </div>
-      </div>
-    </div>
-
-    <div
-      id="study-plan-overlay"
-      class="modal-overlay"
-      style="display: none"
-      onclick="if (event.target === this) closeStudyPlan();"
-    >
-      <div class="modal study-plan-modal" onclick="event.stopPropagation()">
-        <div class="study-plan-header">
-          <div>
-            <div class="modal-title" id="study-plan-title">Study Plan</div>
-            <div class="study-plan-meta" id="study-plan-meta"></div>
-          </div>
-          <button class="sp-close-btn" onclick="closeStudyPlan()">✕</button>
-        </div>
-        <div id="study-plan-body" class="study-plan-body"></div>
       </div>
     </div>
 
@@ -1736,19 +1584,6 @@
               <div class="onboarding-step-desc">
                 Problems are scheduled for review at 1, 3, 7, 14, 30, and 90 day
                 intervals. Hit the 🔁 Review filter to see what's due today.
-              </div>
-            </div>
-          </div>
-          <div class="onboarding-step">
-            <div class="onboarding-step-icon">🏢</div>
-            <div>
-              <div class="onboarding-step-title">
-                Filter by company &amp; pattern
-              </div>
-              <div class="onboarding-step-desc">
-                Use the Companies dropdown to target your dream company. The
-                Patterns dropdown filters by algorithm category (e.g. DP,
-                Sliding Window).
               </div>
             </div>
           </div>
