@@ -906,17 +906,57 @@ async function saveLCUsername() {
   state.lcUsername = username;
   localStorage.setItem("lc_username", username);
   closeLCModal();
-  renderAuthArea();
-  saveProgress();
-  await syncLeetCode();
+
+  state.lcUserInfo = {
+    username,
+    avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&size=56&background=f89f1b&color=fff&rounded=true`,
+    ranking: null,
+    solvedCount: null,
+  };
+
+  document.getElementById("lc-connect-area").style.display = "none";
+  document.getElementById("lc-connected-area").style.display = "";
   renderLCHeader();
+  renderAuthArea();
+  applyFilters();
+  saveProgress();
+  fetchLCUserInfo();
+  showToast("🔗 Connected! Fetching recent activity...", "info");
+  await syncLeetCode(true);
+  const solvedCount = Object.keys(state.solved).length;
+
+  setTimeout(() => {
+    openFullSyncModal();
+
+    const statusEl = document.getElementById("full-sync-status");
+    if (statusEl) {
+      statusEl.innerHTML = `
+        <div style="background:rgba(200, 168, 75, 0.1); color:var(--accent); padding:12px; border-radius:8px; margin-bottom:12px; font-size:12px; border:1px solid var(--accent-dim); line-height:1.5">
+          <strong>✅ Found ${solvedCount} recent solves!</strong><br>
+          Note: LeetCode only shows your last ~20 problems publicly. To import your 
+          <strong>entire history</strong>, please provide your session cookie below.
+        </div>`;
+    }
+  }, 1500);
 }
 
-function disconnectLC() {
+async function disconnectLC() {
   state.lcUsername = null;
+  state.lcUserInfo = null;
+  state.solved = {};
+  state.activity = {};
   localStorage.removeItem("lc_username");
-  saveProgress();
+  await saveProgress();
+
+  document.getElementById("lc-connect-area").style.display = "";
+  const connectedArea = document.getElementById("lc-connected-area");
+  connectedArea.style.display = "none";
+  connectedArea.innerHTML = "";
+
+  applyFilters();
+  renderStats();
   renderAuthArea();
+  renderProfilePage();
   showToast("LeetCode disconnected");
 }
 
@@ -949,7 +989,12 @@ async function fetchLCUserInfo() {
 
 function openFullSyncModal() {
   document.getElementById("full-sync-session-input").value = "";
-  document.getElementById("full-sync-status").textContent = "";
+
+  const statusEl = document.getElementById("full-sync-status");
+  if (statusEl && !statusEl.innerHTML.includes("Found")) {
+    statusEl.textContent = "";
+  }
+
   document.getElementById("full-sync-modal-overlay").style.display = "flex";
 }
 function closeFullSyncModal() {
@@ -1367,7 +1412,7 @@ async function loadLCProblems() {
       state.allTags = [...tagSet].sort();
 
       renderFilterUI();
-      applyFilters(); 
+      applyFilters();
       renderStats();
     }, 0);
   } catch (err) {
@@ -1945,28 +1990,31 @@ function renderCFConnectedArea() {
 
 function renderLCHeader() {
   const connectArea = document.getElementById("lc-connect-area");
-  if (connectArea) connectArea.style.display = state.lcUsername ? "none" : "";
   const area = document.getElementById("lc-connected-area");
-  if (!area) return;
+  if (!connectArea || !area) return;
   if (!state.lcUsername) {
+    connectArea.style.display = "";
     area.style.display = "none";
+    area.innerHTML = "";
     return;
   }
+  connectArea.style.display = "none";
+  area.style.display = "";
 
   const info = state.lcUserInfo || {};
-  const avatar = info.avatar
-    ? `<img src="${info.avatar}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid #f89f1b60;margin-right:8px;vertical-align:middle" onerror="this.style.display='none'">`
-    : "";
+  const avatarUrl =
+    info.avatar ||
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(state.lcUsername)}&size=56&background=f89f1b&color=fff&rounded=true`;
+  const avatar = `<img src="${avatarUrl}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid #f89f1b60;margin-right:8px;vertical-align:middle" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(state.lcUsername)}&size=56&background=f89f1b&color=fff&rounded=true'">`;
   const ranking = info.ranking
     ? `<span class="cf-rank-badge" style="color:var(--text-muted)">Rank #${Number(info.ranking).toLocaleString()}</span>`
     : "";
-  const internalSolvedCount = Object.keys(state.solved).length;
+  const solvedCount = Object.keys(state.solved).length;
   const solved =
-    internalSolvedCount > 0
-      ? `<span class="cf-rank-badge" style="color:var(--accent)">${internalSolvedCount} Solved</span>`
+    solvedCount > 0
+      ? `<span class="cf-rank-badge" style="color:var(--accent)">${solvedCount} Solved</span>`
       : "";
 
-  area.style.display = "";
   area.innerHTML = `
     <div class="cf-user-badge">
       ${avatar}
