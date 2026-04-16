@@ -1506,12 +1506,17 @@ function applyCFFilters() {
     } else {
       if (p.rating < minRating || p.rating > maxRating) return false;
     }
-    if (
-      sq &&
-      !p.name.toLowerCase().includes(sq) &&
-      !p.tags.some((t) => t.toLowerCase().includes(sq))
-    )
-      return false;
+    if (sq) {
+      const nameMatch = p.name.toLowerCase().includes(sq);
+      const tagMatch = p.tags.some((t) => t.toLowerCase().includes(sq));
+      const contestIdMatch = String(p.contestId).includes(sq);
+      const indexMatch = p.index.toLowerCase().includes(sq);
+      const combinedMatch = `${p.contestId}${p.index}`.toLowerCase().includes(sq);
+    
+      if (!nameMatch && !tagMatch && !contestIdMatch && !indexMatch && !combinedMatch) {
+        return false;
+      }
+    }
     if (tags.length && !tags.every((t) => p.tags.includes(t))) return false;
     const key = cfProblemKey(p.contestId, p.index);
     const solved = !!state.cfSolved[key];
@@ -1625,33 +1630,37 @@ function renderCFTable() {
       const solvedCount = p.solvedCount
         ? `${p.solvedCount >= 1000 ? (p.solvedCount / 1000).toFixed(1) + "k" : p.solvedCount}`
         : "—";
-      return `<tr class="${solved ? "solved" : ""}">
-      <td class="col-status">
-        ${
-          solved
-            ? `<span class="solved-icon" title="Solved${solveDate ? " · " + solveDate : ""}">✓</span>`
-            : `<span class="unsolved-icon">○</span>`
-        }
-      </td>
-      <td class="col-title">
-        <div class="title-cell-content">
-          <button class="star-btn inline-star ${starred ? "starred" : ""}" onclick="toggleCFBookmark('${key}')" title="Bookmark">${starred ? "★" : "☆"}</button>
+        return `<tr class="${solved ? "solved" : ""}">
+        <td class="col-status">
           ${
             solved
-              ? `<button class="note-btn-inline ${hasNote ? "has-note" : ""}" 
-            onclick="openCFNoteModal('${key}', '${safeCFName}')" 
-            title="${hasNote ? "Edit note" : "Add note"}">${hasNote ? "📝" : "✎"}</button>`
-              : ""
+              ? `<span class="solved-icon" title="Solved${solveDate ? " · " + solveDate : ""}">✓</span>`
+              : `<span class="unsolved-icon">○</span>`
           }
-          <a href="${link}" target="_blank" rel="noopener" class="cf-problem-link">${p.name}</a>
-          ${reviewDue ? '<span class="review-badge-inline" title="Due for SM2 review">↺</span>' : ""}
-          ${tags ? `<span class="row-tags">${tags}</span>` : ""}
-        </div>
-      </td>
-      <td class="col-diff">${ratingDisplay}</td>
-      <td class="col-contest"><a href="${contestLink}" target="_blank" rel="noopener" class="cf-contest-link">${p.contestId}${p.index}</a></td>
-      <td class="col-solves">${solvedCount}</td>
-    </tr>`;
+        </td>
+        <td class="col-title">
+          <div class="title-cell-content">
+            <button class="star-btn inline-star ${starred ? "starred" : ""}" onclick="toggleCFBookmark('${key}')" title="Bookmark">${starred ? "★" : "☆"}</button>
+            ${
+              solved
+                ? `<button class="note-btn-inline ${hasNote ? "has-note" : ""}" 
+              onclick="openCFNoteModal('${key}', '${safeCFName}')" 
+              title="${hasNote ? "Edit note" : "Add note"}">${hasNote ? "📝" : "✎"}</button>`
+                : ""
+            }
+            <a href="${link}" target="_blank" rel="noopener" class="cf-problem-link">
+              <span style="color:var(--text-muted);margin-right:4px;font-size:12px">${p.index}. </span>${p.name}
+            </a>
+            ${reviewDue ? '<span class="review-badge-inline" title="Due for SM2 review">↺</span>' : ""}
+            ${tags ? `<span class="row-tags">${tags}</span>` : ""}
+          </div>
+        </td>
+        <td class="col-diff">${ratingDisplay}</td>
+        <td class="col-contest">
+          <a href="${contestLink}" target="_blank" rel="noopener" class="cf-contest-link">${p.contestId}</a>
+        </td>
+        <td class="col-solves">${solvedCount}</td>
+      </tr>`;
     })
     .join("");
 
@@ -2533,7 +2542,7 @@ function applyFilters() {
     }
     if (state.curatedList && !CURATED_LISTS[state.curatedList]?.has(item.id))
       return false;
-    if (q && !item.title.toLowerCase().includes(q)) return false;
+    if (q && !item.title.toLowerCase().includes(q) && !String(item.id).includes(q)) return false;
     return true;
   });
   applySort();
@@ -2762,9 +2771,9 @@ function renderTable() {
               data-id="${q.id}" onclick="toggleBookmark(${q.id})"
               title="Bookmark">${starred ? "★" : "☆"}</button>
               <a href="${q.link}" target="_blank" rel="noopener" style="${q.isPremium ? 'color: var(--yellow); opacity: 0.8;' : ''}">
-              ${q.isPremium ? '<span title="LeetCode Premium Required" style="margin-right:5px">🔒</span>' : ''}
-              ${q.title}
-            </a>
+  ${q.isPremium ? '<span title="LeetCode Premium Required" style="margin-right:5px">🔒</span>' : ''}
+  <span style="color:var(--text-muted);margin-right:4px;font-size:12px">${q.id}. </span>${q.title}
+</a>
       ${reviewDue ? '<span class="review-badge-inline" title="Due for SM2 review">↺</span>' : ""}
       ${solved ? `<button class="note-btn-inline ${hasNote ? "has-note" : ""}" data-id="${q.id}" onclick="openNoteModal(${q.id})" title="${hasNote ? "Edit note" : "Add note"}">${hasNote ? "📝" : "✎"}</button>` : ""}
       ${tags.length ? `<span class="row-tags">${tags.map((t) => `<span class="pattern-tag-sm" style="cursor:pointer" onclick="togglePatternFilter('${t.replace(/'/g, "\\'")}')" title="Filter by ${t}">${t}</span>`).join("")}</span>` : ""}
@@ -4665,7 +4674,7 @@ function renderACTable() {
   const page = state.acFiltered.slice(start, start + ITEMS_PER_PAGE);
 
   if (!page.length) {
-    tbody.innerHTML = `<tr><td colspan="4" class="empty-state">No problems match your filters.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="empty-state">No problems match your filters.</td></tr>`;
     renderACPagination();
     return;
   }
@@ -4711,7 +4720,10 @@ function renderACTable() {
         </div>
       </td>
       <td class="col-diff">${diffDisplay}</td>
-      <td class="col-contest"><a href="${contestLink}" target="_blank" rel="noopener" class="cf-contest-link">${p.contestId.toUpperCase()}</a></td>
+      <td class="col-contest">
+        <a href="${contestLink}" target="_blank" rel="noopener" class="cf-contest-link">${p.contestId.toUpperCase()}</a>
+      </td>
+      <td class="col-solves">${solvedCount}</td>
     </tr>`;
     })
     .join("");
