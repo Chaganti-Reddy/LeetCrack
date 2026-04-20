@@ -883,7 +883,7 @@ async function runFullHistorySync() {
     submissions.forEach((s) => {
       const slug = s.titleSlug.toLowerCase();
       const existing = slugMap.get(slug);
-      if (!existing || s.timestamp < existing) slugMap.set(slug, s.timestamp);
+      if (!existing || s.timestamp > existing) slugMap.set(slug, s.timestamp);
     });
 
     const slugToId = new Map();
@@ -970,12 +970,18 @@ async function syncLeetCode(silent = false) {
     let newlySynced = 0;
     slugMap2.forEach((timestamp, slug) => {
       const id = slugToId2.get(slug);
-      if (!id || state.solved[id]) return;
-      const solveDate = dateStr(new Date(parseInt(timestamp) * 1000));
-      state.solved[id] = solveDate;
-      state.activity[solveDate] = (state.activity[solveDate] || 0) + 1;
-      initSM2OnSolve(id);
-      newlySynced++;
+      if (!id) return;
+      const newDate = dateStr(new Date(parseInt(timestamp) * 1000));
+      const existingDate = state.solved[id];
+      if (!existingDate || newDate > existingDate) {
+        if (existingDate) {
+          state.activity[existingDate] = Math.max(0, (state.activity[existingDate] || 1) - 1);
+        }
+        state.solved[id] = newDate;
+        state.activity[newDate] = (state.activity[newDate] || 0) + 1;
+        initSM2OnSolve(id);
+        newlySynced++;
+      }
     });
 
     saveProgress();
