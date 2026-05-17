@@ -1,0 +1,38 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+  functions = "../netlify/functions"
+
+[dev]
+  framework = "vite"
+  command = "npm run dev"
+  targetPort = 5173
+  port = 8888
+  functions = "../netlify/functions"
+  autoLaunch = false
+
+[[redirects]]
+  from = "/api/ac-sync"
+  to = "/.netlify/functions/ac-sync"
+  status = 200
+
+[[redirects]]
+  from = "/api/lc-sync"
+  to = "/.netlify/functions/lc-sync"
+  status = 200
+
+[[redirects]]
+  from = "/api/cf-sync"
+  to = "/.netlify/functions/cf-sync"
+  status = 200
+
+[[redirects]]
+  from = "/api/contests-proxy"
+  to = "/.netlify/functions/contests-proxy"
+  status = 200
+
+# SPA catch-all — React Router
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
