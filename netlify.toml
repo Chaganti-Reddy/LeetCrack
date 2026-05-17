@@ -1,5 +1,7 @@
 [build]
-  publish = "."
+  base = "v2"
+  command = "npm run build"
+  publish = "v2/dist"
   functions = "netlify/functions"
 
 [[redirects]]
@@ -13,6 +15,17 @@
   status = 200
 
 [[redirects]]
+  from = "/api/cf-sync"
+  to = "/.netlify/functions/cf-sync"
+  status = 200
+
+[[redirects]]
   from = "/api/contests-proxy"
   to = "/.netlify/functions/contests-proxy"
+  status = 200
+
+# SPA catch-all — React Router
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
   status = 200
