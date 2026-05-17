@@ -37,7 +37,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   login: async () => {
     if (!supabase) return
     set({ loading: true })
-    await supabase.auth.signInWithOAuth({ provider: 'github' })
+    await supabase.auth.signInWithOAuth({
+      provider: 'github',
+      options: { redirectTo: window.location.origin },
+    })
     set({ loading: false })
   },
   logout: async () => {
